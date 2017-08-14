@@ -1,0 +1,13 @@
+Package: openpopscr
+Type: Package
+Title: Open population spatial capture-recapture
+Version: 0.0.0.999
+Author: Richard Glennie <rg374@st-andrews.ac.uk>, David Borchers
+Maintainer: Richard Glennie <rg374@st-andrews.ac.uk>
+Date: 2017-07-12
+Description: Fits open population spatial capture-recapture models by maximum likelihood. Include Cormack-Jolly-Seber and Jolly-Seber models
+License: MIT + file LICENSE
+Imports: Rcpp (>= 0.12.10), R6, secr, parallel, numDeriv, ggplot2
+LinkingTo: Rcpp, RcppArmadillo
+RoxygenNote: 6.0.1
+Suggests: testthat
