@@ -238,8 +238,6 @@ JsModel <- R6Class("JsModel",
                    scale = "working",
                    hessian = TRUE)
       mle <- mod$par
-      #mle <- mod$estimate
-      #mle <- w_par
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       mle <- private$convert_working2natural(mle)
@@ -251,11 +249,9 @@ JsModel <- R6Class("JsModel",
         cat("Variance estimates not reliable, do a bootstrap.")
         return(0)
       } else {
-      #private$V_ <- matrix(runif(length(w_par)^2), nr = length(w_par))
         sd <- sqrt(diag(private$V_))
         names(sd) <- names(w_par)
         sd <- private$convert_working2natural(private$convert_vec2par(sd))
-      #private$llk_ <- -mod$minimum
         confints <- private$calc_confint()
         Dinference <- private$infer_D(nsims)
         private$make_results(sd, confints, Dinference)
