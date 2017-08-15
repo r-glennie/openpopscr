@@ -57,7 +57,11 @@ ScrData <- R6Class("ScrData",
         secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = dim(capthist)[3], nc = dim(capthist)[2])
       }
       private$mesh_ <- mesh
-      private$time_ <- time
+      if (is.null(time)) {
+        private$time_ <- rep(1, dim(capthist)[2])
+      } else {
+        private$time_ <- time
+      }
     },
     
     print = function() {
