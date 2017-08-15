@@ -28,7 +28,9 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <iostream>
 #include <RcppArmadillo.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 // [[Rcpp::plugins(openmp)]]
 
 
@@ -55,10 +57,11 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
   
   const arma::cube capthist(capvec.begin(), n, J, K, false);
   const arma::cube enc0(enc_rate.begin(), M, K, J, false);
-  arma::field<arma::cube> probfield(n); 
+  arma::field<arma::cube> probfield(n);
+  #ifdef _OPENMP
   setenv("OMP_STACKSIZE","10M",1);
   omp_set_num_threads(num_cores);
-  
+  #endif 
   #pragma omp parallel for shared(probfield) default(none) schedule(auto)
   for (int i = 0; i < n; ++i) {
     arma::cube iprob = arma::zeros<arma::cube>(M, 3, J);
