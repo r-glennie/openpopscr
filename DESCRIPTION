@@ -7,7 +7,7 @@ Maintainer: Richard Glennie <rg374@st-andrews.ac.uk>
 Date: 2017-07-12
 Description: Fits Jolly-Seber spatial capture-recapture models by maximum likelihood.
 License: MIT + file LICENSE
-Imports: Rcpp (>= 0.12.10), R6, secr, parallel, numDeriv, ggplot2
+Imports: Rcpp (>= 0.12.10), RcppArmadillo, R6, secr, parallel, numDeriv, ggplot2
 LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 6.0.1
 Suggests: testthat
