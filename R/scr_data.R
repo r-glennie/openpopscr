@@ -58,7 +58,7 @@ ScrData <- R6Class("ScrData",
       }
       private$mesh_ <- mesh
       if (is.null(time)) {
-        private$time_ <- rep(1, dim(capthist)[2])
+        private$time_ <- seq(1, dim(capthist)[2])
       } else {
         private$time_ <- time
       }
