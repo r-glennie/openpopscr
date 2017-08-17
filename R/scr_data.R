@@ -33,6 +33,11 @@
 #'   \item mesh: mask object from secr package
 #'   \item time: optional vector of numeric time each occasion took place at 
 #'     (used for irregularly space occasions). Default is vector of ones.
+#'   \item cov: a list of covariate (for detector, occasion, space)
+#'   \item cov_type: type of covariate (j = detector cov, k = occasion cov, 
+#'         m = spatial cov, jk = detector+occasion, jm = detector+spatial, 
+#'         km = occasion+spatial, jkm=detection+occasion+spatial)
+#'        
 #' }
 #' 
 #' Methods include: 
@@ -41,6 +46,8 @@
 #'  \item traps(): return traps object 
 #'  \item mesh(): return mesh object
 #'  \item time(): return time vector 
+#'  \item covs(j, k, m): return covariate values at detector j 
+#'        on occasion k when activity centre is at m  
 #'  \item n(): return number of individuals seen over the entire survey
 #'  \item n_occasions(): return number of capture occasions in the survey
 #'  \item n_traps(): return number of traps used at some time in the survey
@@ -51,7 +58,11 @@
 #' 
 ScrData <- R6Class("ScrData", 
   public = list( 
-    initialize = function(capthist, mesh, time = NULL) {
+    initialize = function(capthist, 
+                          mesh, 
+                          time = NULL, 
+                          cov = NULL, 
+                          cov_type = NULL) {
       private$capthist_ <- capthist 
       if (is.null(secr::usage(secr::traps(capthist)))) {
         secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = dim(capthist)[3], nc = dim(capthist)[2])
@@ -62,6 +73,9 @@ ScrData <- R6Class("ScrData",
       } else {
         private$time_ <- time
       }
+      private$cov_ <- cov 
+      private$cov_$t <- (1:dim(capthist)[2]) - 1
+      private$cov_type_ <- c(cov_type, "k")
     },
     
     print = function() {
@@ -75,6 +89,21 @@ ScrData <- R6Class("ScrData",
     traps = function() {return(traps(private$capthist_))},
     mesh = function() {return(private$mesh_)},
     time = function() {return(private$time_)},
+    
+    covs = function(j = NULL, k = NULL, m = NULL) {
+      dat <- lapply(1:length(private$cov_), FUN =  function(c) {
+        switch(private$cov_type_[c], 
+               j = private$cov_[[c]][j], 
+               k = private$cov_[[c]][k], 
+               m = private$cov_[[c]][m], 
+               jk = private$cov_[[c]][j, k], 
+               jm = private$cov_[[c]][j, m], 
+               km = private$cov_[[c]][k, m], 
+               jkm = private$cov_[[c]][j, k, m])
+      })
+      names(dat) <- names(private$cov_)
+      return(dat)
+    }, 
     
     n = function() {return(dim(private$capthist_)[1])},
     n_occasions = function() {return(dim(private$capthist_)[2])},
@@ -97,8 +126,9 @@ ScrData <- R6Class("ScrData",
   private = list(
     capthist_ = NULL, 
     mesh_ = NULL,
-    time_ = NULL, 
-    covs_ = NULL 
+    time_ = NULL,
+    cov_ = NULL, 
+    cov_type_ = NULL
   )
 )
 

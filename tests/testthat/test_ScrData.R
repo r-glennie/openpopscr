@@ -2,8 +2,20 @@ context("Test SCR Data object")
 
 data("openpopscr_example_data")
 time <- c(1, 2, 3, 5, 6, 9, 10, 11, 12, 13)
+covs <- list(xj = runif(49),
+             xk = runif(10), 
+             xm = runif(3760), 
+             xjk = matrix(runif(49 * 10), nr = 49, nc = 10), 
+             xjm = matrix(runif(49 * 3760), nr = 49, nc = 3760), 
+             xkm = matrix(runif(10 * 3760), nr = 10, nc = 3760), 
+             xjkm = array(runif(10 * 40 * 3760), dim = c(49, 10, 3760)))
+cov_type <- c("j", "k", "m", "jk", "jm", "km", "jkm")
 scr_dat <- ScrData$new(openpopscr_example_data$capture.history, 
-                       openpopscr_example_data$mesh, time)
+                       openpopscr_example_data$mesh, 
+                       time,
+                       covs,
+                       cov_type)
+c <- scr_dat$covs(j = 2, k = 7, m = 1001)
 new_cap <- openpopscr_example_data$capture.history
 secr::usage(secr::traps(new_cap)) <- matrix(1, nr = 49, nc = 10)
 dist <- scr_dat$distances()
@@ -18,6 +30,15 @@ test_that("mesh is equal to raw mesh",
 
 test_that("time vector is equal to raw time vector", 
           expect_identical(scr_dat$time(), time))
+
+test_that("covariates are loaded correctly", { 
+          expect_equal(c$xj, covs$xj[2])
+          expect_equal(c$xk, covs$xk[7])
+          expect_equal(c$xm, covs$xm[1001])
+          expect_equal(c$xjk, covs$xjk[2, 7])
+          expect_equal(c$xjm, covs$xjm[2, 1001])
+          expect_equal(c$xkm, covs$xkm[7, 1001])
+          expect_equal(c$xjkm, covs$xjkm[2, 7, 1001]) })
 
 test_that("n = # of individuals is correct", 
           expect_equal(scr_dat$n(), 75))
@@ -36,7 +57,4 @@ test_that("area = area of mesh in sq km",
 
 test_that("check a few distance calculations", {
           expect_equal(dist[1, 50], sqrt(47.5^2 + 92.5^2))
-  expect_equal(dist[10, 37], sqrt((40 + 17.5)^2 + (20 + 92.5)^2))
-}
-
-)
+          expect_equal(dist[10, 37], sqrt((40 + 17.5)^2 + (20 + 92.5)^2)) })
