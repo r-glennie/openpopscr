@@ -91,15 +91,18 @@ ScrData <- R6Class("ScrData",
     time = function() {return(private$time_)},
     
     covs = function(j = NULL, k = NULL, m = NULL) {
+       if (j == ".") j0 <- seq(1, self$n_traps()) else j0 <- j
+       if (k == ".") k0 <- seq(1, self$n_occasions()) else k0 <- k 
+       if (m == ".") m0 <- seq(1, self$n_meshpts()) else m0 <- m 
       dat <- lapply(1:length(private$cov_), FUN =  function(c) {
         switch(private$cov_type_[c], 
-               j = private$cov_[[c]][j], 
-               k = private$cov_[[c]][k], 
-               m = private$cov_[[c]][m], 
-               jk = private$cov_[[c]][j, k], 
-               jm = private$cov_[[c]][j, m], 
-               km = private$cov_[[c]][k, m], 
-               jkm = private$cov_[[c]][j, k, m])
+               j = private$cov_[[c]][j0], 
+               k = private$cov_[[c]][k0], 
+               m = private$cov_[[c]][m0], 
+               jk = private$cov_[[c]][j0, k0], 
+               jm = private$cov_[[c]][j0, m0], 
+               km = private$cov_[[c]][k0, m0], 
+               jkm = private$cov_[[c]][j0, k0, m0])
       })
       names(dat) <- names(private$cov_)
       return(dat)
