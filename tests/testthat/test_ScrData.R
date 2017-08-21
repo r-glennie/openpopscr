@@ -2,14 +2,15 @@ context("Test SCR Data object")
 
 data("openpopscr_example_data")
 time <- c(1, 2, 3, 5, 6, 9, 10, 11, 12, 13)
-covs <- list(xj = runif(49),
+covs <- list(x = 2, 
+             xj = runif(49),
              xk = runif(10), 
              xm = runif(3760), 
              xjk = matrix(runif(49 * 10), nr = 49, nc = 10), 
              xjm = matrix(runif(49 * 3760), nr = 49, nc = 3760), 
              xkm = matrix(runif(10 * 3760), nr = 10, nc = 3760), 
              xjkm = array(runif(10 * 40 * 3760), dim = c(49, 10, 3760)))
-cov_type <- c("j", "k", "m", "jk", "jm", "km", "jkm")
+cov_type <- c("1","j", "k", "m", "jk", "jm", "km", "jkm")
 scr_dat <- ScrData$new(openpopscr_example_data$capture.history, 
                        openpopscr_example_data$mesh, 
                        time,

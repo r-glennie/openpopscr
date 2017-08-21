@@ -16,6 +16,11 @@ object. Object can be created using $new with arguments:
   \item mesh: mask object from secr package
   \item time: optional vector of numeric time each occasion took place at 
     (used for irregularly space occasions). Default is vector of ones.
+  \item cov: a list of covariate (for detector, occasion, space)
+  \item cov_type: type of covariate (j = detector cov, k = occasion cov, 
+        m = spatial cov, jk = detector+occasion, jm = detector+spatial, 
+        km = occasion+spatial, jkm=detection+occasion+spatial)
+       
 }
 
 Methods include: 
@@ -24,6 +29,8 @@ Methods include:
  \item traps(): return traps object 
  \item mesh(): return mesh object
  \item time(): return time vector 
+ \item covs(j, k, m): return covariate values at detector j 
+       on occasion k when activity centre is at m  
  \item n(): return number of individuals seen over the entire survey
  \item n_occasions(): return number of capture occasions in the survey
  \item n_traps(): return number of traps used at some time in the survey

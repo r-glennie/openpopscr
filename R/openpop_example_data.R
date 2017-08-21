@@ -1,3 +1,3 @@
 #' Example open population SCR data for count detectors 
 #'
-"openpopscr_example_data"
+"openpop_example_data"

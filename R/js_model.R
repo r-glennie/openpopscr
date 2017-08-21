@@ -30,14 +30,17 @@
 #' simulates from fitted model. 
 #' \itemize{
 #'   \item scr_data: a ScrData object 
-#'   \item par: a named list of initial parameter values
+#'   \item form: a named list of formulae for each parameter (~1 for constant)
+#'   \item start: a named list of starting values 
 #'   \item num_cores (optional, default = 1): number of processors cores to use 
 #'   in parallelised code 
 #' }
 #' 
 #' Methods include: 
 #' \itemize{
-#'  \item set_par(): can change the parameter the model uses. Note, the model will simulate 
+#'  \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
+#'   on occasion k at mesh point m (if j, k, or m omitted returns value(s) for all)
+#'  \item set_par(par): can change the parameter the model uses. Note, the model will simulate 
 #'    data using this parameter, but will only present inference based on the maximum likelihood
 #'    estimates. 
 #'  \item calc_D_llk(): computes the likelihood of the D parameter
@@ -49,26 +52,72 @@
 #'  on occasion k for individual i given activity centre at mesh point m
 #'  \item calc_pdet(): compute probability of being detected at least once during the survey
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item fit(): fit the model by obtaining the maximum likelihood estimates
-#'  \item plot(): plot estimated density over time with 95% confidence intervals
+#'  \item fit(nsims = 99): fit the model by obtaining the maximum likelihood estimates. Estimates of
+#'        density are obtained from parametric boostrap with nsim resamples. 
 #'  \item simulate(): simulate ScrData object from fitted model
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to 
 #'  \item estimates(): return estimates in a easy to extract list 
 #'  \item cov_matrix(): return variance-covariance matrix from fitted model (on working scale)
-#'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates  
+#'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
+#'  \item sample_D(nsims): generate nsims time series for density, sampled from fitted model
+#'  \item sample_R(nsims): generate nsims time series of arrival numbers, sampled from fitted model  
 #' }
 #' 
 JsModel <- R6Class("JsModel", 
   public = list(
     
-    initialize = function(scr_data, par, num_cores = 1) {
-      private$data_ = scr_data
-      private$par_ = par
-      private$mle_ = NULL 
+    initialize = function(form, data, start, num_cores = 1) {
+      private$data_ <- data
+      private$form_ <- form 
+      par_names <- sapply(form, function(f){f[[2]]})
+      private$form_[[1]]<- form[par_names == "lambda0"][[1]]
+      private$form_[[2]] <- form[par_names == "sigma"][[1]]
+      private$form_[[3]] <- form[par_names == "phi"][[1]]
+      private$form_[[4]] <- form[par_names == "beta"][[1]]
+      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
+      names(private$form_) <- c("lambda0", "sigma", "phi", "beta")
+      private$make_par() 
+      private$link2response_ <- list(lambda0 = "exp", 
+                            sigma = "exp", 
+                            phi = "plogis", 
+                            beta = "exp", 
+                            D = "exp")
+      private$response2link_ <- list(lambda0 = "log", 
+                                     sigma = "log", 
+                                     phi = "qlogis", 
+                                     beta = "log", 
+                                     D = "log")
+      private$initialise_par(start)
       private$num_cores_ = num_cores
     },
+    
+    get_par = function(name, j = NULL, k = NULL, m = NULL) {
+     if (name == "beta") {
+       k_save <- k
+       k <- NULL
+     } 
+     if (name == "phi" & is.null(k)) {
+       k <- 1:(private$data_$n_occasions() - 1) 
+     }
+     covs <- private$data_$covs(j = j, k = k, m = m)
+     i_par <- which(names(private$form_) == name) 
+     X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
+     theta <- private$par_[[i_par]]
+     l_par <- which(names(private$link2response_) == name)
+     resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
+     if (name == "beta") {
+       if (length(theta) == 1) {
+         dt <- diff(private$data_$time())
+         resp[-1] <- resp[-1] * dt / sum(dt)
+       } 
+       resp[1] <- 1 
+       resp <- resp / (1 + exp(private$par_$beta[1]))
+       if(!is.null(k_save)) resp <- resp[k_save]
+     }
+     return(resp)
+    }, 
     
     set_par = function(par) {
       private$par_ <- par
@@ -87,7 +136,7 @@ JsModel <- R6Class("JsModel",
     }, 
     
     calc_D_llk = function() {
-      D <- self$par()$D
+      D <- do.call(private$link2response_$D, list(self$par()$D))
       A <- private$data_$area()
       n <- private$data_$n()
       pdet <- self$calc_pdet()
@@ -97,7 +146,7 @@ JsModel <- R6Class("JsModel",
     },
     
     calc_initial_distribution = function() {
-      a0 <- self$par()$beta[1]
+      a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
       pr0 <- pr0 / n_mesh
@@ -105,17 +154,13 @@ JsModel <- R6Class("JsModel",
     },
     
     calc_pr_entry = function() {
-      beta <- self$par()$beta 
       n_occasions <- private$data_$n_occasions()  
       pr_entry <- rep(0, n_occasions - 1)
-      prod <- 1 - beta[1]
-      if (length(beta) != n_occasions) {
-        dt <- diff(private$data_$time())
-        beta <- c(beta[1], (1 - beta[1]) * dt / sum(dt))
-      }
-      for (j in 1:(n_occasions - 1)) {
-        pr_entry[j] <- beta[j + 1] / prod
-        prod <- prod * (1 - pr_entry[j])
+      prod <- 1 - self$get_par("beta", j = 1, k = 1, m = 1)
+      for (k in 1:(n_occasions - 1)) {
+        b <- self$get_par("beta", j = 1, k = k + 1, m = 1)
+        pr_entry[k] <- b / prod
+        prod <- prod * (1 - pr_entry[k])
       }
       return(pr_entry)
     }, 
@@ -125,15 +170,13 @@ JsModel <- R6Class("JsModel",
       pr_entry <- self$calc_pr_entry()      
       n_occasions <- private$data_$n_occasions()
       tpms <- vector("list", length = n_occasions)
-      phi <- self$par()$phi
-      if (length(phi) == 1) {
-        phi <- rep(phi, private$data_$n_occasions() - 1)
-        if (!is.null(private$data_$time())) phi <- phi^diff(private$data_$time())
-      } 
-      for (j in 1:(n_occasions - 1)) {
-        tpms[[j]] <- matrix(c(1 - pr_entry[j], 0, 0, 
-                            pr_entry[j], phi[j], 0,
-                            0, 1 - phi[j], 1), nrow = 3, ncol = 3)
+      dt <- diff(private$data_$time())
+      for (k in 1:(n_occasions - 1)) {
+        phi <- self$get_par("phi", j = 1, k = k, m = 1)
+        if (dt[k] > 1) phi <- phi^dt[k]
+        tpms[[k]] <- matrix(c(1 - pr_entry[k], 0, 0, 
+                            pr_entry[k], phi, 0,
+                            0, 1 - phi, 1), nrow = 3, ncol = 3)
       }
       return(tpms)
     }, 
@@ -141,13 +184,11 @@ JsModel <- R6Class("JsModel",
     calc_pr_capture = function() {
       dist <- t(private$data_$distances())
       n_occasions <- private$data_$n_occasions()
-      lambda0 <- self$par()$lambda0
-      if (length(lambda0) == 1) lambda0 <- rep(lambda0, n_occasions)
-      sigma <- self$par()$sigma
-      if (length(sigma) == 1) sigma <- rep(sigma, n_occasions)
       enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
-      for (j in 1:n_occasions) {
-        enc_rate0[,,j] <- lambda0[j] * exp(-dist ^ 2 / (2  * sigma[j] ^ 2))
+      for (k in 1:n_occasions) {
+        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
+        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
+        enc_rate0[,,k] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
       }
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
@@ -163,13 +204,11 @@ JsModel <- R6Class("JsModel",
       # compute probability of zero capture history 
       dist <- private$data_$distances()
       n_occasions <- private$data_$n_occasions()
-      lambda0 <- self$par()$lambda0
-      if (length(lambda0) == 1) lambda0 <- rep(lambda0, n_occasions)
-      sigma <- self$par()$sigma
-      if (length(sigma) == 1) sigma <- rep(sigma, n_occasions)
       enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      for (j in 1:n_occasions) {
-        enc_rate[j,,] <- lambda0[j] * exp(-dist ^ 2 / (2  * sigma[j] ^ 2))
+      for (k in 1:n_occasions) {
+        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
+        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
+        enc_rate[k,,] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
       }
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
@@ -184,19 +223,8 @@ JsModel <- R6Class("JsModel",
       return(pdet)
     },
     
-    calc_llk = function(param = NULL, names = NULL, scale = "natural") {
-      if (!is.null(param)) {
-        if (scale == "natural") {
-          if(!is.null(names)) names(param) <- names 
-          self$set_par(param)  
-        } else {
-          if (scale == "working") {
-            if(!is.null(names)) names(param) <- names 
-            par <- private$convert_vec2par(param)
-            self$set_par(private$convert_working2natural(par))
-          }
-        }
-      }
+    calc_llk = function(param = NULL, names = NULL) {
+      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
       # compute transition probability matrices 
       tpms <- self$calc_tpms()
       # initial distribution 
@@ -213,35 +241,23 @@ JsModel <- R6Class("JsModel",
       llk <- llk - n * log(self$calc_pdet())
       llk <- llk + self$calc_D_llk()
       #plot(self$par()$beta[-1])
-      cat("llk:", llk, 
-          "lambda0:", mean(self$par()$lambda0), 
-          "sigma:", mean(self$par()$sigma), 
-          "phi:", mean(self$par()$phi),
-          "beta:", self$par()$beta[1], 
-          "D :", self$par()$D, "\n")
+      cat("llk:", llk, "\n")
       return(llk)
     },
     
-    fit = function(ini_par = NULL, nsims = 999) {
+    fit = function(ini_par = NULL, nsims = 99) {
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
-      w_par <- private$convert_natural2working(par)
-      w_par <- private$convert_par2vec(w_par)
-      # mod <- nlm(private$calc_negllk,
-      #            w_par,
-      #            names = names(w_par),
-      #            scale = "working",
-      #            hessian = TRUE)
+      w_par <- private$convert_par2vec(par)
       mod <- optim(w_par,
                    private$calc_negllk,
                    names = names(w_par),
-                   scale = "working",
                    hessian = TRUE)
       mle <- mod$par
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
-      mle <- private$convert_working2natural(mle)
       mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
+      self$set_par(mle)
       private$mle_ <- mle
       private$llk_ <- -mod$value
       private$V_ <- solve(mod$hessian)
@@ -251,10 +267,7 @@ JsModel <- R6Class("JsModel",
       } else {
         sd <- sqrt(diag(private$V_))
         names(sd) <- names(w_par)
-        sd <- private$convert_working2natural(private$convert_vec2par(sd))
-        confints <- private$calc_confint()
-        Dinference <- private$infer_D(nsims)
-        private$make_results(sd, confints, Dinference)
+        private$make_results(nsims)
       }
     }, 
     
@@ -263,107 +276,55 @@ JsModel <- R6Class("JsModel",
     if (is.null(private$mle_)) {
       print("Fit model using $fit method")
     } else {
-      cat("DETECTION \n")
-      print(signif(private$tab_, 4))
+      cat("PARAMETER ESTIMATES (link scale)\n")
+      print(signif(private$results_, 4))
     
       cat("--------------------------------------------------------------------------------")
-      cat("\n SURVIVAL \n")
-      print(signif(private$phi_tab_, 4))
-      
-      cat("--------------------------------------------------------------------------------")
-      cat("\n ARRIVAL \n")
-      if (!is.null(private$beta_tab_)) {
-        print(signif(private$beta_tab_, 4))
-      } else {
-        cat("\n Assumed constant. \n")
-      }
-      cat("--------------------------------------------------------------------------------")
-      cat("\n DENSITY \n")
+      cat("\n DENSITY (response scale) \n")
       print(signif(private$D_tab_, 4))
       cat("--------------------------------------------------------------------------------")
     }
     options(scipen = 0)
   }, 
   
-  plot = function(par = "D") {
-    
-    plot_var <- function(dat) {
-      time <- 1:private$data_$n_occasions()
-       if (!is.null(private$data_$time())) time <- private$data_$time()
-       full_time <- seq(time[1], time[length(time)], 1)
-       dat <- data.frame(mean = dat[, 1], 
-                           lcl = dat[, 2], 
-                           ucl = dat[ ,3], 
-                           t = time)
-       grp <- ggplot2::ggplot(dat, ggplot2::aes(x = t)) + 
-         ggplot2::geom_line(ggplot2::aes(y = mean), col = "black") + 
-         ggplot2::geom_point(ggplot2::aes(y = mean), col = "black") +
-         ggplot2::geom_ribbon(ggplot2::aes(ymin = lcl, ymax = ucl), linetype = 2, alpha = 0.2) + 
-         ggplot2::scale_x_continuous("Occasion", breaks = full_time, labels = full_time) + 
-         ggplot2::scale_y_continuous("Density (per square kilometre)") + 
-         ggplot2::theme_bw() +
-         ggplot2::theme(panel.grid.major = ggplot2::element_blank(), 
-                        panel.grid.minor = ggplot2::element_blank())
-       grp
-    }
-    
-   if (is.null(private$mle_)) {
-     private$data_$plot()
-   } else {
-     if (par == "D") {
-       plot_var(private$D_tab_)
-       
-     } else {
-       if (is.null(self$par()[par])) stop("parameter does not exist")
-       if (length(self$par()[par]) == 1) stop("parameter not time-varying")
-       plot_var(self$par()[par])
-     }
-   }
-  }, 
- 
   simulate = function(seed = NULL) {
     if (!is.null(seed)) set.seed(seed)
     num.meshpts <- private$data_$n_meshpts()
     mesh <- private$data_$mesh()
-    D <- self$par()$D / 100
+    D <- do.call(private$link2response_$D, list(self$par()$D)) / 100
     # simulate population
     pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
-    a0 <- self$par()$beta[1]
+    a0 <- self$get_par("beta", j = 1, k = 1, m = 1) 
     birth_time <- sample(c(0, 1), size = nrow(pop), prob = c(1 - a0, a0), replace = TRUE) 
-    beta <- self$par()$beta[-1]
     n_occasions <- private$data_$n_occasions()
-    if (length(beta) == 0) {
-      beta <- rep(1 , n_occasions - 1) 
-      if (!is.null(private$data_$time())) beta <- diff(private$data_$time())
-      beta <- beta / sum(beta) 
-    }
+    dt <- diff(private$data_$time())
+    beta <- self$get_par("beta", j = 1, k = 2:n_occasions, m = 1) 
     birth_time <- ifelse(birth_time == 0, 
                          sample(2:n_occasions, 
                                 size = nrow(pop), 
-                                prob = beta,
+                                prob = 1 - (1 - beta)^dt,
                                 replace = TRUE), 
                          1)
     
-    phi <- self$par()$phi 
-    if (length(phi) == 1) {
-      phi <- rep(phi, n_occasions - 1)
-      if (!is.null(private$data_$time())) phi <- phi^diff(private$data_$time())
-    }
+    phi <- self$get_par("phi", j = 1, m = 1)
+    phi <- phi ^ dt
     life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
     life[birth_time == 1, 1] <- 1
-    for (j in 2:n_occasions) {
-      life[birth_time < j,j] <- rbinom(sum(birth_time < j), 1, phi[j - 1]) 
-      life[birth_time == j, j] <- 1
+    for (k in 2:n_occasions) {
+      life[birth_time < k,k] <- rbinom(sum(birth_time < k), 1, phi[k - 1]) 
+      life[birth_time == k, k] <- 1
     }
     # generate capture histories
-    plot(mesh)
-    plot(pop[life[,1] == 1, ], add = T)
-    plot(private$data_$traps(), add = T)
+    #plot(mesh)
+    #plot(pop[life[,1] == 1, ], add = T)
+    #plot(private$data_$traps(), add = T)
+    lambda0 <- self$get_par("lambda0", m = 1)
+    sigma <- self$get_par("sigma", j = 1, m = 1)
     capture_history <- sim.capthist(private$data_$traps(), 
                                     popn = pop, 
                                     detectfn = "HHN", 
-                                    detectpar = list(lambda0 = self$par()$lambda0, 
-                                                     sigma = self$par()$sigma), 
+                                    detectpar = list(lambda0 = lambda0, 
+                                                     sigma = sigma), 
                                     noccasions = n_occasions,
                                     renumber = FALSE)
     # thin capture history by survival
@@ -382,121 +343,95 @@ JsModel <- R6Class("JsModel",
     return(new_dat)
   }, 
   
-   
-    par = function() {return(private$par_)},
-    mle = function() {return(private$mle_)},
-    data = function() {return(private$data_)}, 
-    estimates = function() {
+  par = function() {return(private$par_)},
+  mle = function() {return(private$mle_)},
+  data = function() {return(private$data_)}, 
+  
+  estimates = function() {
       ests <- NULL
       if (is.null(private$mle_)) {
         ests <- "Fit model using $fit method"
       } else {
-        ests$estimates <- private$tab_ 
-        ests$phi <- private$phi_tab_ 
-        if (!is.null(private$beta_tab_)) ests$beta <- private$beta_tab_
+        ests$par <- private$results_
         ests$D <- private$D_tab_
       }
       return(ests)
     },
+  
     cov_matrix = function() {return(private$V_)}, 
     mle_llk = function() {return(private$llk_)},
-    sample_D = function(nsims = 999) {
+  
+    sample_D = function(nsims = 99) {
       if (is.null(private$mle_)) stop("Fit model using $fit method.")
       sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, sds, extract_samples = 1))
+      return(private$infer_D(nsims, extract_samples = 1))
     }, 
-     
-    sample_R = function(nsims = 999) {
+    sample_R = function(nsims = 99) {
       if (is.null(private$mle_)) stop("Fit model using $fit method.")
       sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, sds, extract_samples = 2))
+      return(private$infer_D(nsims, extract_samples = 2))
     } 
   
 ),
                    
   private = list(
     data_ = NULL,
+    form_ = NULL, 
     par_ = NULL, 
+    link2response_ = NULL, 
+    response2link_ = NULL, 
     mle_ = NULL,
-    tab_ = NULL,
-    phi_tab_ = NULL, 
-    beta_tab_ = NULL, 
+    results_ = NULL,
     D_tab_ = NULL, 
     V_ = NULL, 
     llk_ = NULL, 
     sig_level_ = 0.05, 
     num_cores_ = NULL, 
     
-    make_results = function(sd, confint, Dinference) {
+    make_par = function() {
+      samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
+      n_par <- numeric(4)
+      private$par_ <- vector(mode = "list", length = 5)
+      for (par in 1:4) {
+        n_par[par] <- ncol(model.matrix(private$form_[[par]], data = samp_cov))
+        private$par_[[par]] <- rep(0, n_par[par]) 
+      }
+      private$par_[[5]] <- 0
+      names(private$par_) <- c(names(private$form_), "D") 
+    }, 
+    
+    initialise_par = function(start) {
+        private$par_$lambda0[1] <- do.call(private$response2link_$lambda0, 
+                                           list(start$lambda0))
+        private$par_$sigma[1] <-do.call(private$response2link_$sigma, 
+                                           list(start$sigma))
+        private$par_$phi[1] <- do.call(private$response2link_$phi, 
+                                           list(start$phi))
+        private$par_$beta <- do.call(private$response2link_$beta,
+                                        list(c(1 / start$beta - 1)))
+        private$par_$D <- do.call(private$response2link_$D, 
+                                           list(start$D))
+    }, 
+    
+    make_results = function(nsims) {
       if (is.null(private$mle_)) print("Fit model using $fit method.")
-      n_occasions <- private$data_$n_occasions()
-      tab_n_rows <- n_occasions * 2
-      shift <- rep(n_occasions, 2)
-      if (length(private$mle_$lambda0) == 1) {
-        tab_n_rows <- tab_n_rows - n_occasions + 1
-        shift[1] <- 1 
-      }
-      if (length(private$mle_$sigma) == 1) {
-        tab_n_rows <- tab_n_rows - n_occasions + 1
-        shift[2] <- 1 
-      }
-      tab <- matrix(0, nr = tab_n_rows, nc = 3)
-      colnames(tab) <- c("Est.", "LCL", "UCL")
-      tab[1:shift[1], ] <- c(private$mle_$lambda0, 
-                             confint$LCL$lambda0, 
-                             confint$UCL$lambda0)
+      par <- private$convert_par2vec(private$mle_) 
+      sd <- sqrt(diag(private$V_))
+      ci <- private$calc_confint()
+      Dinfer <- private$infer_D(nsims = nsims)
+      results <- cbind(par, sd, ci$LCL, ci$UCL)
+      colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
+      rownames(results) <- names(par)
+      private$results_ <- results 
       
-      tab[(shift[1] + 1):(shift[1] + shift[2]), ] <- c(private$mle_$sigma, 
-                                                       confint$LCL$sigma, 
-                                                       confint$UCL$sigma)
-      
-      row_names <- NULL 
-      if (length(private$mle_$lambda0) == 1) {
-        row_names <- c(row_names, "lambda0")
-      } else {
-        row_names <- c(paste("lambda0_", 1:n_occasions, sep = ""))
-      }
-      
-      if (length(private$mle_$sigma) == 1) {
-        row_names <- c(row_names, "sigma")
-      } else {
-        row_names <- c(row_names, paste("sigma_", 1:n_occasions, sep = ""))
-      }
-      
-      rownames(tab) <- row_names 
-      
-      
-      if (length(self$par()$phi) == 1) {
-        phi_tab <- matrix(0, nr = 1, nc = 3)
-      } else {
-        phi_tab <- matrix(0, nr = private$data_$n_occasions() - 1, nc = 3)
-        rownames(phi_tab) <- 1:(private$data_$n_occasions() - 1)
-      }
-      colnames(phi_tab) <- c("Est.", "LCL", "UCL")
-      phi_tab[, 1] <- private$mle_$phi
-      phi_tab[, 2] <- confint$LCL$phi
-      phi_tab[, 3] <- confint$UCL$phi 
-      
-      beta_tab <- NULL 
-      beta_tab <- matrix(0, nr = length(self$par()$beta), nc = 3)
-      colnames(beta_tab) <- c("Est.", "LCL", "UCL")
-      rownames(beta_tab) <- 1:(length(self$par()$beta))
-      beta_tab[, 1] <- private$mle_$beta
-      beta_tab[, 2] <- Dinference$beta_lcl
-      beta_tab[, 3] <- Dinference$beta_ucl 
-      
+      ## D tab
       D_tab <- matrix(0, nr = private$data_$n_occasions(), nc = 3)
-      colnames(D_tab) <- c("Est.", "LCL", "UCL")
-      rownames(D_tab) <- 1:(private$data_$n_occasions())
-      if (!is.null(private$data_$time())) rownames(D_tab) <- private$data_$time()
-      D_tab[, 1] <- Dinference$mean
-      D_tab[, 2] <- Dinference$lcl
-      D_tab[, 3] <- Dinference$ucl
-      
-      # save results 
-      private$tab_ <- tab
-      private$phi_tab_ <- phi_tab
-      private$beta_tab_ <- beta_tab
+      colnames(D_tab) <- c("Estimate", "LCL", "UCL")
+      rownames(D_tab) <- private$data_$time()
+      D_tab[, 1] <- Dinfer$mean
+      D_tab[, 2] <- Dinfer$lcl
+      D_tab[, 3] <- Dinfer$ucl
+
       private$D_tab_ <- D_tab
     
   }, 
@@ -504,48 +439,38 @@ JsModel <- R6Class("JsModel",
    calc_confint = function() {
       V <- private$V_ 
       sds <- sqrt(diag(V))
-      est <- private$convert_natural2working(private$mle_)
-      est <- private$convert_par2vec(est)
+      est <- private$convert_par2vec(private$mle_)
       alp <- qnorm(1 - private$sig_level_ / 2)
       lcl <- est - alp * sds
       ucl <- est + alp * sds 
       names(lcl) <- names(ucl) <- names(est)
-      lcl <- private$convert_working2natural(private$convert_vec2par(lcl))
-      ucl <- private$convert_working2natural(private$convert_vec2par(ucl))
       return(list(LCL = lcl, UCL = ucl))
     },
   
-     calc_Dt = function(wpar, J) {
-       par <- private$convert_working2natural(private$convert_vec2par(wpar))
-       tpms <- self$calc_tpms()
-       pr0 <- c(1 - par$beta[1], par$beta[1], 0)
-       return(C_calc_Dt(self$par()$D, J, pr0, tpms))
-     },
-  
-     infer_D = function(nsims, sd, extract_samples = 0) {
+     infer_D = function(nsims, extract_samples = 0) {
        save_par <- self$par()
        self$set_par(private$mle_)
-       w_par <- private$convert_par2vec(private$convert_natural2working(self$par()))
+       sd <- sqrt(diag(private$V_))
+       w_par <- private$convert_par2vec(self$par())
        names <- names(w_par)
-       # compute transition probability matrices 
        tpms <- self$calc_tpms()
-       # initial distribution 
-       #pr0 <- self$calc_initial_distribution()
-       pr0 <- c(1 - self$par()$beta[1], self$par()$beta[1], 0)
+       a0 <- self$get_par("beta", j = 1, k = 1, m = 1)
+       pr0 <- c(1 - a0, a0, 0)
        n_occasions <- private$data_$n_occasions()
-       mean <- C_calc_D(self$par()$D, n_occasions, pr0, tpms)
+       D <- do.call(private$link2response_$D, list(self$par()$D))
+       mean <- C_calc_D(D, n_occasions, pr0, tpms)
        Dsims <- matrix(0, nr = nsims, nc = n_occasions)
        Rsims <- matrix(0, nr = nsims, nc = n_occasions)
-       beta_sims <- matrix(0, nr = nsims, nc = length(self$par()$beta))
        for (sim in 1:nsims) {
          new_par <- rnorm(length(w_par), w_par, sqrt(diag(private$V_)))
          names(new_par) <- names
-         self$set_par(private$convert_working2natural(private$convert_vec2par(new_par)))
-         beta_sims[sim, ] <- self$par()$beta
+         self$set_par(private$convert_vec2par(new_par))
          tpms <- self$calc_tpms()
-         pr0 <- c(1 - self$par()$beta[1], self$par()$beta[1], 0)
-         Dsims[sim, ] <- C_calc_D(self$par()$D, n_occasions, pr0, tpms)
-         Rsims[sim, ] <- beta_sims[sim, ] * self$par()$D
+         a0 <- self$get_par("beta", j = 1, k = 1, m = 1)
+         pr0 <- c(1 - a0, a0, 0)
+         D <- do.call(private$link2response_$D, list(self$par()$D))
+         Dsims[sim, ] <- C_calc_D(D, n_occasions, pr0, tpms)
+         Rsims[sim, ] <- self$get_par("beta", m = 1) * D
        }
        if (extract_samples == 1) return(Dsims)
        if (extract_samples ==  2) return(Rsims)  
@@ -555,61 +480,16 @@ JsModel <- R6Class("JsModel",
        lcl <- apply(Dsims, 2, function(x){return(quantile(x, private$sig_level_ / 2))})
        ucl <- apply(Dsims, 2, function(x){return(quantile(x, 1 - private$sig_level_ / 2))})
        
-       beta_var <- apply(beta_sims, 2, var)
-       beta_sd <- sqrt(beta_var)
-       beta_lcl <- apply(beta_sims, 2, function(x){return(quantile(x, private$sig_level_ / 2))})
-       beta_ucl <- apply(beta_sims, 2, function(x){return(quantile(x, 1 - private$sig_level_ / 2))})
-       
        self$set_par(save_par)
        return(list(mean = mean, 
                    sd = sd, 
                    lcl = lcl, 
-                   ucl = ucl,
-                   beta_sd = beta_sd, 
-                   beta_lcl = beta_lcl,
-                   beta_ucl = beta_ucl))
+                   ucl = ucl))
     },
   
-     calc_negllk = function(param = NULL, names = NULL, scale = "natural") {
-       # if(!is.null(names)) names(param) <- names 
-       # par <- private$convert_vec2par(param)
-       # self$set_par(private$convert_working2natural(par))
-       negllk <- -self$calc_llk(param, names, scale)
-       # if (!is.null(self$par()$beta)) {
-       #   n_param <- length(param)
-       #   lagrange <- param[n_param]
-       #   negllk <- negllk + lagrange * (1 - sum(self$par()$beta))  
-       # }
+     calc_negllk = function(param = NULL, names = NULL) {
+       negllk <- -self$calc_llk(param, names)
        return(negllk)
-    },
-  
-    convert_working2natural = function(wpar) {
-       par <- NULL
-       if (length(wpar$beta) == 1) {
-         par$beta <- plogis(wpar$beta)
-       } else {
-         exp_beta <- exp(wpar$beta)
-         par$beta <- c(1, exp_beta) / (1 + sum(exp_beta))
-       }
-       par$sigma <- exp(wpar$sigma)
-       par$lambda0 <- exp(wpar$lambda0)
-       par$phi <- plogis(wpar$phi)
-       par$D <- exp(wpar$D)
-       return(par)
-    }, 
-    
-    convert_natural2working = function(par) {
-      wpar <- NULL
-      if (length(par$beta) == 1) {
-        wpar$beta <- private$qlog(par$beta[1])
-      } else {
-        wpar$beta <- log(par$beta[-1] / par$beta[1])
-      }
-      wpar$sigma <- log(par$sigma)
-      wpar$lambda0 <- log(par$lambda0)
-      wpar$phi <- private$qlog(par$phi)
-      wpar$D <- log(par$D)
-      return(wpar)
     },
   
    convert_par2vec = function(par) {
@@ -620,14 +500,10 @@ JsModel <- R6Class("JsModel",
       par <- NULL
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
-      if ("beta1" %in% names) par$beta <- vec[paste("beta", seq(1, n_occasions - 1), sep = "")]
-      if ("beta" %in% names) par$beta <- vec["beta"]
-      if ("phi1" %in% names) par$phi <- vec[paste("phi", seq(1, n_occasions - 1), sep ="")]
-      if ("lambda01" %in% names) par$lambda0 <- vec[paste("lambda0", seq(1, n_occasions), sep ="")]
-      if ("sigma1" %in% names) par$sigma <- vec[paste("sigma", seq(1, n_occasions), sep ="")]
-      if ("phi" %in% names) par$phi <- vec["phi"]
-      if ("sigma" %in% names) par$sigma <- vec["sigma"]
-      if ("lambda0" %in% names) par$lambda0 <- vec["lambda0"]
+      par$lambda0 <- vec[grep("lambda0", names)]
+      par$sigma <- vec[grep("sigma", names)]
+      par$phi <- vec[grep("phi", names)]
+      par$beta <- vec[grep("beta", names)]
       par$D <- vec["D"]
       par <- lapply(par, function(v) {w <- v; names(w) <- NULL; w})
       return(par)
@@ -638,27 +514,7 @@ JsModel <- R6Class("JsModel",
      q <- ifelse(abs(1 - q) < 1e-16, 1 - 1e-16, q)
      q <- ifelse(abs(q) < 1e-16, 1e-16, q)
      return(qlogis(q))
-   },
-    
-   on_par_boundary = function() {
-     tol <- 1e-10
-     mle <- private$mle_
-     side <- NULL 
-     if (length(mle$beta) > 1) {
-       side$beta <- ifelse(mle$beta[-1] < tol, 1, ifelse(mle$beta[-1] > 1 - tol, -1, NA))
-     } else {
-       side$beta <- NA 
-       if (mle$beta < tol) side$beta <- 1
-       if (mle$beta > 1 - tol) side$beta <- -1 
-     }
-     side$phi <- ifelse(mle$phi < tol, 1, ifelse(mle$phi > 1 - tol, -1, NA))
-     side$sigma <- NA
-     side$sigma <- ifelse(mle$sigma < tol, 1, NA)
-     side$lambda0 <- ifelse(mle$lambda < tol, 1, NA)
-     side$D <- ifelse(mle$D < tol, 1, NA)
-     return(private$convert_par2vec(side))
    }
-  
   )                 
 )
 

@@ -10,4 +10,7 @@ License: MIT + file LICENSE
 Imports: Rcpp (>= 0.12.10), RcppArmadillo, R6, secr, parallel, numDeriv, ggplot2
 LinkingTo: Rcpp, RcppArmadillo
 RoxygenNote: 6.0.1
-Suggests: testthat
+Suggests: testthat,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

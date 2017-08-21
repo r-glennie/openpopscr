@@ -13,14 +13,17 @@ Encapsulates Jolly-Seber model: fits model, formats inference, and
 simulates from fitted model. 
 \itemize{
   \item scr_data: a ScrData object 
-  \item par: a named list of initial parameter values
+  \item form: a named list of formulae for each parameter (~1 for constant)
+  \item start: a named list of starting values 
   \item num_cores (optional, default = 1): number of processors cores to use 
   in parallelised code 
 }
 
 Methods include: 
 \itemize{
- \item set_par(): can change the parameter the model uses. Note, the model will simulate 
+ \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
+  on occasion k at mesh point m (if j, k, or m omitted returns value(s) for all)
+ \item set_par(par): can change the parameter the model uses. Note, the model will simulate 
    data using this parameter, but will only present inference based on the maximum likelihood
    estimates. 
  \item calc_D_llk(): computes the likelihood of the D parameter
@@ -32,15 +35,17 @@ Methods include:
  on occasion k for individual i given activity centre at mesh point m
  \item calc_pdet(): compute probability of being detected at least once during the survey
  \item calc_llk(): compute log-likelihood at current parameter values 
- \item fit(): fit the model by obtaining the maximum likelihood estimates
- \item plot(): plot estimated density over time with 95% confidence intervals
+ \item fit(nsims = 99): fit the model by obtaining the maximum likelihood estimates. Estimates of
+       density are obtained from parametric boostrap with nsim resamples. 
  \item simulate(): simulate ScrData object from fitted model
  \item par(): return current parameter of the model 
  \item mle(): return maximum likelihood estimates for the fitted model 
  \item data(): return ScrData that the model is fit to 
  \item estimates(): return estimates in a easy to extract list 
  \item cov_matrix(): return variance-covariance matrix from fitted model (on working scale)
- \item mle_llk(): return log-likelihood value of maximum likelihood estimates  
+ \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
+ \item sample_D(nsims): generate nsims time series for density, sampled from fitted model
+ \item sample_R(nsims): generate nsims time series of arrival numbers, sampled from fitted model  
 }
 }
 \keyword{datasets}
