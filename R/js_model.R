@@ -96,7 +96,7 @@ JsModel <- R6Class("JsModel",
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
      if (name == "beta") {
        k_save <- k
-       k <- NULL
+       k <- 2:(private$data_$n_occasions()) 
      } 
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
@@ -104,16 +104,19 @@ JsModel <- R6Class("JsModel",
      covs <- private$data_$covs(j = j, k = k, m = m)
      i_par <- which(names(private$form_) == name) 
      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
+     if (name %in% c("phi", "beta") & "t" %in% all.vars(private$form_[[i_par]])) {
+       X <- X[,colnames(X) != paste("t1", sep ="")] 
+     }
      theta <- private$par_[[i_par]]
      l_par <- which(names(private$link2response_) == name)
      resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
      if (name == "beta") {
-       if (length(theta) == 1) {
+       resp <- c(1, resp)
+       if (!("t" %in% all.vars(private$form_[[i_par]]))) {
          dt <- diff(private$data_$time())
          resp[-1] <- resp[-1] * dt / sum(dt)
        } 
-       resp[1] <- 1 
-       resp <- resp / (1 + exp(private$par_$beta[1]))
+       resp <- resp / sum(resp)
        if(!is.null(k_save)) resp <- resp[k_save]
      }
      return(resp)
@@ -256,7 +259,7 @@ JsModel <- R6Class("JsModel",
       mle <- mod$par
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
-      mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
+      #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
       self$set_par(mle)
       private$mle_ <- mle
       private$llk_ <- -mod$value
@@ -393,8 +396,18 @@ JsModel <- R6Class("JsModel",
       n_par <- numeric(4)
       private$par_ <- vector(mode = "list", length = 5)
       for (par in 1:4) {
-        n_par[par] <- ncol(model.matrix(private$form_[[par]], data = samp_cov))
-        private$par_[[par]] <- rep(0, n_par[par]) 
+        X <- model.matrix(private$form_[[par]], data = samp_cov)
+        n_par[par] <- ncol(X)
+        if (par %in% c(3, 4) & "t" %in% all.vars(private$form_[[par]])) {
+          n_par[par] <- ncol(X) - 1
+          par_vec <- rep(0, n_par[par])
+          names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
+        } else {
+          n_par[par] <- ncol(X)
+          par_vec <- rep(0, n_par[par])
+          names(par_vec) <- colnames(X)
+        }
+        private$par_[[par]] <- par_vec
       }
       private$par_[[5]] <- 0
       names(private$par_) <- c(names(private$form_), "D") 
@@ -407,8 +420,15 @@ JsModel <- R6Class("JsModel",
                                            list(start$sigma))
         private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
-        private$par_$beta <- do.call(private$response2link_$beta,
+        private$par_$beta[1] <- do.call(private$response2link_$beta,
                                         list(c(1 / start$beta - 1)))
+        if (length(private$par_$beta) > 1) {
+          private$par_$beta <- rep(1 / start$beta - 1, private$data_$n_occasions() - 1)
+          private$par_$beta <- private$par_$beta / length(private$par_$beta)
+          private$par_$beta <- do.call(private$response2link_$beta, 
+                                           list(private$par_$beta))
+          private$par_$beta[-1] <- private$par_$beta[-1] - private$par_$beta[1]
+        }
         private$par_$D <- do.call(private$response2link_$D, 
                                            list(start$D))
     }, 
@@ -501,11 +521,15 @@ JsModel <- R6Class("JsModel",
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
       par$lambda0 <- vec[grep("lambda0", names)]
+      names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
       par$sigma <- vec[grep("sigma", names)]
+      names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
       par$phi <- vec[grep("phi", names)]
+      names(par$phi) <- gsub("phi.", "", names(par$phi))
       par$beta <- vec[grep("beta", names)]
+      names(par$beta) <- gsub("beta.", "", names(par$beta))
       par$D <- vec["D"]
-      par <- lapply(par, function(v) {w <- v; names(w) <- NULL; w})
+      names(par$D) <- NULL 
       return(par)
     }, 
   

@@ -74,7 +74,7 @@ ScrData <- R6Class("ScrData",
         private$time_ <- time
       }
       private$cov_ <- cov 
-      private$cov_$t <- (1:dim(capthist)[2]) - 1
+      private$cov_$t <- as.factor((1:dim(capthist)[2]) - 1)
       private$cov_type_ <- c(cov_type, "k")
     },
     
@@ -91,9 +91,9 @@ ScrData <- R6Class("ScrData",
     time = function() {return(private$time_)},
     
     covs = function(j = NULL, k = NULL, m = NULL) {
-       if (j == ".") j0 <- seq(1, self$n_traps()) else j0 <- j
-       if (k == ".") k0 <- seq(1, self$n_occasions()) else k0 <- k 
-       if (m == ".") m0 <- seq(1, self$n_meshpts()) else m0 <- m 
+      if (any(is.null(j))) j0 <- seq(1, self$n_traps()) else j0 <- j
+      if (any(is.null(k))) k0 <- seq(1, self$n_occasions()) else k0 <- k 
+      if (any(is.null(m))) m0 <- seq(1, self$n_meshpts()) else m0 <- m 
       dat <- lapply(1:length(private$cov_), FUN =  function(c) {
         switch(private$cov_type_[c], 
                j = private$cov_[[c]][j0], 
@@ -102,7 +102,8 @@ ScrData <- R6Class("ScrData",
                jk = private$cov_[[c]][j0, k0], 
                jm = private$cov_[[c]][j0, m0], 
                km = private$cov_[[c]][k0, m0], 
-               jkm = private$cov_[[c]][j0, k0, m0])
+               jkm = private$cov_[[c]][j0, k0, m0], 
+               private$cov_[[c]])
       })
       names(dat) <- names(private$cov_)
       return(dat)
