@@ -2,7 +2,9 @@
 title: "openpopscr"
 author: "R. Glennie"
 date: "`r Sys.Date()`"
+#output: pdf_document
 output: rmarkdown::html_vignette
+bibliography: refs.bib
 vignette: >
   %\VignetteIndexEntry{openpopscr}
   %\VignetteEngine{knitr::rmarkdown}
@@ -13,15 +15,15 @@ During capture-recapture surveys that span a time comparable to the
 temporal scale at which a population evolves, animals can die, migrate, or be born. 
 Open population capture-recapture models allow for these population processes. 
 
-This package can fit open population Jolly-Seber spatial capture-recapture models by 
-maximum likelihood. This guide describes how to read in your data, fit some 
-models, and obtain inference.
+This package can fit open population Jolly-Seber spatial capture-recapture
+models by maximum likelihood (See @glennie2017, @borchers2008). This guide
+describes how to read in your data, fit some models, and obtain inference.
 
 
 ## Reading in Data 
 
 It is assumed you have a `capthist` and `mesh` object for your data, built using 
-the `secr` package. Here, example data provided with this package is 
+the `secr` package (@secr). Here, example data provided with this package is 
 used.  
 
 ```{r, fig.show='hold'}
@@ -55,9 +57,10 @@ object with `ScrData$new(capture_history, mesh, t)`.
 
 ## Data exploration 
 
-The ScrData object can be queried to return information about the data stored. 
-The commands ``scr_dat$capthist()``, ``scr_dat$traps()``, and ``scr_dat$mesh()``
-return the capture history, traps, and mesh objects respectively. 
+The ScrData object can be queried to return information about the data stored.
+The commands ``scr_dat$capthist()``, ``scr_dat$traps()``, ``scr_dat$mesh()``,
+and ``scr_dat$time()``return the capture history, traps, mesh and time objects
+respectively.
 
 Further information on the data is available:
 ```{r}
@@ -111,7 +114,7 @@ par <- list(lambda0 ~ 1,
             beta ~ 1, 
             phi ~ 1)
 
-# guess a reasonable for value for each parameter 
+# guess a reasonable start value for each parameter 
 start <- list(lambda0 = 2.0, 
               sigma = 100, 
               beta = 0.2, 
@@ -130,7 +133,7 @@ mod$fit()
 While fitting, the likelihood will be printed for each evaluation. Once fit, 
 parameter estimates can be viewed by typing the name of the model object
 into the console. 
-```{r, results="hide"}
+```{r, echo = FALSE}
 mod <- readRDS("fitted_mod_k.Rds")
 ```
 ```{r}
@@ -139,54 +142,219 @@ mod
 
 The parameter estimates table gives estimates on the link scale. This is useful
 later when covariates are used. The link functions for each parameter are set: 
-lambda0, sigma, and D have log-link functions, beta has a multilogistic link 
-function, and phi a logit link function.  
+lambda0, sigma, and D have log link functions, beta has a multilogistic link 
+function, and phi has a logit link function.  
 
+## Covariates
 
-Vignettes are long form documentation commonly included in packages. Because they are part of the distribution of the package, they need to be as compact as possible. The `html_vignette` output type provides a custom style sheet (and tweaks some options) to ensure that the resulting html is as small as possible. The `html_vignette` format:
+Covariates are included similarly to linear regression. Covariates can change
+with occasion or detector or both. Covariate information is loaded with the data
+into a `ScrData` object. Every `ScrData` object contains a default covariate
+`t`: a factor variable denoting the occasion. For this reason, the user should
+not name any custom covariates `t`. 
 
-- Never uses retina figures
-- Has a smaller default figure size
-- Uses a custom CSS stylesheet instead of the default Twitter Bootstrap style
-
-## Vignette Info
-
-Note the various macros within the `vignette` section of the metadata block above. These are required in order to instruct R how to build the vignette. Note that you should change the `title` field and the `\VignetteIndexEntry` to match the title of your vignette.
-
-## Styles
-
-The `html_vignette` template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:
-
-    output: 
-      rmarkdown::html_vignette:
-        css: mystyles.css
-
-## Figures
-
-The figure sizes have been customised so that you can easily put two images side-by-side. 
-
-```{r, fig.show='hold'}
-plot(1:10)
-plot(10:1)
+For example, suppose an environmental impact, from  a change in management
+policy, occurred in the middle of the survey, just after occasion 5 in our
+example data. A covariate `impact` can be created with a `0` value for occasions
+1 to 5 and a value of `1` for occasions 6 to 10. This is a factor variable,
+labelling occasions before and after impact.
+```{r}
+impact <- factor(c(0, 0, 0, 0, 0, 1, 1, 1, 1, 1))
 ```
 
-You can enable figure captions by `fig_caption: yes` in YAML:
+A new `ScrData` object is created with this covariate included. Each covariate
+must be given a "type" to indicate in what way this covariate changes: 
 
-    output:
-      rmarkdown::html_vignette:
-        fig_caption: yes
+- If the covariate has the same value for all detectors and changes with
+	occasion, it is of type "k" and must be a vector of length equal to the number
+	of occasions. 
+- If the covariate has the same value for all occasions and changes with
+	detector it is of type "j" and must be a vector of length equal to the number
+	of detectors. 
+- If the covariate has a different value for each detector and occasion, it is of type "jk" and must be a matrix with the number of rows equal to the number of detectors and the number of columns equal to the number of occasions such that the (j, k) entry is the covariate value for the detector j on occasion k. 
 
-Then you can use the chunk option `fig.cap = "Your figure caption."` in **knitr**.
-
-## More Examples
-
-You can write math expressions, e.g. $Y = X\beta + \epsilon$, footnotes^[A footnote here.], and tables, e.g. using `knitr::kable()`.
-
-```{r, echo=FALSE, results='asis'}
-knitr::kable(head(mtcars, 10))
+For this example, `impact` is a "k" type covariate: 
+```{r}
+scr_dat <- ScrData$new(capture_history, mesh, cov = list(impact = impact), cov_type = c("k")) 
 ```
 
-Also a quote using `>`:
+The `ScrData` object can be queried to give the value of the covariate for any
+(j, k) combination. 
+```{r}
+# get covariates for detector 1 on occasion 2 
+scr_dat$covs(j = 1, k = 2)
+# get covariates for detector 2 across all occasions  
+scr_dat$covs(j = 2)
+```
+Recall, the covariate `t` is included by default in all `ScrData` objects. 
 
-> "He who gives up [code] safety for [code] speed deserves neither."
-([via](https://twitter.com/hadleywickham/status/504368538874703872))
+A model can then be fit allowing for parameters to depend on covariates included
+in the `ScrData` object.
+```{r}
+par <- list(lambda0 ~ 1, 
+            sigma ~ 1, 
+            beta ~ 1, 
+            phi ~ impact)
+
+# guess a reasonable start value for each parameter 
+start <- list(lambda0 = 2.0, 
+              sigma = 100, 
+              beta = 0.2, 
+              phi = 0.5, 
+              D = 100)
+
+# create JsModel object 
+impact_mod <- JsModel$new(par, scr_dat, start)
+```
+
+The model is fit usual way and similar output obtained. 
+```{r, eval = FALSE}
+impact_mod$fit()
+```
+```{r, echo = FALSE}
+impact_mod <- readRDS("fitted_mod_impact.Rds") 
+```
+```{r}
+impact_mod 
+```
+
+### Time-varying parameters
+
+A occasion-specific effect can be included for any parameter. For example,
+mean encounter rate may differ across occasions and this variation may not be
+explained by any recorded covariates. Similarly, arrival rate, beta, may vary
+over time due to unknown variables that affect fecundity or migration. A
+built-in covariate to every `ScrData` object is `t` and allows for a seperate
+parameter to be estimated for each occasion.
+
+For example, a model where mean arrival rate, beta, is different for every
+occasion can be fit.
+
+```{r}
+par <- list(lambda0 ~ 1, 
+            sigma ~ 1, 
+            beta ~ t, 
+            phi ~ 1)
+
+# guess a reasonable start value for each parameter 
+start <- list(lambda0 = 2.0, 
+              sigma = 100, 
+              beta = 0.2, 
+              phi = 0.5, 
+              D = 100)
+
+# create JsModel object 
+t_mod <- JsModel$new(par, scr_dat, start)
+```
+```{r, eval = FALSE}
+t_mod$fit()
+```
+```{r, echo = FALSE}
+t_mod <- readRDS("fitted_mod_beta.Rds") 
+```
+```{r}
+t_mod 
+```
+
+Note, that when phi depends on t, only survival for every occasion but the last
+is estimated, since there is no information in the data on how many animals
+survived the final occasion.
+
+## Model Selection 
+
+Models can be compared using Akaike Information Criterion (AIC). In this
+example, is it necessary for lambda0 to vary with occasion? 
+```{r}
+AIC(mod, t_mod) 
+```
+The model with time-varying beta has a marginally better AIC and would be selected for 
+inference. 
+
+Whether or not to include other covariates can also be determined by comparing
+AIC.
+
+## Model checking 
+
+Once a model is selected, you can check whether the model fits the data well or
+where the model fits it poorly. This can be done by predictive checking:
+simulating new data from the model and comparing it to the real data. How the
+simulated and real data are compared is up to the analyst. The comparison should
+focus on key attributes of the data, that is, those aspects that are of most
+interest to the biological hypotheses.
+
+This package does not do the comparison for you, but does provide a function to
+simulate new data from a fitted model. 
+```{r, fig.show = "hold", fig.width = 5, fig.height = 5, fig.align = "center"}
+# simulate a new data
+new_data <- mod$simulate()
+new_data
+```
+
+
+## Drawing inference
+
+Estimated parameters and their confidence intervals are given by typing the name
+of the model object into the console.  
+```{r}
+impact_mod
+```
+
+In particular, estimates of density per square kilometre is output for each each
+occasion. Furthermore, confidence intervals allow you to evaluate the
+statistical evidence for each covariates effect. Here, for example, impact has a
+confidence interval overlapping zero, indicating no evidence that the impact
+affected survival. 
+
+Estimates can be extracted in a simple to use list: 
+```{r}
+impact_mod$estimates()
+```
+
+Finally, parameters on the response scale can be computed for given covariate values: 
+```{r}
+# get survival for occasion 1
+impact_mod$get_par("phi", k = 1)
+# get survival for all occasions 
+impact_mod$get_par("phi")
+```
+
+The `$get_par` method can extract parameters lambda0, sigma, phi, and beta on the response scale.
+
+Plots of parameter values over occasion can be produced: 
+```{r, fig.show = "hold", fig.width = 5, fig.height = 5, fig.align = "center"}
+# get plot of proportion of total 
+# population that arrives in each occasion
+betas <- t_mod$get_par("beta") 
+# exclude beta[1] as it is the proportion
+# alive before occasion 1 
+plot(scr_dat$time()[-1], betas[-1], type = "l", xlab = "Time", ylab =
+"Probability of arrival") 
+```
+
+### Simulating density and recruitment
+
+Population density and recruitment numbers can be simulated from the model. 
+The samples obtained can be used for model checking or for Monte Carlo testing 
+of biological hypotheses about the population.
+```{r, echo = FALSE}
+set.seed(12531)
+```
+```{r, fig.show = "hold", fig.width = 5, fig.height = 5, fig.align = "center"}
+density_samples <- t_mod$sample_D(nsims = 100)
+# plot density trajectories 
+matplot(scr_dat$time(), t(density_samples), type = "l", xlab = "Time", ylab =
+"Density (per sq. km)")
+```
+
+Recruitment is the number of animals that enter the population on each occasion.
+```{r, fig.show = "hold", fig.width = 5, fig.height = 5, fig.align = "center"}
+recruit_samples  <- t_mod$sample_R(nsims = 100)
+# plot recruitment numbers for occasion > 1
+# as number of recuits on occasion 1 is 
+# number alive before the survey started 
+matplot(scr_dat$time()[-1], t(recruit_samples[,-1]), type = "l", xlab = "Time",
+ylab = "Recruits (per sq. km)")
+```
+
+## References
+
