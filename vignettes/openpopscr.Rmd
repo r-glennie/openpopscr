@@ -30,9 +30,9 @@ used.
 # load package 
 library(openpopscr)
 # load example data 
-data("openpop_example_data")
-capture_history <- openpop_example_data$capture.history
-mesh <- openpop_example_data$mesh
+data("openpop_example")
+capture_history <- openpop_example$capture_history
+mesh <- openpop_example$mesh
 ```
 
 The example survey consists a 7 x 7 array of detectors with 10 capture occasions.
@@ -125,7 +125,26 @@ start <- list(lambda0 = 2.0,
 mod <- JsModel$new(par, scr_dat, start)
 ```
 
-Creating the model object does not fit the model, the `$fit` command does this.
+Model fitting time can be reduced using parallel computing. When creating the 
+model object, you can set the number of processor cores the package can use. 
+If your computer is set up for parallelisation, then the model will fit faster.
+The number of cores used by the model is set using an additional argument. For example
+to fit the model using 4 processor cores: 
+```{r, eval = FALSE}
+mod <- JsModel$new(par, scr_dat, start, num_cores = 4)
+```
+
+If you are not sure how many cores you have available, the `parallel` package
+can be used to find this out: 
+```{r, eval = FALSE}
+library(parallel)
+detectCores()
+```
+
+Creating the model object does not fit the model, the `$fit` command does this. 
+(The model takes 15-30 minutes to fit; if you'd rather not wait, you can load a 
+saved version of the fitted model for this example using the command 
+`mod <- openpop_example$mod`)
 ```{r, eval = FALSE}
 mod$fit()
 ```
@@ -134,7 +153,7 @@ While fitting, the likelihood will be printed for each evaluation. Once fit,
 parameter estimates can be viewed by typing the name of the model object
 into the console. 
 ```{r, echo = FALSE}
-mod <- readRDS("fitted_mod_k.Rds")
+mod <- openpop_example$mod
 ```
 ```{r}
 mod
@@ -143,7 +162,19 @@ mod
 The parameter estimates table gives estimates on the link scale. This is useful
 later when covariates are used. The link functions for each parameter are set: 
 lambda0, sigma, and D have log link functions, beta has a multilogistic link 
-function, and phi has a logit link function.  
+function, and phi has a logit link function. 
+
+Note that the variance and 
+confidence intervals for density in each occasion are computed using a bootstrap
+and so will vary each time the model is fit. The number of re-samples in the 
+bootstrap is 100 by default and can be changed by providing an additional 
+argument to the `$fit` method, e.g.
+```{r, eval = FALSE}
+mod$fit(nsims = 1000)
+```
+Alternatively, if the model has already been fit, but you wish to generate 
+more re-samples to improve variance estimates, see the section on simulating
+density and recruitment below. 
 
 ## Covariates
 
@@ -207,12 +238,13 @@ start <- list(lambda0 = 2.0,
 impact_mod <- JsModel$new(par, scr_dat, start)
 ```
 
-The model is fit usual way and similar output obtained. 
+The model is fit usual way and similar output obtained. (If you would rather
+not wait for it to fit, you can load the fitted model using `impact_mod <- openpop_example$impact_mod`) 
 ```{r, eval = FALSE}
 impact_mod$fit()
 ```
 ```{r, echo = FALSE}
-impact_mod <- readRDS("fitted_mod_impact.Rds") 
+impact_mod <- openpop_example$impact_mod
 ```
 ```{r}
 impact_mod 
@@ -246,11 +278,15 @@ start <- list(lambda0 = 2.0,
 # create JsModel object 
 t_mod <- JsModel$new(par, scr_dat, start)
 ```
+
+The model is fit in the usual way. (If you would rather not wait for it to fit,
+you can load the fitted model using `t_mod <- openpop_example$t_mod`.)
+
 ```{r, eval = FALSE}
 t_mod$fit()
 ```
 ```{r, echo = FALSE}
-t_mod <- readRDS("fitted_mod_beta.Rds") 
+t_mod <- openpop_example$t_mod
 ```
 ```{r}
 t_mod 
@@ -334,7 +370,7 @@ plot(scr_dat$time()[-1], betas[-1], type = "l", xlab = "Time", ylab =
 ### Simulating density and recruitment
 
 Population density and recruitment numbers can be simulated from the model. 
-The samples obtained can be used for model checking or for Monte Carlo testing 
+The samples obtained can be used for model checking, variance estimation, or Monte Carlo testing 
 of biological hypotheses about the population.
 ```{r, echo = FALSE}
 set.seed(12531)
