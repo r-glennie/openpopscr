@@ -25,7 +25,7 @@ test_that("arrival probabilities sum to one",
           expect_equal(sum(mod$get_par("beta")), 1))
 
 test_that("pdet is computed correctly", 
-          expect_less_than(mod$calc_pdet() -  0.739126, 1e-6))
+          expect_lt(mod$calc_pdet() -  0.739126, 1e-6))
 
 test_that("initial distribution is correct", 
           expect_identical(mod$calc_initial_distribution() * scr_dat$n_meshpts(), 
