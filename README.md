@@ -2,7 +2,7 @@
 Fits Jolly-Seber spatial capture-recapture by maximum likelihood.
 
 ## Download
-Download the latest stable release: https://github.com/r-glennie/openpopscr/archive/v1.0.0.tar.gz
+Download the latest stable release: https://github.com/r-glennie/openpopscr/files/1290195/openpopscr-1.0.0.tar.gz
 
 ## Install
 In R, if downloaded package is saved at "openpopscr-1.0.0.tar.gz" then install with command 
