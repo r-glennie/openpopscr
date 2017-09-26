@@ -65,7 +65,7 @@
 #'  \item sample_R(nsims): generate nsims time series of arrival numbers, sampled from fitted model  
 #' }
 #' 
-JsModel <- R6Class("JsModel", 
+CjsModel <- R6Class("JsModel", 
   public = list(
     
     initialize = function(form, data, start, num_cores = 1) {
@@ -75,50 +75,32 @@ JsModel <- R6Class("JsModel",
       private$form_[[1]]<- form[par_names == "lambda0"][[1]]
       private$form_[[2]] <- form[par_names == "sigma"][[1]]
       private$form_[[3]] <- form[par_names == "phi"][[1]]
-      private$form_[[4]] <- form[par_names == "beta"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c("lambda0", "sigma", "phi", "beta")
+      names(private$form_) <- c("lambda0", "sigma", "phi")
       private$make_par() 
       private$link2response_ <- list(lambda0 = "exp", 
                             sigma = "exp", 
-                            phi = "plogis", 
-                            beta = "exp", 
-                            D = "exp")
+                            phi = "plogis")
       private$response2link_ <- list(lambda0 = "log", 
                                      sigma = "log", 
-                                     phi = "qlogis", 
-                                     beta = "log", 
-                                     D = "log")
+                                     phi = "qlogis") 
       private$initialise_par(start)
       private$num_cores_ = num_cores
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
-     if (name == "beta") {
-       k_save <- k
-       k <- 2:(private$data_$n_occasions()) 
-     } 
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
      }
      covs <- private$data_$covs(j = j, k = k, m = m)
      i_par <- which(names(private$form_) == name) 
      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
-     if (name %in% c("phi", "beta") & "t" %in% all.vars(private$form_[[i_par]])) {
+     if (name %in% c("phi") & "t" %in% all.vars(private$form_[[i_par]])) {
        X <- X[,colnames(X) != paste("t1", sep ="")] 
      }
      theta <- private$par_[[i_par]]
      l_par <- which(names(private$link2response_) == name)
      resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
-     if (name == "beta") {
-       resp <- c(1, resp)
-       if (!("t" %in% all.vars(private$form_[[i_par]]))) {
-         dt <- diff(private$data_$time())
-         resp[-1] <- resp[-1] * dt / sum(dt)
-       } 
-       resp <- resp / sum(resp)
-       if(!is.null(k_save)) resp <- resp[k_save]
-     }
      return(resp)
     }, 
     
@@ -134,52 +116,26 @@ JsModel <- R6Class("JsModel",
       names(sd) <- names(private$convert_par2vec(private$convert_natural2working(mle)))
       sd <- private$convert_working2natural(private$convert_vec2par(sd))
       confints <- private$calc_confint()
-      Dinference <- private$infer_D(nsims)
-      private$make_results(sd, confints, Dinference)
+      private$make_results(sd, confints)
     }, 
     
-    calc_D_llk = function() {
-      D <- do.call(private$link2response_$D, list(self$par()$D))
-      A <- private$data_$area()
-      n <- private$data_$n()
-      pdet <- self$calc_pdet()
-      llk <- n * log(D * A * pdet) - D * A * pdet - lfactorial(n)
-      names(llk) <- NULL 
-      return(llk)
-    },
-    
     calc_initial_distribution = function() {
-      a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
+      pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
       pr0 <- pr0 / n_mesh
       return(pr0)
     },
     
-    calc_pr_entry = function() {
-      n_occasions <- private$data_$n_occasions()  
-      pr_entry <- rep(0, n_occasions - 1)
-      prod <- 1 - self$get_par("beta", j = 1, k = 1, m = 1)
-      for (k in 1:(n_occasions - 1)) {
-        b <- self$get_par("beta", j = 1, k = k + 1, m = 1)
-        pr_entry[k] <- b / prod
-        prod <- prod * (1 - pr_entry[k])
-      }
-      return(pr_entry)
-    }, 
-    
     calc_tpms = function() {
       # compute entry probabilities 
-      pr_entry <- self$calc_pr_entry()      
       n_occasions <- private$data_$n_occasions()
       tpms <- vector("list", length = n_occasions)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
         phi <- self$get_par("phi", j = 1, k = k, m = 1)
         if (dt[k] > 1) phi <- phi^dt[k]
-        tpms[[k]] <- matrix(c(1 - pr_entry[k], 0, 0, 
-                            pr_entry[k], phi, 0,
-                            0, 1 - phi, 1), nrow = 3, ncol = 3)
+        tpms[[k]] <- matrix(c(phi, 0, 
+                            0, 1 - phi), nrow = 2, ncol = 2)
       }
       return(tpms)
     }, 
@@ -199,7 +155,7 @@ JsModel <- R6Class("JsModel",
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
       prob <- C_calc_pr_capture(n, n_occasions, n_traps, n_meshpts, capthist, 
-                               enc_rate0, trap_usage, private$num_cores_)
+                               enc_rate0, trap_usage, private$num_cores_, 2)
       return(prob)
     },
     
@@ -216,8 +172,8 @@ JsModel <- R6Class("JsModel",
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 3)
-        pr_empty[[j]][, 2] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
+        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 2)
+        pr_empty[[j]][, 1] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
       }
       # average over all life histories 
       pr0 <- self$calc_initial_distribution()
@@ -239,16 +195,12 @@ JsModel <- R6Class("JsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, private$num_cores_)
-      # compute log-likelihood
-      llk <- llk - n * log(self$calc_pdet())
-      llk <- llk + self$calc_D_llk()
-      #plot(self$par()$beta[-1])
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, private$num_cores_, 2)
       cat("llk:", llk, "\n")
       return(llk)
     },
     
-    fit = function(ini_par = NULL, nsims = 99) {
+    fit = function(ini_par = NULL) {
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
@@ -259,7 +211,6 @@ JsModel <- R6Class("JsModel",
       mle <- mod$par
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
-      #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
       self$set_par(mle)
       private$mle_ <- mle
       private$llk_ <- -mod$value
@@ -270,7 +221,7 @@ JsModel <- R6Class("JsModel",
       } else {
         sd <- sqrt(diag(private$V_))
         names(sd) <- names(w_par)
-        private$make_results(nsims)
+        private$make_results()
       }
     }, 
     
@@ -281,46 +232,25 @@ JsModel <- R6Class("JsModel",
     } else {
       cat("PARAMETER ESTIMATES (link scale)\n")
       print(signif(private$results_, 4))
-    
-      cat("--------------------------------------------------------------------------------")
-      cat("\n DENSITY (response scale) \n")
-      print(signif(private$D_tab_, 4))
-      cat("--------------------------------------------------------------------------------")
     }
     options(scipen = 0)
   }, 
   
-  simulate = function(seed = NULL) {
+  simulate = function(n = NULL, seed = NULL) {
     if (!is.null(seed)) set.seed(seed)
+    if (!is.null(n)) n <- private$data_$n()
     num.meshpts <- private$data_$n_meshpts()
     mesh <- private$data_$mesh()
-    D <- do.call(private$link2response_$D, list(self$par()$D)) / 100
+    D <- n * private$data_$area() * 100 
     # simulate population
-    pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
-    a0 <- self$get_par("beta", j = 1, k = 1, m = 1) 
-    birth_time <- sample(c(0, 1), size = nrow(pop), prob = c(1 - a0, a0), replace = TRUE) 
+    pop <- sim.popn(D = D, core = mesh, Ndist = "fixed", buffertype = "convex")
     n_occasions <- private$data_$n_occasions()
     dt <- diff(private$data_$time())
-    beta <- self$get_par("beta", j = 1, k = 2:n_occasions, m = 1) 
-    birth_time <- ifelse(birth_time == 0, 
-                         sample(2:n_occasions, 
-                                size = nrow(pop), 
-                                prob = 1 - (1 - beta)^dt,
-                                replace = TRUE), 
-                         1)
-    
     phi <- self$get_par("phi", j = 1, m = 1)
     phi <- phi ^ dt
     life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
-    life[birth_time == 1, 1] <- 1
-    for (k in 2:n_occasions) {
-      life[birth_time < k,k] <- rbinom(sum(birth_time < k), 1, phi[k - 1]) 
-      life[birth_time == k, k] <- 1
-    }
-    # generate capture histories
-    #plot(mesh)
-    #plot(pop[life[,1] == 1, ], add = T)
-    #plot(private$data_$traps(), add = T)
+    surv <- rgeom(n, 1 - phi)
+    for (i in 1:n) life[i, 1:(1 + surv)] <- 1   
     lambda0 <- self$get_par("lambda0", m = 1)
     sigma <- self$get_par("sigma", j = 1, m = 1)
     capture_history <- sim.capthist(private$data_$traps(), 
@@ -337,14 +267,13 @@ JsModel <- R6Class("JsModel",
     birth_time <- birth_time[ids]
     seen <- rep(TRUE, n)
     for (i in seq(n)) {
-      life[i, birth_time[i]:n_occasions] <- cumprod(life[i, birth_time[i]:n_occasions])
       capture_history[i, ,] <- diag(life[i,]) %*% capture_history[i, ,]
-      if (sum(capture_history[i, ,]) == 0) seen[i] <- FALSE
     } 
-    capture_history <- subset(capture_history, (1:n)[seen])
     new_dat <- ScrData$new(capture_history, mesh, private$data_$time())
     return(new_dat)
   }, 
+  
+  ## UP TO HERE 
   
   par = function() {return(private$par_)},
   mle = function() {return(private$mle_)},

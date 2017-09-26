@@ -39,6 +39,7 @@
 //' @param pr_capture output of calc_pr_capture() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
 //' @param num_cores number of processor cores to use in parallelisation 
+//' @param num_states 2 = CJS model, 3 = JS model 
 //'
 //' @return log-likelihood value 
 //' 
@@ -47,7 +48,8 @@ double C_calc_llk(const int n, const int J, const int M,
                   const arma::mat pr0, 
                   const Rcpp::List pr_capture, 
                   const Rcpp::List tpms,
-                  const int num_cores) {
+                  const int num_cores,
+                  const int num_states) {
   
   arma::vec illk(n);
   double llk; 
@@ -58,7 +60,7 @@ double C_calc_llk(const int n, const int J, const int M,
     llk = 0; 
     pr = pr0; 
     Rcpp::NumericVector pr_capvec(Rcpp::as<Rcpp::NumericVector>(pr_capture[i])); 
-    arma::cube pr_cap(pr_capvec.begin(), M, 3, J); 
+    arma::cube pr_cap(pr_capvec.begin(), M, num_states, J); 
     for (int j = 0; j < J - 1; ++j) {
       tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr %= pr_cap.slice(j); 

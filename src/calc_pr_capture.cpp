@@ -45,6 +45,7 @@
 //' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 //' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 //' @param num_cores number of processor cores to use in parallelisation 
+//' @param num_states: 2 = CJS model, 3 = JS model 
 //'
 //' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 //' 
@@ -53,17 +54,19 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              Rcpp::NumericVector& capvec, 
                              Rcpp::NumericVector& enc_rate,
                              const arma::mat usage, 
-                             const int num_cores) {
+                             const int num_cores, 
+                             const int num_states) {
   
   const arma::cube capthist(capvec.begin(), n, J, K, false);
   const arma::cube enc0(enc_rate.begin(), M, K, J, false);
+  int alive_col = num_states == 2 ? 0 : 1; 
   arma::field<arma::cube> probfield(n);
   #ifdef _OPENMP
   omp_set_num_threads(num_cores);
   #endif 
   #pragma omp parallel for shared(probfield) default(none) schedule(auto)
   for (int i = 0; i < n; ++i) {
-    arma::cube iprob = arma::zeros<arma::cube>(M, 3, J);
+    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
     for (int j = 0; j < J; ++j) { 
       bool unseen = true;
       for (int k = 0; k < K; ++k) {
@@ -74,10 +77,10 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
         if (capthist(i, j, k) > 1e-16) unseen = false; 
       }
       if (unseen) {
-        iprob.slice(j).col(0).ones(); 
-        iprob.slice(j).col(2).ones();  
+        iprob.slice(j).col(1 - alive_col).ones(); 
+        if (num-states == 3) iprob.slice(j).col(2).ones();  
       }
-      iprob.slice(j).col(1) = exp(iprob.slice(j).col(1)); 
+      iprob.slice(j).col(alive_col) = exp(iprob.slice(j).col(alive_col)); 
     }
     probfield(i) = iprob; 
   }
