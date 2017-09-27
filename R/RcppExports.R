@@ -11,7 +11,7 @@
 #' @return  vector with j^th entry the mean density on occasion j 
 #'
 C_calc_D <- function(D, J, pr0, tpms) {
-    .Call('openpopscr_C_calc_D', PACKAGE = 'openpopscr', D, J, pr0, tpms)
+    .Call(`openpopscr_C_calc_D`, D, J, pr0, tpms)
 }
 
 #' Computes log-likelihood of Jolly-Seber model 
@@ -23,11 +23,12 @@ C_calc_D <- function(D, J, pr0, tpms) {
 #' @param pr_capture output of calc_pr_capture() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
 #' @param num_cores number of processor cores to use in parallelisation 
+#' @param num_states 2 = CJS model, 3 = JS model 
 #'
 #' @return log-likelihood value 
 #' 
-C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_cores) {
-    .Call('openpopscr_C_calc_llk', PACKAGE = 'openpopscr', n, J, M, pr0, pr_capture, tpms, num_cores)
+C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_cores, num_states) {
+    .Call(`openpopscr_C_calc_llk`, n, J, M, pr0, pr_capture, tpms, num_cores, num_states)
 }
 
 #' Computes detection probability (seen at least once) for Jolly-Seber model 
@@ -40,7 +41,7 @@ C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_cores) {
 #' @return pdet = probability seen at some time on the survey 
 #' 
 C_calc_pdet <- function(J, pr0, pr_captures, tpms) {
-    .Call('openpopscr_C_calc_pdet', PACKAGE = 'openpopscr', J, pr0, pr_captures, tpms)
+    .Call(`openpopscr_C_calc_pdet`, J, pr0, pr_captures, tpms)
 }
 
 #' Computes probability of each capture record for Jolly-Seber model 
@@ -53,10 +54,11 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms) {
 #' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 #' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 #' @param num_cores number of processor cores to use in parallelisation 
+#' @param num_states: 2 = CJS model, 3 = JS model 
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 
-C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores) {
-    .Call('openpopscr_C_calc_pr_capture', PACKAGE = 'openpopscr', n, J, K, M, capvec, enc_rate, usage, num_cores)
+C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states) {
+    .Call(`openpopscr_C_calc_pr_capture`, n, J, K, M, capvec, enc_rate, usage, num_cores, num_states)
 }
 

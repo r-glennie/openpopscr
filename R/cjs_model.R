@@ -288,7 +288,7 @@ CjsModel <- R6Class("JsModel",
     },
   
     cov_matrix = function() {return(private$V_)}, 
-    mle_llk = function() {return(private$llk_)},
+    mle_llk = function() {return(private$llk_)}
 ),
                    
   private = list(

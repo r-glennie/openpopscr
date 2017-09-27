@@ -64,7 +64,7 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
   #ifdef _OPENMP
   omp_set_num_threads(num_cores);
   #endif 
-  #pragma omp parallel for shared(probfield) default(none) schedule(auto)
+  #pragma omp parallel for shared(probfield, alive_col) default(none) schedule(auto)
   for (int i = 0; i < n; ++i) {
     arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
     for (int j = 0; j < J; ++j) { 
@@ -78,7 +78,7 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
       }
       if (unseen) {
         iprob.slice(j).col(1 - alive_col).ones(); 
-        if (num-states == 3) iprob.slice(j).col(2).ones();  
+        if (num_states == 3) iprob.slice(j).col(2).ones();  
       }
       iprob.slice(j).col(alive_col) = exp(iprob.slice(j).col(alive_col)); 
     }
