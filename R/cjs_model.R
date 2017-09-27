@@ -70,6 +70,8 @@ CjsModel <- R6Class("JsModel",
     
     initialize = function(form, data, start, num_cores = 1) {
       private$data_ <- data
+			index <- 1:data$n()
+			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])})
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       private$form_[[1]]<- form[par_names == "lambda0"][[1]]
@@ -195,7 +197,8 @@ CjsModel <- R6Class("JsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, private$num_cores_, 2)
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms,
+			private$num_cores_, 2, private$entry_)
       cat("llk:", llk, "\n")
       return(llk)
     },
@@ -293,6 +296,7 @@ CjsModel <- R6Class("JsModel",
                    
   private = list(
     data_ = NULL,
+		entry_ = NULL, 
     form_ = NULL, 
     par_ = NULL, 
     link2response_ = NULL, 

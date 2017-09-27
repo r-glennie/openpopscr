@@ -199,7 +199,7 @@ JsModel <- R6Class("JsModel",
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
       prob <- C_calc_pr_capture(n, n_occasions, n_traps, n_meshpts, capthist, 
-                               enc_rate0, trap_usage, private$num_cores_)
+                               enc_rate0, trap_usage, private$num_cores_, 3)
       return(prob)
     },
     
@@ -239,7 +239,8 @@ JsModel <- R6Class("JsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, private$num_cores_)
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms,
+			private$num_cores_, 3, rep(0, private$data_$n()))
       # compute log-likelihood
       llk <- llk - n * log(self$calc_pdet())
       llk <- llk + self$calc_D_llk()

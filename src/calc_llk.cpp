@@ -49,7 +49,8 @@ double C_calc_llk(const int n, const int J, const int M,
                   const Rcpp::List pr_capture, 
                   const Rcpp::List tpms,
                   const int num_cores,
-                  const int num_states) {
+                  const int num_states,
+									const arma::vec entry) {
   
   arma::vec illk(n);
   double llk; 
@@ -61,7 +62,7 @@ double C_calc_llk(const int n, const int J, const int M,
     pr = pr0; 
     Rcpp::NumericVector pr_capvec(Rcpp::as<Rcpp::NumericVector>(pr_capture[i])); 
     arma::cube pr_cap(pr_capvec.begin(), M, num_states, J); 
-    for (int j = 0; j < J - 1; ++j) {
+    for (int j = entry(i); j < J - 1; ++j) {
       tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr %= pr_cap.slice(j); 
       pr *= tpm; 
