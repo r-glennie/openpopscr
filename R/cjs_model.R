@@ -273,8 +273,6 @@ CjsModel <- R6Class("JsModel",
     return(new_dat)
   }, 
   
-  ## UP TO HERE 
-  
   par = function() {return(private$par_)},
   mle = function() {return(private$mle_)},
   data = function() {return(private$data_)}, 
@@ -285,25 +283,12 @@ CjsModel <- R6Class("JsModel",
         ests <- "Fit model using $fit method"
       } else {
         ests$par <- private$results_
-        ests$D <- private$D_tab_
       }
       return(ests)
     },
   
     cov_matrix = function() {return(private$V_)}, 
     mle_llk = function() {return(private$llk_)},
-  
-    sample_D = function(nsims = 99) {
-      if (is.null(private$mle_)) stop("Fit model using $fit method.")
-      sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, extract_samples = 1))
-    }, 
-    sample_R = function(nsims = 99) {
-      if (is.null(private$mle_)) stop("Fit model using $fit method.")
-      sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, extract_samples = 2))
-    } 
-  
 ),
                    
   private = list(
@@ -314,7 +299,6 @@ CjsModel <- R6Class("JsModel",
     response2link_ = NULL, 
     mle_ = NULL,
     results_ = NULL,
-    D_tab_ = NULL, 
     V_ = NULL, 
     llk_ = NULL, 
     sig_level_ = 0.05, 
@@ -349,17 +333,6 @@ CjsModel <- R6Class("JsModel",
                                            list(start$sigma))
         private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
-        private$par_$beta[1] <- do.call(private$response2link_$beta,
-                                        list(c(1 / start$beta - 1)))
-        if (length(private$par_$beta) > 1) {
-          private$par_$beta <- rep(1 / start$beta - 1, private$data_$n_occasions() - 1)
-          private$par_$beta <- private$par_$beta / length(private$par_$beta)
-          private$par_$beta <- do.call(private$response2link_$beta, 
-                                           list(private$par_$beta))
-          private$par_$beta[-1] <- private$par_$beta[-1] - private$par_$beta[1]
-        }
-        private$par_$D <- do.call(private$response2link_$D, 
-                                           list(start$D))
     }, 
     
     make_results = function(nsims) {
@@ -367,22 +340,10 @@ CjsModel <- R6Class("JsModel",
       par <- private$convert_par2vec(private$mle_) 
       sd <- sqrt(diag(private$V_))
       ci <- private$calc_confint()
-      Dinfer <- private$infer_D(nsims = nsims)
       results <- cbind(par, sd, ci$LCL, ci$UCL)
       colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
       rownames(results) <- names(par)
       private$results_ <- results 
-      
-      ## D tab
-      D_tab <- matrix(0, nr = private$data_$n_occasions(), nc = 3)
-      colnames(D_tab) <- c("Estimate", "LCL", "UCL")
-      rownames(D_tab) <- private$data_$time()
-      D_tab[, 1] <- Dinfer$mean
-      D_tab[, 2] <- Dinfer$lcl
-      D_tab[, 3] <- Dinfer$ucl
-
-      private$D_tab_ <- D_tab
-    
   }, 
   
    calc_confint = function() {
@@ -396,47 +357,7 @@ CjsModel <- R6Class("JsModel",
       return(list(LCL = lcl, UCL = ucl))
     },
   
-     infer_D = function(nsims, extract_samples = 0) {
-       save_par <- self$par()
-       self$set_par(private$mle_)
-       sd <- sqrt(diag(private$V_))
-       w_par <- private$convert_par2vec(self$par())
-       names <- names(w_par)
-       tpms <- self$calc_tpms()
-       a0 <- self$get_par("beta", j = 1, k = 1, m = 1)
-       pr0 <- c(1 - a0, a0, 0)
-       n_occasions <- private$data_$n_occasions()
-       D <- do.call(private$link2response_$D, list(self$par()$D))
-       mean <- C_calc_D(D, n_occasions, pr0, tpms)
-       Dsims <- matrix(0, nr = nsims, nc = n_occasions)
-       Rsims <- matrix(0, nr = nsims, nc = n_occasions)
-       for (sim in 1:nsims) {
-         new_par <- rnorm(length(w_par), w_par, sqrt(diag(private$V_)))
-         names(new_par) <- names
-         self$set_par(private$convert_vec2par(new_par))
-         tpms <- self$calc_tpms()
-         a0 <- self$get_par("beta", j = 1, k = 1, m = 1)
-         pr0 <- c(1 - a0, a0, 0)
-         D <- do.call(private$link2response_$D, list(self$par()$D))
-         Dsims[sim, ] <- C_calc_D(D, n_occasions, pr0, tpms)
-         Rsims[sim, ] <- self$get_par("beta", m = 1) * D
-       }
-       if (extract_samples == 1) return(Dsims)
-       if (extract_samples ==  2) return(Rsims)  
-       var <- apply(Dsims, 2, var)
-       alp <- qnorm(1 - private$sig_level_ / 2)
-       sd <- sqrt(var)
-       lcl <- apply(Dsims, 2, function(x){return(quantile(x, private$sig_level_ / 2))})
-       ucl <- apply(Dsims, 2, function(x){return(quantile(x, 1 - private$sig_level_ / 2))})
-       
-       self$set_par(save_par)
-       return(list(mean = mean, 
-                   sd = sd, 
-                   lcl = lcl, 
-                   ucl = ucl))
-    },
-  
-     calc_negllk = function(param = NULL, names = NULL) {
+    calc_negllk = function(param = NULL, names = NULL) {
        negllk <- -self$calc_llk(param, names)
        return(negllk)
     },
@@ -455,10 +376,6 @@ CjsModel <- R6Class("JsModel",
       names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
       par$phi <- vec[grep("phi", names)]
       names(par$phi) <- gsub("phi.", "", names(par$phi))
-      par$beta <- vec[grep("beta", names)]
-      names(par$beta) <- gsub("beta.", "", names(par$beta))
-      par$D <- vec["D"]
-      names(par$D) <- NULL 
       return(par)
     }, 
   
