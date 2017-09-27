@@ -3,7 +3,9 @@ title: "openpopscr"
 author: "R. Glennie"
 date: "`r Sys.Date()`"
 #output: pdf_document
-output: rmarkdown::html_vignette
+output: 
+  rmarkdown::html_vignette:
+    toc: true
 bibliography: refs.bib
 vignette: >
   %\VignetteIndexEntry{openpopscr}
@@ -391,6 +393,44 @@ recruit_samples  <- t_mod$sample_R(nsims = 100)
 matplot(scr_dat$time()[-1], t(recruit_samples[,-1]), type = "l", xlab = "Time",
 ylab = "Recruits (per sq. km)")
 ```
+
+## Fitting the Cormack-Jolly-Seber Model 
+
+The Cormack-Jolly-Seber model is a simpler version of the Jolly-Seber model. CJS
+differs from JS in a few important ways 
+
+* CJS makes no assumptions and no inference abbout animals that were never seen.
+Thus CJS models cannnot estimate population density. 
+* CJS models estimate survival probability by tracking each individual from the 
+first time it was captured to the end of the survey. Thus, animals are assumed
+to be alive once we start to track them; no animals are born whilst we 
+survey them 
+
+Due to these simplifications, CJS models can only be used to estimate survival.
+Hence, the model only has three parameters: lambda0, sigma, and phi. Thus, if 
+interest lay only in how an environmental changed impacted on the 
+tracked animals, the followng model could be fit. 
+```{r}
+par <- list(lambda0 ~ 1, 
+            sigma ~ 1, 
+            phi ~ impact)
+
+# guess a reasonable start value for each parameter 
+start <- list(lambda0 = 2.0, 
+              sigma = 100, 
+              phi = 0.5)
+
+# create JsModel object 
+impact_mod <- CjsModel$new(par, scr_dat, start)
+```
+
+CJS models are fit using the `CjsModel` object. This object has reduced features
+compared to the JsModel object: 
+
+* you can fit the model using the `$fit` method 
+* you can simulate new data using the `$simulate` method 
+* you cannot simulate density or recruitment, because CJS models do not allow
+for these processes. 
 
 ## References
 

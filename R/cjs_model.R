@@ -312,10 +312,10 @@ CjsModel <- R6Class("JsModel",
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_par <- numeric(4)
       private$par_ <- vector(mode = "list", length = 5)
-      for (par in 1:4) {
+      for (par in 1:3) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
-        if (par %in% c(3, 4) & "t" %in% all.vars(private$form_[[par]])) {
+        if (par %in% c(3) & "t" %in% all.vars(private$form_[[par]])) {
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
