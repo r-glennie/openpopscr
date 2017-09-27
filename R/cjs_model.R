@@ -161,29 +161,6 @@ CjsModel <- R6Class("JsModel",
       return(prob)
     },
     
-    calc_pdet = function() {
-      # compute probability of zero capture history 
-      dist <- private$data_$distances()
-      n_occasions <- private$data_$n_occasions()
-      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      for (k in 1:n_occasions) {
-        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
-        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
-        enc_rate[k,,] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
-      }
-      trap_usage <- usage(private$data_$traps())
-      pr_empty <- list()
-      for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 2)
-        pr_empty[[j]][, 1] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
-      }
-      # average over all life histories 
-      pr0 <- self$calc_initial_distribution()
-      tpms <- self$calc_tpms()
-      pdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms); 
-      return(pdet)
-    },
-    
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(param)) self$set_par(private$convert_vec2par(param));
       # compute transition probability matrices 
