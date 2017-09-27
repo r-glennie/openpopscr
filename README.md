@@ -1,5 +1,5 @@
 # openpopscr
-Fits Jolly-Seber spatial capture-recapture by maximum likelihood.
+Fits open population spatial capture-recapture by maximum likelihood.
 
 ## Download
 Download the latest stable release: https://github.com/r-glennie/openpopscr/files/1290198/openpopscr_1.0.0.tar.gz
