@@ -151,7 +151,9 @@ JsModel <- R6Class("JsModel",
     calc_initial_distribution = function() {
       a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
+      pr0 <- matrix(0, nrow = n_mesh, ncol = 3)
+      pr0[, 1] <- 1 - a0 
+      pr0[, 2] <- a0 
       pr0 <- pr0 / n_mesh
       return(pr0)
     },
