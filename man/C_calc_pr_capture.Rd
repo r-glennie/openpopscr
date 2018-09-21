@@ -4,7 +4,8 @@
 \alias{C_calc_pr_capture}
 \title{Computes probability of each capture record for Jolly-Seber model}
 \usage{
-C_calc_pr_capture(n, J, K, M, capvec, enc_rate, usage, num_cores)
+C_calc_pr_capture(n, J, K, M, capvec, enc_rate, usage, num_cores,
+  num_states, detector_type)
 }
 \arguments{
 \item{n}{number of individuals}
@@ -22,6 +23,10 @@ C_calc_pr_capture(n, J, K, M, capvec, enc_rate, usage, num_cores)
 \item{usage}{matrix with J x K where (j,k) entry is usage of trap k in occasion j}
 
 \item{num_cores}{number of processor cores to use in parallelisation}
+
+\item{detector_type}{1 = count, 2 = proximity/binary, 3 = multi-catch}
+
+\item{num_states:}{2 = CJS model, 3 = JS model}
 }
 \value{
 Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m

@@ -1,0 +1,17 @@
+citHeader("To cite openpopscr in publications use:")
+
+citEntry(entry = "Article",
+         title        = "Open population maximum likelihood spatial capture-recapture",
+         author       = personList(as.person("Glennie, R"), as.person("Borchers, D. L."), as.person("Murchie, M."), as.person("Harmsen, B. J."), as.person("Foster, R. J.")),
+         journal      = "Preprint",
+         year         = "2018",
+         volume       = "-",
+         number       = "-",
+         doi          = "http://hdl.handle.net/10023/11758",
+         
+         textVersion  =
+           paste("Glennie, R., Borchers, D. L., Murchie, M., Harmsen, B. J., and Foster, R. J., (2018).",
+                 "Open population maximum likelihood spatial capture-recapture",
+                 "Preprint, University of St Andrews",
+                 "http://hdl.handle.net/10023/11758")
+)
