@@ -1,0 +1,134 @@
+---
+title: "StrataModel: Spatial Capture-Recapture with Strata"
+author: "Richard Glennie"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 7, 
+  fig.height = 7, 
+  comment = "#>"
+)
+```
+
+The StrataModel class is an [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
+
+In this vignette, I describe how other types of model classes (ScrModel, CjsModel, JsTransientModel) can be 
+fit to multiple strata using the StataModel class.
+
+```{r load_pkg}
+library(openpopscr)
+library(secr)
+```
+```{r secretload, include = FALSE}
+data("stratamodel_example")
+obj <- stratamodel_example$obj
+scrdat1 <- stratamodel_example$scrdat1
+scrdat2 <- stratamodel_example$scrdat2
+scrdat3 <- stratamodel_example$scrdat3
+scrdat <- stratamodel_example$scrdat
+```
+## Simulate data
+
+I will simulate a survey that is conducted over three strata. The idea is strata
+may share some parameters (i.e., parameters are equal among strata) and for
+other parameters, each stratum will have its own particular value. Strata are
+treated independently conditional on the parameters. 
+
+Here, all strata have the same value of lambda0, but different sigma and D parameters. 
+I create a <code>ScrData</code> object for each stratum seperately and then
+store these in a list. I use the same detector array setup and mesh in each stratum, but
+these could differ. 
+
+```{r simdata, eval = FALSE}
+true_par <- list(s1 = list(D = 1000, lambda0 = 2, sigma = 20), 
+                 s2= list(D = 500, lambda0 = 2, sigma = 20), 
+                 s3 = list(D = 1000, lambda0 = 2, sigma = 10))
+
+# make detectors array 
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "multi")
+
+# make mesh 
+mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
+
+# set number of occasions to simulate
+n_occasions <- 5 
+
+# simulate for each stratum
+scrdat1 <- simulate_scr(true_par[[1]], n_occasions, detectors, mesh, seed = 15483)
+scrdat2 <- simulate_scr(true_par[[2]], n_occasions, detectors, mesh, seed = 79696)
+scrdat3 <- simulate_scr(true_par[[3]], n_occasions, detectors, mesh, seed = 43523)
+
+scrdat <- list(s1 = scrdat1, s2 = scrdat2, s3 = scrdat3)
+```
+
+```{r seedata}
+scrdat1
+scrdat2
+scrdat3
+
+```
+
+## Fitting the model
+
+The <code>StrataModel</code> class works by specifying a formula for each 
+parameter that is to be common among all strata, then separately specifying a
+formula for each stratum for each parameter that is to be particular to strata. 
+This allows stratum-specific parameters to depend on different covariate combinations. 
+
+When creating the <code>StrataModel</code> you must also specify what type of 
+model you wish to fit to each stratum. Here, I fit the <code>ScrModel</code>.
+You can also specify any other model class available within the <code>openpopscr</code>
+package. 
+
+```{r createobj, eval = FALSE}
+shared_form <- list(lambda0 ~ 1)
+
+private_form <- list(s1 = list(sigma ~ 1),
+                     s2 = list(sigma ~ 1), 
+                     s3 = list(sigma ~ 1))
+
+
+start <- list(lambda0 = 2, sigma = 20, D = 1000)
+
+obj <- StrataModel$new(scrdat, "ScrModel", shared_form, private_form, start)
+```
+
+```{r fitmodel, eval = FALSE}
+obj$fit()
+```
+
+Once fit, the object's name can be typed into the terminal to return 
+the results for each stratum. 
+
+```{r results}
+obj
+```
+
+Furthermore, the <code>get_object</code> function can be used to extract
+the model object that corresponds to each stratum. You can then use the
+functions that model object has to extract estimates or other quantities. 
+
+```{r getllk}
+# e.g. get likelihood value at maximum for stratum 1 model 
+obj$get_object(1)$mle_llk()
+```
+
+You can extract parameters for each stratum using the <code>get_par</code>
+function:
+
+```{r object}
+# should be the same for all strata
+obj$get_par("lambda0", k = 1)
+# differ between strata (in simulation strata 1 & 2 have same, 3 differs)
+obj$get_par("sigma", k = 1)
+# density by stratum
+obj$get_par("D")
+```

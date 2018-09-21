@@ -46,6 +46,7 @@
 //' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 //' @param num_cores number of processor cores to use in parallelisation 
 //' @param num_states: 2 = CJS model, 3 = JS model 
+//' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch
 //'
 //' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 //' 
@@ -55,32 +56,63 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              Rcpp::NumericVector& enc_rate,
                              const arma::mat usage, 
                              const int num_cores, 
-                             const int num_states) {
+                             const int num_states,
+                             const int detector_type) {
   
   const arma::cube capthist(capvec.begin(), n, J, K, false);
   const arma::cube enc0(enc_rate.begin(), M, K, J, false);
-  int alive_col = num_states == 2 ? 0 : 1; 
+  int alive_col = 1; 
+  if (num_states < 3) alive_col = 0; 
   arma::field<arma::cube> probfield(n);
-  #ifdef _OPENMP
-  omp_set_num_threads(num_cores);
-  #endif 
-  #pragma omp parallel for shared(probfield, alive_col) default(none) schedule(auto)
+# ifdef _OPENMP
+  omp_set_num_threads(num_cores); 
+#endif 
+#pragma omp parallel for shared(probfield, alive_col) default(none) schedule(auto)
   for (int i = 0; i < n; ++i) {
     arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
+    arma::vec enc; 
+    arma::vec penc; 
+    arma::vec savedenc;
+    arma::mat encslice; 
+    double num; 
+    arma::vec probslice = arma::zeros<arma::vec>(M);;
     for (int j = 0; j < J; ++j) { 
       bool unseen = true;
+      encslice = enc0.slice(j);
+      probslice = arma::zeros<arma::vec>(M);
+      penc = arma::zeros<arma::vec>(M); 
       for (int k = 0; k < K; ++k) {
         if (usage(k, j) < 1e-16) continue; 
-          arma::vec enc = enc0.slice(j).col(k) * usage(k, j); 
-        iprob.slice(j).col(1) += capthist(i, j, k) * log(enc) - 
-          enc - lgamma(capthist(i, j, k) + 1);  
+        enc = encslice.col(k) * usage(k, j); 
+        if (detector_type == 1) {
+          probslice += capthist(i, j, k) * log(enc) - enc - lgamma(capthist(i, j, k) + 1); 
+        } else if (detector_type == 2) {
+          penc = 1.0 - exp(-enc); 
+          // avoid zeros 
+          penc += 1e-16; 
+          probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
+        } else if (detector_type == 3) {
+          penc += enc; 
+          if (capthist(i, j, k) > 0.5) savedenc = enc; 
+        }
         if (capthist(i, j, k) > 1e-16) unseen = false; 
       }
-      if (unseen) {
-        iprob.slice(j).col(1 - alive_col).ones(); 
-        if (num_states == 3) iprob.slice(j).col(2).ones();  
+      if (detector_type == 3) {
+        // avoid zeros
+        penc += 1e-16; 
+        if (!unseen) probslice += log(savedenc) - log(penc); 
+        num = 1.0; 
+        if (unseen) num = 0.0; 
+        probslice += -(1.0 - num) * penc + num * log(1.0 - exp(-penc)); 
       }
-      iprob.slice(j).col(alive_col) = exp(iprob.slice(j).col(alive_col)); 
+      if (unseen) {
+        if (num_states == 2) iprob.slice(j).col(1 - alive_col).ones(); 
+        if (num_states == 3) {
+          iprob.slice(j).col(0).ones(); 
+          iprob.slice(j).col(2).ones();  
+        }
+      }
+      iprob.slice(j).col(alive_col) = exp(probslice); 
     }
     probfield(i) = iprob; 
   }

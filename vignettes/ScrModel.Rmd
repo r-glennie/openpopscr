@@ -1,0 +1,380 @@
+---
+title: "ScrModel: Spatial Capture-Recapture Model Object"
+author: "Richard Glennie"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 7, 
+  fig.height = 7, 
+  comment = "#>"
+)
+```
+
+The ScrModel class is a [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
+
+In this vignette, I describe how spatial capture-recapture models can be used within an <code>R6</code> object of the <code>ScrModel</code> class. 
+
+```{r load_pkg}
+library(openpopscr)
+library(secr)
+```
+
+```{r secretload, include = FALSE}
+data("scrmodel_example")
+mod <- scrmodel_example$mod
+mod_detage <- scrmodel_example$mod_detage
+stat <- scrmodel_example$stat
+trans <- scrmodel_example$trans
+scrdat <- scrmodel_example$scrdat
+scrtransdat <- scrmodel_example$scrtransdat
+```
+
+## Simulating data 
+
+The <code>openpopscr</code> package uses the <code>ScrData</code> class to store data. See the vignette on the <code>ScrData</code> class to see how to create the data object from your own raw data. In this section, I simulate a SCR survey. The simulation function is useful when you want to try out a new method where you know what the correct parameter estimates are, you want to test how robust a method is to violations of its assumptions, or you want to see how data simulated from a model compare with real data. 
+
+To simulate a survey, I require true detection and density parameters, a detector layout, and a mesh.  
+
+```{r setuptruepar}
+# set true parameters 
+true_par <- list(D = 1000, lambda0 = 2, sigma = 20)
+
+# make detectors array 
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
+
+# make mesh 
+mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
+
+# set number of occasions to simulate
+n_occasions <- 5 
+```
+
+The simulation uses a hazard half-normal detection function as defined in Borchers and Efford (2008). This detection function has two parameters: $\lambda_0$ and $\sigma$. Together they define the encounter rate between an individual with activity centre a distance $r$ from a detector as $\lambda_0\exp(-\frac{r^2}{2\sigma^2})$. If the encounter rate is $e$, then $Te$ is the mean number of encounters one would expect in a time interval of duration $T$. This means that $\lambda_0$ is the encounter rate between an individual and a detector when the distance between the detector and the individual's activity centre is zero, it is a kind of intercept. The parameter $\sigma$ is the scale parameter that determines how quickly the encounter rate decreases as the distance between detector and activity centre increases. 
+
+I have specified the detectors to be of type "count". This means that each detector records how many times each individual was seen by that detector. An alternative detector type is "proximity"; these detectors only record whether an individual was seen at least once or not. Camera traps are examples of count detectors; they can be used to determine whether an individual was seen once, twice, thrice, and so on. DNA hair snares are examples of proximity detectors; one can only determine whether an individual's DNA is present or not, you cannot determine how many times the individual deposited hair. Multi-catch
+detectors can also be used where individuals may only be detected on a single detector 
+for each occasion, but a detector can detect multiple individuals. <code>openpopscr</code> does
+not implement methods for traps that can detect only one individual per occasion, termed single catch traps. 
+
+To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
+
+```{r simulatescr, eval = FALSE}
+scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 15483)
+```
+
+You will notice the <code>simulate_scr</code> function produces useful output to let the user know what is going on. If you want to switch this off, for example if you are running lots of simulations and do not want this output being produced over and over, then you can set <code>print = FALSE</code> just as I have set the seed above. 
+
+In the simulated survey, `r scrdat$n()` unique individual were detected at least once. More summary information can be found by typing the name of the object into the console: 
+
+```{r look_at_data}
+scrdat
+```
+
+ 
+## Fitting a model 
+
+Models of class <code>ScrModel</code> can be used to fit SCR Models, no surprises. To create a ScrModel, you need to specify a formula for each detection parameter and a starting value for all parameters, both as lists. It is best to choose starting values for the parameters that are biologically reasonable and 
+match your data. You could simulate some data using proposed starting values as true parameters to 
+see if they lead to similar data. Poor starting values can lead to spurious convergence 
+in complicated models, models with many parameters. The function <code>get_start_value</code> can
+be used to produce a reasonable guess for each parameter. 
+
+```{r setupscrmod}
+
+# set each parameter to a be constant 
+form <- list(lambda0 ~ 1, 
+             sigma  ~ 1)
+
+# get some starting values based on data 
+start <- get_start_values(scrdat)
+
+# check starting values are reasonable, they seem ok 
+start 
+```
+
+Notice that you do not specify a formula for <code>D</code>. At present, the <code>openpopscr</code> 
+does not allow for density to change over space. 
+
+Before fitting the model, I create the model object: 
+
+```{r modelobj, eval = FALSE}
+mod <- ScrModel$new(form, scrdat, start, num_cores = 4)
+```
+
+I have specified here for the model to use $4$ processor cores for any parallel
+processing. This makes model fitting and computations quicker. You can 
+use the package <code>Parallel</code> to find out how many processor cores
+you have available: 
+```{r cores}
+library(parallel)
+detectCores()
+```
+
+In my case, I have eight cores. In general, I would use at most one core
+less than what I had available, to leave one core free for me to use. In this
+case, I have left half of them free because I am using them for another purpose.
+You can set many models to use the same cores as long as only one is being
+used to do computations at a time. 
+
+Once the model object has been created, you can fit the model using the fit
+function:
+```{r fitmodel, eval = FALSE}
+mod$fit()
+```
+
+If you have the output printed, the "checking convergence" message reports
+whether convergence has been reached and if it has not it reports the code
+output by <code>optim</code> that tells you why it failed to converge. 
+
+The current value of the parameters is stored inside the model object: 
+```{r par}
+mod$par()
+```
+
+This is one benefit of using <code>R6</code> objects;  they can store
+information as computations progress. For example, if I was fitting the model
+using the <code>fit()</code> and for some reason I wanted to stop the fitting
+or the fitting failed because of convergence issues or computational errors; the
+last value used by the numerical optimiser for each parameter is stored in <code>par()</code>. 
+If I wanted to restart the fitting from this point again, I just need to call <code>fit()</code>
+again. As you fit more complicated models, it is common for the optimisation to not
+converge because it has reached the maximum number of iterations in the algorithm.
+If this occurs, simply call <code>fit()</code> again and the optimiser will
+continue where it left off. 
+
+# Reading model output 
+
+Once a model has been fit, you can type its name into the console and some
+summary results are printed: 
+```{r printres}
+mod
+```
+
+The parameters are reported on the link scale; this is because when covariates
+are involved, it is easier to interpret their effects. The package <code>openpopscr</code>
+uses the log-link function for all of these parameters. So, you would take
+the exponential of these reported numbers to obtain the parameter values on the
+response scale. 
+
+Alternatively, you can use the <code>get_par</code> function: 
+```{r getpar}
+mod$get_par("lambda0", k = 1, j = 1)
+mod$get_par("sigma", k = 1, j = 1)
+mod$get_par("D")
+```
+
+I specify $k = 1, j = 1$ in the functions above for $\sigma, \lambda_0$ because by default
+<code>get_par</code> returns the value of these parameters for every occasion and detector. This is
+useful when they vary, but here they are constants, so I only want
+their value on a single occasion for a single detector. 
+
+If you want to access the reported results, they are stored as a list which is
+returned by the function <code>estimates</code>:
+```{r getest}
+mod$estimates()
+```
+
+The model AIC can be computed in the usual way: 
+```{r getaic}
+AIC(mod)
+```
+
+## Covariates 
+
+The detection parameters can change with observed covariate values. Covariates
+can change by detector, by occasion, or both. At present, spatial or individual-level
+covariates are not implemented in <code>openpopscr</code>. 
+
+As an example, suppose the simulated survey was conducted with two types of 
+detector: old and new. It is possible that the old detectors are less likely to 
+detect an individual than a new detector. This can be captured by the model by
+allowing this covariate to change the value of $\lambda_0$, the encounter
+intercept. 
+```{r dcov}
+# set seed so random covariate values will always be the same 
+set.seed(58285)
+# Simulate, for each detector, an age class: old or new. In reality, this
+# covariate would be observed. 
+age <- as.factor(sample(c("old", "new"), size = scrdat$n_traps(), replace = T))
+
+# Add the covariate to the ScrData 
+scrdat$add_covariate("age", age, "j")
+```
+
+When adding the covariate to the data, I specify the covariate is of type "j" because it is a detector-level covariate. See the vignette on ScrData class for
+further information. 
+
+I can now fit the model with detector age included. 
+```{r detagemod, eval = FALSE}
+# copy formulae from previous model
+form_detage <- form
+# update formula for lambda0 to include age 
+form_detage[[1]]<- lambda0 ~ age
+```
+```{r fitmoddetage, eval = FALSE}
+# create new model object 
+mod_detage <- ScrModel$new(form_detage, scrdat, start, num_cores = 4)
+# fit model
+mod_detage$fit()
+```{r analysemodetage}
+# look at results
+mod_detage
+# predict lambda0 for each detector
+mod_detage$get_par("lambda0", k = 1)
+# get lambda0 for detector 10 
+mod_detage$get_par("lambda0", k = 1, j = 10)
+```
+
+I see here that the $95\%$ confidence interval for age covers zero and so 
+there is no evidence that detector age has an effect on detectability. 
+
+Covariates that change over time, type $k$, and detector-temporal covariates
+can be included in the same way. See ScrData vignette for more details on 
+loading covariates into the ScrData object. 
+
+## Transience 
+
+Sometimes an individual's activity range within each occasion differs from
+their range when viewed across all occasions. There can be several reasons
+for this; two common reasons are that the individual only explores part of their
+entire range during each occasion, so the range within each occasion is only
+partial; or, it may be that an individual does explore their entire range
+during each occasion, but the range shifts over time. 
+
+You can investigate this by looking at how the encounter range statistic (see <code>RPSV</code> function in <code>secr</code> package for details) compares over occasions as opposed to within
+occasions: 
+```{r rspv}
+# get encounter range statistic for occasion 1
+scrdat$encrange(k = 1)
+# get encounter range for each occasion
+scrdat$encrange(each = TRUE)
+mean(scrdat$encrange(each = TRUE))
+# You can get encounter range for any subset of occasions, either each or together
+scrdat$encrange(k = c(1, 3, 5))
+scrdat$encrange(k = c(1, 3, 5), each = TRUE)
+```
+
+In this case, the mean range within each occasion is `r round(mean(scrdat$encrange(each = TRUE)), 2)` and is similar to the range over all occasions `r round(scrdat$encrange(), 2)`. So, for these data, transience does not appear to be a problem. This is unsurprising given the data were simulated with stationary activity ranges.
+
+I will now simulate some data where activity centres move. In particular, the 
+activity centre of each individual will move by Brownian motion with standard
+deviation $sd$. 
+```{r simmove, eval = FALSE}
+# set truth 
+true_par <- list(D = 1000, lambda0 = 2, sigma = 10, sd = 20)
+
+# make detectors array 
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
+
+# make mesh 
+mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
+
+# set number of occasions to simulate
+n_occasions <- 5 
+
+# simulate ScrData 
+scrtransdat <- simulate_scr(true_par, n_occasions, detectors, mesh, move = TRUE, seed = 13854)
+```
+
+Notice the <code>move = TRUE</code> argument to the <code>simulate_scr</code>
+function and the specified true value of sd as  `r true_par$sd`.
+
+I now imagine these data were collected in a survey and I want to investigate whether
+transience may be an issue using the encounter range statistic: 
+```{r stattrans}
+scrtransdat$encrange()
+mean(scrtransdat$encrange(each = TRUE))
+```
+
+There is a difference between the two measures of encounter range, where 
+range across occasions is greater than range within, indicative of transience. 
+
+Nevertheless, I will first fit a stationary SCR model to these data: 
+```{r statscr, eval = FALSE}
+# set formulae and start values 
+stat_form <- list(lambda0 ~ 1, sigma ~ 1)
+start <- get_start_values(scrdat)
+```
+```{r statscrmake, eval = FALSE}
+# create model object 
+stat <- ScrModel$new(stat_form, scrtransdat, start, num_cores = 4)
+# fit model 
+stat$fit()
+```
+```{r analysestat}
+# look at results 
+stat
+# look at parameters on response scale 
+stat$get_par("lambda0", k = 1)
+stat$get_par("sigma", k = 1)
+stat$get_par("D")
+```
+
+Given we know the truth, the estimates are a little off: $\lambda_0$ is far too
+low, $\sigma$ is too high. The density parameter $D$ is acceptable but still a
+little large. In general, density estimation tends to be robust to transience 
+as the biases in the detection parameters cancel out: $\lambda_0$ leads to 
+density underestimation and $\sigma$ to density overestimation. 
+
+I now fit the transient model. The transient model class is called <code>ScrTransientModel</code>. We must also now specify a start value 
+for the movement parameter. 
+
+```{r fittransmod}
+# specify formulas for parameters 
+form <- list(lambda0 ~ 1, 
+             sigma  ~ 1, 
+             sd ~ 1)
+
+start <- get_start_values(scrtransdat, model = "ScrTransientModel")
+```
+```{r transmodmake, eval = FALSE}
+trans <- ScrTransientModel$new(form, scrtransdat, start, num_cores = 4)
+```
+
+Notice that you must specify <code>model = "ScrTransientModel"</code> in 
+the <code>get_start_values</code> so that a start value for the movement
+parameter is supplied. This function assumes by default that you are fitting
+a ScrModel. 
+
+Also, note from the output given when creating the model object that a
+rectangular mesh is created based on the mesh supplied by the user. This is
+because the current algorithm that implements the movement model requires a
+rectangular study space. Note, however, that individuals may only reside and
+move around within the mesh supplied by the user; the extra mesh points created
+to produce a rectangular study space are not accessible. Also note, that the
+rectangular mesh will be larger and contain more mesh points than the user supplied
+mesh, so you may be required to reduce the resolution of the user supplied 
+mesh in order to make computations with the rectangular mesh feasible. 
+
+I now fit the model as usual:
+```{r fittrans, eval = FALSE}
+# fit model 
+trans$fit()
+```
+```{r analysetrans}
+# look at results 
+trans
+# look at parameters on response scale 
+trans$get_par("lambda0", k = 1)
+trans$get_par("sigma", k = 1)
+trans$get_par("sd", k = 1)
+trans$get_par("D")
+```
+
+The density estimation is not affected much by fitting a transience model, however,
+the value of the other parameters are affected; activity range in particular has
+been overestimated in the stationary model compared to the transient. Fitting
+the transience model has provided improved inference on activity. 
+
+AIC supports the use of the transience model: 
+```{r aic}
+AIC(stat, trans)
+```

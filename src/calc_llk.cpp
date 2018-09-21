@@ -29,7 +29,6 @@
 #include <iostream>
 #include <RcppArmadillo.h>
 
-
 //' Computes log-likelihood of Jolly-Seber model 
 //'
 //' @param n number of individuals 
@@ -53,19 +52,19 @@ double C_calc_llk(const int n, const int J, const int M,
 									const arma::vec entry) {
   
   arma::vec illk(n);
-  double llk; 
-  arma::mat pr;
-  double sum_pr;
-  arma::mat tpm; 
   for (int i = 0; i < n; ++i) {
-    llk = 0; 
-    pr = pr0; 
-    Rcpp::NumericVector pr_capvec(Rcpp::as<Rcpp::NumericVector>(pr_capture[i])); 
-    arma::cube pr_cap(pr_capvec.begin(), M, num_states, J); 
+    double llk = 0; 
+    double sum_pr; 
+    arma::mat pr = pr0; 
+    arma::mat tpm; 
+    Rcpp::NumericVector pr_capvec(pr_capture[i]); 
+    arma::cube pr_cap(pr_capvec.begin(), M, num_states, J, false); 
     for (int j = entry(i); j < J - 1; ++j) {
-      tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr %= pr_cap.slice(j); 
-      pr *= tpm; 
+      if (num_states > 1) {
+        tpm = Rcpp::as<arma::mat>(tpms[j]); 
+        pr *= tpm; 
+      }
       sum_pr = accu(pr); 
       llk += log(sum_pr); 
       pr /= sum_pr; 
@@ -74,7 +73,7 @@ double C_calc_llk(const int n, const int J, const int M,
     llk += log(accu(pr)); 
     illk(i) = llk;  
   }
-  return(accu(illk)); 
+  return(arma::accu(illk)); 
 }
 
 //' Computes detection probability (seen at least once) for Jolly-Seber model 
@@ -90,7 +89,8 @@ double C_calc_llk(const int n, const int J, const int M,
 double C_calc_pdet(const int J, 
                 arma::mat pr0, 
                 Rcpp::List pr_captures,
-                Rcpp::List tpms) {
+                Rcpp::List tpms,
+                const int num_states) {
   
   double pdet = 0; 
   arma::mat pr(pr0);
@@ -99,9 +99,11 @@ double C_calc_pdet(const int J,
   arma::mat pr_capture; 
   for (int j = 0; j < J - 1; ++j) {
     pr_capture = Rcpp::as<arma::mat>(pr_captures[j]);
-    tpm = Rcpp::as<arma::mat>(tpms[j]); 
     pr %= pr_capture; 
-    pr *= tpm; 
+    if (num_states > 1) {
+      tpm = Rcpp::as<arma::mat>(tpms[j]); 
+      pr *= tpm; 
+    }
     sum_pr = accu(pr); 
     pdet += log(sum_pr); 
     pr /= sum_pr; 

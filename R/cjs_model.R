@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Richard Glennie
+# Copyright (c) 2018 Richard Glennie
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,42 +18,35 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 ################################################################################
-# openpopscr project: open population spatial capture-recapture 
-#
-# file description: Cormack-Jolly-Seber model class
-#
-################################################################################
 
 #' Cormack-Jolly-Seber model class 
 #' 
-#' @description Encapsulates Cormack-Jolly-Seber model: fits model, formats inference, and 
+#' @description Cormack-Jolly-Seber model: fits model, formats inference, and 
 #' simulates from fitted model. 
 #' \itemize{
-#'   \item scr_data: a ScrData object 
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
+#'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
 #'   \item num_cores (optional, default = 1): number of processors cores to use 
 #'   in parallelised code 
+#'   \item print: (defualt TRUE) if TRUE then useful output is printed
 #' }
 #' 
 #' Methods include: 
 #' \itemize{
-#'  \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
-#'   on occasion k at mesh point m (if j, k, or m omitted returns value(s) for all)
+#'  \item get_par(name, j, k): returns value of parameter "name" for detector j 
+#'   on occasion k (if j, k omitted, then returns value(s) for all)
 #'  \item set_par(par): can change the parameter the model uses. Note, the model will simulate 
 #'    data using this parameter, but will only present inference based on the maximum likelihood
 #'    estimates. 
-#'  \item calc_D_llk(): computes the likelihood of the D parameter
-#'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead)
-#'  \item calc_pr_entry(): computes vector with entry j equal to probability of individual unborn up to occasion j
-#'  being born just after occasion j
+#'  \item set_mle(mle, V, llk): sets model at maximum likelihood with parameters mle, 
+#'  covariance matrix V, and likelihood value llk 
+#'  \item calc_initial_distribution(): computes initial distribution over life states (alive, dead)
 #'  \item calc_tpms(): returns list of transition probability matrix for each occasion 
 #'  \item calc_pr_capture(): returns array where (i,k,m) is probability of capture record 
 #'  on occasion k for individual i given activity centre at mesh point m
-#'  \item calc_pdet(): compute probability of being detected at least once during the survey
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item fit(nsims = 99): fit the model by obtaining the maximum likelihood estimates. Estimates of
-#'        density are obtained from parametric boostrap with nsim resamples. 
+#'  \item fit: fit the model by obtaining the maximum likelihood estimates
 #'  \item simulate(): simulate ScrData object from fitted model
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
@@ -61,17 +54,18 @@
 #'  \item estimates(): return estimates in a easy to extract list 
 #'  \item cov_matrix(): return variance-covariance matrix from fitted model (on working scale)
 #'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
-#'  \item sample_D(nsims): generate nsims time series for density, sampled from fitted model
-#'  \item sample_R(nsims): generate nsims time series of arrival numbers, sampled from fitted model  
 #' }
 #' 
-CjsModel <- R6Class("JsModel", 
+CjsModel <- R6Class("CjsModel", 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1) {
+    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
       private$data_ <- data
 			index <- 1:data$n()
+			if (print) cat("Computing entry occasions for each individual.......")
 			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])})
+			if (print) cat("done\n")
+			if (print) cat("Reading formulae.......")
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       private$form_[[1]]<- form[par_names == "lambda0"][[1]]
@@ -86,8 +80,12 @@ CjsModel <- R6Class("JsModel",
       private$response2link_ <- list(lambda0 = "log", 
                                      sigma = "log", 
                                      phi = "qlogis") 
+      if (print) cat("done\n") 
+      if (print) cat("Initilising parameters.......")
       private$initialise_par(start)
+      if (print) cat("done\n")
       private$num_cores_ = num_cores
+      private$print_ = print
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
@@ -110,15 +108,11 @@ CjsModel <- R6Class("JsModel",
       private$par_ <- par
     },
     
-    set_mle = function(mle, V, llk, nsims = 999) {
+    set_mle = function(mle, V, llk) {
       private$mle_ <- mle
       private$llk_ <- -llk
       private$V_ <- V
-      sd <- sqrt(diag(private$V_))
-      names(sd) <- names(private$convert_par2vec(private$convert_natural2working(mle)))
-      sd <- private$convert_working2natural(private$convert_vec2par(sd))
-      confints <- private$calc_confint()
-      private$make_results(sd, confints)
+      private$make_results()
     }, 
     
     calc_initial_distribution = function() {
@@ -137,7 +131,7 @@ CjsModel <- R6Class("JsModel",
         phi <- self$get_par("phi", j = 1, k = k, m = 1)
         if (dt[k] > 1) phi <- phi^dt[k]
         tpms[[k]] <- matrix(c(phi, 0, 
-                            0, 1 - phi), nrow = 2, ncol = 2)
+                            1 - phi, 1), nrow = 2, ncol = 2)
       }
       return(tpms)
     }, 
@@ -157,11 +151,12 @@ CjsModel <- R6Class("JsModel",
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
       prob <- C_calc_pr_capture(n, n_occasions, n_traps, n_meshpts, capthist, 
-                               enc_rate0, trap_usage, private$num_cores_, 2)
+                               enc_rate0, trap_usage, private$num_cores_, 2, self$data()$detector_type())
       return(prob)
     },
     
     calc_llk = function(param = NULL, names = NULL) {
+      if (!is.null(names)) names(param) <- names
       if (!is.null(param)) self$set_par(private$convert_vec2par(param));
       # compute transition probability matrices 
       tpms <- self$calc_tpms()
@@ -184,10 +179,18 @@ CjsModel <- R6Class("JsModel",
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
-      mod <- optim(w_par,
-                   private$calc_negllk,
+      if (private$print_) cat("Fitting model..........\n")
+      t0 <- Sys.time()
+      mod <- suppressMessages(optim(w_par, 
+                                    private$calc_negllk,
                    names = names(w_par),
-                   hessian = TRUE)
+                   hessian = TRUE))
+      t1 <- Sys.time()
+      difft <- t1 - t0
+      if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
+      code <- mod$convergence 
+      if (code > 0) warning("model failed to converge with nlm code ", code)
+      if (private$print_ & code == 0) cat("Checking convergence.......converged", code, "\n")
       mle <- mod$par
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
@@ -216,40 +219,17 @@ CjsModel <- R6Class("JsModel",
     options(scipen = 0)
   }, 
   
-  simulate = function(n = NULL, seed = NULL) {
-    if (!is.null(seed)) set.seed(seed)
-    if (!is.null(n)) n <- private$data_$n()
-    num.meshpts <- private$data_$n_meshpts()
-    mesh <- private$data_$mesh()
-    D <- n * private$data_$area() * 100 
-    # simulate population
-    pop <- sim.popn(D = D, core = mesh, Ndist = "fixed", buffertype = "convex")
-    n_occasions <- private$data_$n_occasions()
-    dt <- diff(private$data_$time())
-    phi <- self$get_par("phi", j = 1, m = 1)
-    phi <- phi ^ dt
-    life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
-    surv <- rgeom(n, 1 - phi)
-    for (i in 1:n) life[i, 1:(1 + surv)] <- 1   
-    lambda0 <- self$get_par("lambda0", m = 1)
-    sigma <- self$get_par("sigma", j = 1, m = 1)
-    capture_history <- sim.capthist(private$data_$traps(), 
-                                    popn = pop, 
-                                    detectfn = "HHN", 
-                                    detectpar = list(lambda0 = lambda0, 
-                                                     sigma = sigma), 
-                                    noccasions = n_occasions,
-                                    renumber = FALSE)
-    # thin capture history by survival
-    n <- dim(capture_history)[1]
-    ids <- as.numeric(rownames(capture_history))
-    life <- life[ids,]
-    birth_time <- birth_time[ids]
-    seen <- rep(TRUE, n)
-    for (i in seq(n)) {
-      capture_history[i, ,] <- diag(life[i,]) %*% capture_history[i, ,]
-    } 
-    new_dat <- ScrData$new(capture_history, mesh, private$data_$time())
+  simulate = function(N = NULL, seed = NULL) {
+    if (!is.null(N)) N <- self$data()$n()
+    new_dat <- simulate_cjs_openscr(self$par(), 
+                                    N, 
+                                    self$data()$n_occasions(), 
+                                    self$data()$traps(), 
+                                    self$data()$mesh(), 
+                                    move = FALSE, 
+                                    time = self$data()$time(), 
+                                    seed = seed, 
+                                    print = private$print_)
     return(new_dat)
   }, 
   
@@ -284,11 +264,12 @@ CjsModel <- R6Class("JsModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
     num_cores_ = NULL, 
+		print_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_par <- numeric(4)
-      private$par_ <- vector(mode = "list", length = 5)
+      n_par <- numeric(3)
+      private$par_ <- vector(mode = "list", length = 3)
       for (par in 1:3) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
@@ -303,8 +284,7 @@ CjsModel <- R6Class("JsModel",
         }
         private$par_[[par]] <- par_vec
       }
-      private$par_[[5]] <- 0
-      names(private$par_) <- c(names(private$form_), "D") 
+      names(private$par_) <- names(private$form_)
     }, 
     
     initialise_par = function(start) {

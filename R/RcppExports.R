@@ -40,8 +40,38 @@ C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_cores, num_states, en
 #'
 #' @return pdet = probability seen at some time on the survey 
 #' 
-C_calc_pdet <- function(J, pr0, pr_captures, tpms) {
-    .Call(`_openpopscr_C_calc_pdet`, J, pr0, pr_captures, tpms)
+C_calc_pdet <- function(J, pr0, pr_captures, tpms, num_states) {
+    .Call(`_openpopscr_C_calc_pdet`, J, pr0, pr_captures, tpms, num_states)
+}
+
+#' Computes log-likelihood of Jolly-Seber model 
+#'
+#' @param n number of individuals 
+#' @param J total number of occasions 
+#' @param M total number of mesh points
+#' @param pr0 initial distribution over life states
+#' @param pr_capture output of calc_pr_capture() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#' @param num_cores number of processor cores to use in parallelisation 
+#' @param num_states 2 = CJS model, 3 = JS model 
+#'
+#' @return log-likelihood value 
+#' 
+C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_cores, num_states, entry) {
+    .Call(`_openpopscr_C_calc_move_llk`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_cores, num_states, entry)
+}
+
+#' Computes detection probability (seen at least once) for Jolly-Seber model 
+#'
+#' @param J total number of occasions 
+#' @param pr0 initial distribution over life states
+#' @param pr_captures list of empty capture histories, see calc_pdet() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#'
+#' @return pdet = probability seen at some time on the survey 
+#' 
+C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states) {
+    .Call(`_openpopscr_C_calc_move_pdet`, J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states)
 }
 
 #' Computes probability of each capture record for Jolly-Seber model 
@@ -55,10 +85,11 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms) {
 #' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 #' @param num_cores number of processor cores to use in parallelisation 
 #' @param num_states: 2 = CJS model, 3 = JS model 
+#' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 
-C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states) {
-    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capvec, enc_rate, usage, num_cores, num_states)
+C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type) {
+    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type)
 }
 
