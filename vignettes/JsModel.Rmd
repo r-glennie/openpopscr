@@ -28,6 +28,15 @@ the vignettes on the ScrData and ScrModel classes before reading this one.
 library(openpopscr)
 library(secr)
 ```
+```{r secretload, include = FALSE}
+data("jsmodel_example")
+mod <- jsmodel_example$mod
+mod_seas <- jsmodel_example$mod_seas
+stat <- jsmodel_example$stat
+trans <- jsmodel_example$trans
+scrdat <- jsmodel_example$scrdat
+scrtransdat <- jsmodel_example$scrtransdat
+```
 
 ## Simulating data 
 
@@ -52,7 +61,7 @@ n_occasions <- 10
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr}
+```{r simulatescr, eval = FALSE}
 scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, seed = 52381)
 ```
 
@@ -94,13 +103,13 @@ start
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj}
+```{r modelobj, eval = FALSE}
 mod <- JsModel$new(form, scrdat, start, num_cores = 4)
 ```
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel}
+```{r fitmodel, eval = FALSE}
 mod$fit()
 ```
 
@@ -155,7 +164,7 @@ covariates are not implemented in <code>openpopscr</code>. By default, the
 covariate $t$ is created to allow for parameters to depend on occasion. 
 
 As an example, one can fit a model where recruitment depends on time: 
-```{r survt}
+```{r survt, eval = FALSE}
 # simulate a wet/dry covariate 
 set.seed(385638)
 season <- as.factor(sample(c("wet", "dry"), size = scrdat$n_occasions(), replace = TRUE))
@@ -169,6 +178,8 @@ form_seas[[4]]<- beta ~ season
 mod_seas <- JsModel$new(form_seas, scrdat, start, num_cores = 4)
 # fit model
 mod_seas$fit()
+```
+```{r survtsee}
 # look at results
 mod_seas
 # predict beta for each season
@@ -195,9 +206,9 @@ and so survival probability is underestimated. Furthermore, transience can cause
 overestimation of detection probability and substantial underestmation of density. 
 
 You can simulate Js SCR surveys with transience: 
-```{r cjstrans}
+```{r cjstrans, eval = FALSE}
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 10, phi = 0.8, beta = 0.2, sd = 30)
+true_par <- list(D = 1000, lambda0 = 2, sigma = 10, phi = 0.8, beta = 0.2, sd = 20)
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 # make mesh 
@@ -221,7 +232,7 @@ There is some difference between the two measure of encounter range, where
 range across occasions is greater than range within, indicative of transience. 
 
 Nevertheless, I will first fit a stationary JSModel to these data: 
-```{r statscr}
+```{r statscr, eval = FALSE}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1, phi ~ 1, beta ~ 1)
 start <- get_start_values(scrtransdat, model = "JsModel")
@@ -229,6 +240,8 @@ start <- get_start_values(scrtransdat, model = "JsModel")
 stat <- JsModel$new(stat_form, scrtransdat, start, num_cores = 4)
 # fit model 
 stat$fit()
+```
+```{r statscrsee}
 # look at results 
 stat
 # look at parameters on response scale 
@@ -243,7 +256,7 @@ I now fit the transient model. The transient model class is called
 <code>JsTransientModel</code>. We must also now specify a start value for the
 movement parameter.
 
-```{r fittransmod}
+```{r fittransmod, eval = FALSE}
 # specify formulas for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1,
@@ -258,9 +271,11 @@ trans <- JsTransientModel$new(form, scrtransdat, start, num_cores = 4)
 ```
 
 I now fit the model as usual:
-```{r fittrans}
+```{r fittrans, eval = FALSE}
 # fit model 
 trans$fit()
+```
+```{r fittransee}
 # look at results 
 trans
 # look at parameters on response scale 

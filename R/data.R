@@ -38,6 +38,19 @@
 #' }
 "cjsmodel_example"
 
+#' Fitted models from JsModel vignette 
+#'
+#' Includes all fitted models from vignette. 
+#'
+#' @format A list of two data frames 
+#' \describe{
+#'   \item{mod}{standard SCR model} 
+#'   \item{mod_seas}{SCR model with detector covariate}
+#'   \item{stat}{stationary SCR model to transient data}
+#'   \item{trans}{transient SCR model to transient data}
+#' }
+"jsmodel_example"
+
 
 #' Fitted models from Strata model vignette 
 #'
