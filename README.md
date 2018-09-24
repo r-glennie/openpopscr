@@ -7,7 +7,7 @@ In R, the latest release can be install using the <code>devtools</code> package
 with the command: 
 
 ```
-devtools::install_github("r-glennie/openpopscr@v1.1.0", build_vignettes = TRUE)
+devtools::install_github("r-glennie/openpopscr@v1.0.0", build_vignettes = TRUE)
 ```
 
 The package requires you have a <code>C</code> compiler installed on your system. 
