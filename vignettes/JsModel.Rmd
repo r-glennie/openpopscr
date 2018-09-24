@@ -164,10 +164,12 @@ covariates are not implemented in <code>openpopscr</code>. By default, the
 covariate $t$ is created to allow for parameters to depend on occasion. 
 
 As an example, one can fit a model where recruitment depends on time: 
-```{r survt, eval = FALSE}
+```{r seasvar}
 # simulate a wet/dry covariate 
 set.seed(385638)
 season <- as.factor(sample(c("wet", "dry"), size = scrdat$n_occasions(), replace = TRUE))
+```
+```{r survt, eval = FALSE}
 # add covariate 
 scrdat$add_covariate("season", season, "k")
 # copy formulae from previous model
