@@ -31,9 +31,13 @@ command:
 ```
 browseVignettes()
 ```
-
 To learn how to use the package, I recommend reading the <code>ScrData</code>
 and <code>ScrModel</code> vignettes first. The rest are very similar to these
 vignettes, making it easier to use other classes once the basics are familiar. 
+
+## Issues 
+
+This package is under development. I'd be grateful for anyone who has issues
+with the package to open an issue or contact me. 
 
 
