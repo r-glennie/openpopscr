@@ -33,7 +33,10 @@ browseVignettes()
 ```
 To learn how to use the package, I recommend reading the <code>ScrData</code>
 and <code>ScrModel</code> vignettes first. The rest are very similar to these
-vignettes, making it easier to use other classes once the basics are familiar. 
+vignettes, making it easier to use other classes once the basics are familiar.
+
+Also, the folder inst/examples/ in the repository contains code showing how to fit
+each type of model to simulated data. 
 
 ## Issues 
 
