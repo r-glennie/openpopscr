@@ -29,7 +29,7 @@ There is a vignette for each class. To see a list of all vignettes, use the
 command: 
 
 ```
-browseVignettes()
+browseVignettes("openpopscr")
 ```
 To learn how to use the package, I recommend reading the <code>ScrData</code>
 and <code>ScrModel</code> vignettes first. The rest are very similar to these
