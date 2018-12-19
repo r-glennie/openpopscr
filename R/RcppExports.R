@@ -84,8 +84,8 @@ C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, d
 #' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 #' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 #' @param num_cores number of processor cores to use in parallelisation 
-#' @param num_states: 2 = CJS model, 3 = JS model 
-#' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch
+#' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
+#' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 

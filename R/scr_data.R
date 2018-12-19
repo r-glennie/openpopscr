@@ -63,8 +63,18 @@ ScrData <- R6Class("ScrData",
                           cov = NULL, 
                           cov_type = NULL) {
       private$capthist_ <- capthist 
+      private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
+                                       count = 1, 
+                                       proximity = 2, 
+                                       multi = 3,
+                                       transect = 4)
       if (is.null(secr::usage(secr::traps(capthist)))) {
-        secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = dim(capthist)[3], nc = dim(capthist)[2])
+        if (private$detector_type_ == 4) {
+          nids <- length(unique(attr(traps(capthist), "polyID")))
+          secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = nids, nc = dim(capthist)[2])
+        } else {
+          secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = dim(capthist)[3], nc = dim(capthist)[2])
+        }
       }
       private$mesh_ <- mesh
       if (is.null(time)) {
@@ -75,11 +85,8 @@ ScrData <- R6Class("ScrData",
       private$cov_ <- cov 
       private$cov_$t <- as.factor((1:dim(capthist)[2]) - 1)
       private$cov_type_ <- c(cov_type, "k")
-      private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
-                                       count = 1, 
-                                       proximity = 2, 
-                                       multi = 3)
-      if (!(private$detector_type_ %in% c(1,2,3))) stop("openpopscr only implements 'count', 'proximity', and 'multi' detectors, 
+      
+      if (!(private$detector_type_ %in% c(1,2,3, 4))) stop("openpopscr only implements 'count', 'proximity', 'multi', and 'transect' detectors, 
 you are using detectors of another type.")
       self$calc_distances()
     },
@@ -119,7 +126,11 @@ you are using detectors of another type.")
     
     n = function() {return(dim(private$capthist_)[1])},
     n_occasions = function() {return(dim(private$capthist_)[2])},
-    n_traps = function() {return(dim(private$capthist_)[3])}, 
+    n_traps = function() {
+      # number of transects
+      if (private$detector_type_ == 4) return(length(unique(attr(traps(private$capthist_), "polyID"))))
+      return(dim(private$capthist_)[3])
+      }, 
     n_meshpts = function() {return(dim(private$mesh_)[1])},
     encrate = function() {
       ndetections <- summary(self$capthist())[[4]][1, self$n_occasions() + 1]
@@ -149,6 +160,18 @@ you are using detectors of another type.")
         apply(private$mesh_, 1, dist)
       }
       private$distances_ <- t(apply(self$traps(), 1, dist_to_row))
+      ## if transect detectors, then take minimum distance approached
+      if (self$detector_type() == 4) {
+        ids <- attr(self$traps(), "polyID")
+        unique_ids <- unique(ids)
+        nids <- length(unique_ids)
+        newdist <- matrix(0, nr = nids, nc = self$n_meshpts())
+        for (i in 1:nids) {
+          subdist <- private$distances_[ids == unique_ids[i],]
+          newdist[i,] <- apply(subdist, 2, min)
+        }
+        private$distances_ <- newdist 
+      } 
     }, 
     
     add_covariate = function(cov_name, cov, cov_type) {

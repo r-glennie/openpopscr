@@ -45,8 +45,8 @@
 //' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 //' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
 //' @param num_cores number of processor cores to use in parallelisation 
-//' @param num_states: 2 = CJS model, 3 = JS model 
-//' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch
+//' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
+//' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
 //'
 //' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 //' 
@@ -84,7 +84,9 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
       for (int k = 0; k < K; ++k) {
         if (usage(k, j) < 1e-16) continue; 
         enc = encslice.col(k) * usage(k, j); 
-        if (detector_type == 1) {
+        if (detector_type == 1 | detector_type == 4) {
+          // avoid zeros 
+          enc += 1e-16;
           probslice += capthist(i, j, k) * log(enc) - enc - lgamma(capthist(i, j, k) + 1); 
         } else if (detector_type == 2) {
           penc = 1.0 - exp(-enc); 
