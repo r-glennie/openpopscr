@@ -11,7 +11,7 @@ get_start_values <- function(obj, model = "ScrModel") {
   auto <- list(sigma = RPSV(obj$capthist(), CC = TRUE))
   est_encrate <- obj$encrate() 
   # compute unit encounter rate for given sigma
-  r <- obj$calc_distances()
+  r <- obj$distances()
   encrate <- colSums(exp(-r^2 / (2 * auto$sigma^2)))
   unit_encrate <- mean(encrate)
   # guess lambda0 
