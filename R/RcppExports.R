@@ -74,7 +74,7 @@ C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, d
     .Call(`_openpopscr_C_calc_move_pdet`, J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states)
 }
 
-#' Computes probability of each capture record for Jolly-Seber model 
+#' Computes probability of each capture record
 #'
 #' @param n number of individuals 
 #' @param J total number of occasions 

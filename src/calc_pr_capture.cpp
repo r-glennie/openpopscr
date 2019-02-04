@@ -26,16 +26,105 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::depends(RcppParallel)]]
 #include <iostream>
 #include <RcppArmadillo.h>
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-// [[Rcpp::plugins(openmp)]]
+#include <RcppParallel.h>
 
+using namespace RcppParallel; 
 
-
-//' Computes probability of each capture record for Jolly-Seber model 
+struct PrCaptureCalculator : public Worker {
+  
+  // input 
+  const int J; 
+  const int K; 
+  const int M;
+  const int alive_col; 
+  const arma::cube capthist;
+  const arma::cube enc0;
+  const arma::mat usage;
+  const int num_states;
+  const int detector_type;
+  
+  // output 
+  arma::field<arma::cube>& probfield;
+  
+  // initialise
+  PrCaptureCalculator(const int J, 
+                        const int K, 
+                        const int M, 
+                        const int alive_col, 
+                        const arma::cube capthist, 
+                        const arma::cube enc0, 
+                        const arma::mat usage, 
+                        const int num_states,
+                        const int detector_type, 
+                        arma::field<arma::cube>& probfield) : J(J), K(K), M(M), 
+                        alive_col(alive_col), 
+                        capthist(capthist), 
+                        enc0(enc0), 
+                        usage(usage), 
+                        num_states(num_states), 
+                        detector_type(detector_type),
+                        probfield(probfield) {} 
+  
+  void operator()(std::size_t begin, std::size_t end) { 
+    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
+    arma::vec enc; 
+    arma::vec penc; 
+    arma::vec savedenc;
+    arma::mat encslice; 
+    double num; 
+    arma::vec probslice = arma::zeros<arma::vec>(M);
+    double sumcap; 
+    for (int i = begin; i < end; ++i) {
+      for (int j = 0; j < J; ++j) { 
+        bool unseen = true;
+        encslice = enc0.slice(j);
+        probslice.zeros(); 
+        penc = arma::zeros<arma::vec>(M); 
+        savedenc = arma::zeros<arma::vec>(M); 
+        sumcap = 0; 
+        for (int k = 0; k < K; ++k) {
+          if (usage(k, j) < 1e-16) continue; 
+          enc = encslice.col(k) * usage(k, j); 
+          if (detector_type == 1 | detector_type == 4) {
+            // avoid zeros 
+            enc += 1e-16;
+            probslice += capthist(i, j, k) * log(enc) - enc;// - lgamma(capthist(i, j, k) + 1); 
+          } else if (detector_type == 2) {
+            penc = 1.0 - exp(-enc); 
+            // avoid zeros 
+            penc += 1e-16; 
+            probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
+          } else if (detector_type == 3) {
+            penc += enc; 
+            sumcap += capthist(i, j, k); 
+            if(capthist(i, j, k) > 0.5) savedenc += capthist(i, j, k) * log(enc); 
+          }
+          if (capthist(i, j, k) > 1e-16) unseen = false; 
+        }
+        if (detector_type == 3) {
+          // avoid zeros
+          penc += 1e-16; 
+          if (!unseen) probslice += savedenc - sumcap * log(penc); 
+          probslice += -(1.0 - sumcap) * penc + sumcap * log(1.0 - exp(-penc)); 
+        }
+        if (unseen) {
+          if (num_states == 2) iprob.slice(j).col(1 - alive_col).ones(); 
+          if (num_states == 3) {
+            iprob.slice(j).col(0).ones(); 
+            iprob.slice(j).col(2).ones();  
+          }
+        }
+        iprob.slice(j).col(alive_col) = exp(probslice); 
+      }
+      probfield(i) = iprob; 
+    }
+  }
+};
+  
+//' Computes probability of each capture record
 //'
 //' @param n number of individuals 
 //' @param J total number of occasions 
@@ -64,60 +153,7 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
   int alive_col = 1; 
   if (num_states < 3) alive_col = 0; 
   arma::field<arma::cube> probfield(n);
-# ifdef _OPENMP
-  omp_set_num_threads(num_cores); 
-#endif 
-#pragma omp parallel for shared(probfield, alive_col) default(none) schedule(auto)
-  for (int i = 0; i < n; ++i) {
-    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
-    arma::vec enc; 
-    arma::vec penc; 
-    arma::vec savedenc;
-    arma::mat encslice; 
-    double num; 
-    arma::vec probslice = arma::zeros<arma::vec>(M);;
-    for (int j = 0; j < J; ++j) { 
-      bool unseen = true;
-      encslice = enc0.slice(j);
-      probslice = arma::zeros<arma::vec>(M);
-      penc = arma::zeros<arma::vec>(M); 
-      for (int k = 0; k < K; ++k) {
-        if (usage(k, j) < 1e-16) continue; 
-        enc = encslice.col(k) * usage(k, j); 
-        if (detector_type == 1 | detector_type == 4) {
-          // avoid zeros 
-          enc += 1e-16;
-          probslice += capthist(i, j, k) * log(enc) - enc - lgamma(capthist(i, j, k) + 1); 
-        } else if (detector_type == 2) {
-          penc = 1.0 - exp(-enc); 
-          // avoid zeros 
-          penc += 1e-16; 
-          probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
-        } else if (detector_type == 3) {
-          penc += enc; 
-          if (capthist(i, j, k) > 0.5) savedenc = enc; 
-        }
-        if (capthist(i, j, k) > 1e-16) unseen = false; 
-      }
-      if (detector_type == 3) {
-        // avoid zeros
-        penc += 1e-16; 
-        if (!unseen) probslice += log(savedenc) - log(penc); 
-        num = 1.0; 
-        if (unseen) num = 0.0; 
-        probslice += -(1.0 - num) * penc + num * log(1.0 - exp(-penc)); 
-      }
-      if (unseen) {
-        if (num_states == 2) iprob.slice(j).col(1 - alive_col).ones(); 
-        if (num_states == 3) {
-          iprob.slice(j).col(0).ones(); 
-          iprob.slice(j).col(2).ones();  
-        }
-      }
-      iprob.slice(j).col(alive_col) = exp(probslice); 
-    }
-    probfield(i) = iprob; 
-  }
-  return(probfield);  
-} 
-
+  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, detector_type, probfield); 
+  parallelFor(0, n, pr_capture_calc); 
+  return(probfield);
+}

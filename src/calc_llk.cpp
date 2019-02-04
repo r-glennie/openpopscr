@@ -26,8 +26,76 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::depends(RcppParallel)]]
 #include <iostream>
 #include <RcppArmadillo.h>
+#include <RcppParallel.h>
+#include <vector>
+
+using namespace RcppParallel; 
+
+struct LlkCalculator : public Worker {
+  
+  // input 
+  const int n;
+  const int J; 
+  const int M; 
+  const arma::mat pr0; 
+  const Rcpp::List pr_capture;
+  const Rcpp::List tpms;
+  const int num_states;
+  const arma::vec entry;
+  
+  // transform 
+  std::vector<arma::mat> tpm; 
+  std::vector<arma::cube> pr_cap; 
+
+  // output 
+  arma::vec& illk; 
+  
+  // initialiser
+  LlkCalculator(const int n, const int J, const int M, 
+                const arma::mat pr0, 
+                const Rcpp::List pr_capture, 
+                const Rcpp::List tpms,
+                const int num_states,
+                const arma::vec entry,
+                arma::vec& illk) : n(n), J(J), M(M), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_states(num_states), entry(entry), illk(illk) {
+    if (num_states > 1) {
+      tpm.resize(J); 
+      for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]); 
+    }
+    pr_cap.resize(n);
+    for (int i = 0; i < n; ++i) {
+      Rcpp::NumericVector pr_capvec(pr_capture[i]);
+      arma::cube pr_icap(pr_capvec.begin(), M, num_states, J, false);
+      pr_cap[i] = pr_icap;
+    }
+  }
+ 
+  void operator()(std::size_t begin, std::size_t end) { 
+    double llk = 0; 
+    double sum_pr; 
+    arma::mat pr = pr0; 
+    for (int i = begin; i < end; ++i) {
+      llk = 0; 
+      pr = pr0; 
+      for (int j = entry(i); j < J - 1; ++j) {
+        pr %= pr_cap[i].slice(j); 
+        if (num_states > 1) {
+           pr *= tpm[j]; 
+        }
+        sum_pr = accu(pr); 
+        llk += log(sum_pr); 
+        pr /= sum_pr; 
+      }
+      pr %= pr_cap[i].slice(J - 1);
+      llk += log(accu(pr)); 
+      illk(i) = llk;  
+    }
+  }
+};
+
 
 //' Computes log-likelihood of Jolly-Seber model 
 //'
@@ -52,28 +120,9 @@ double C_calc_llk(const int n, const int J, const int M,
 									const arma::vec entry) {
   
   arma::vec illk(n);
-  for (int i = 0; i < n; ++i) {
-    double llk = 0; 
-    double sum_pr; 
-    arma::mat pr = pr0; 
-    arma::mat tpm; 
-    Rcpp::NumericVector pr_capvec(pr_capture[i]); 
-    arma::cube pr_cap(pr_capvec.begin(), M, num_states, J, false); 
-    for (int j = entry(i); j < J - 1; ++j) {
-      pr %= pr_cap.slice(j); 
-      if (num_states > 1) {
-        tpm = Rcpp::as<arma::mat>(tpms[j]); 
-        pr *= tpm; 
-      }
-      sum_pr = accu(pr); 
-      llk += log(sum_pr); 
-      pr /= sum_pr; 
-    }
-    pr %= pr_cap.slice(J - 1);
-    llk += log(accu(pr)); 
-    illk(i) = llk;  
-  }
-  return(arma::accu(illk)); 
+  LlkCalculator llk_calulator(n, J, M, pr0, pr_capture, tpms, num_states, entry, illk); 
+  parallelFor(0, n, llk_calulator); 
+  return(arma::sum(illk)); 
 }
 
 //' Computes detection probability (seen at least once) for Jolly-Seber model 

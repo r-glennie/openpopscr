@@ -1,15 +1,16 @@
 Package: openpopscr
 Type: Package
 Title: Open Population Spatial Capture-Recapture
-Version: 1.1.0
+Version: 1.1.1
 Author: Richard Glennie <rg374@st-andrews.ac.uk>, David Borchers
 Maintainer: Richard Glennie <rg374@st-andrews.ac.uk>
 Date: 2017-09-10
 Description: Fits spatial capture-recapture models by maximum likelihood with transience and open populations. 
 License: MIT + file LICENSE
 Depends: R(>= 3.0.0)
-Imports: Rcpp (>= 0.12.10), R6, secr, numDeriv
-LinkingTo: Rcpp, RcppArmadillo
+Imports: Rcpp (>= 0.12.10), RcppParallel, R6, secr, numDeriv
+LinkingTo: Rcpp, RcppArmadillo, RcppParallel
 RoxygenNote: 6.1.0
 Suggests: testthat, knitr, rmarkdown
 VignetteBuilder: knitr
+NeedsCompilation: yes
