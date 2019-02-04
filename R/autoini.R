@@ -38,6 +38,7 @@ get_start_values <- function(obj, model = "ScrModel") {
   if (model %in% c("JsModel", "JsTransientModel")) {
     auto$beta <- sum(range_seen[1,]==1)/ncol(range_seen)
   }
+  if (model %in% c("CjsModel", "CjsTransientModel")) auto$D <- NULL
   return(auto)
 }
 
