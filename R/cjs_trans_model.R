@@ -60,7 +60,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       if (print) cat("done\n")
 			index <- 1:data$n()
 			if (print) cat("Computing entry occasions for each individual.......")
-			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])})
+			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) + 1 
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
       private$form_ <- form 
