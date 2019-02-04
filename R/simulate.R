@@ -168,13 +168,6 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
                                                              sigma = sigma), 
                                             noccasions = nocc, 
                                             renumber = FALSE)
-      caught <- rownames(capthistories[[k]]) 
-      all <- rownames(pop)
-      emptycap <- data.frame(session = 1, ID = all[!(all %in% caught)], occasion = 1, trap = rownames(trapn)[1])
-      emptycapthist <- make.capthist(emptycap, trapn, noccasions = n_occasions)
-      traps(emptycapthist) <- traps(capturehistories[[k]])
-      capturehistories[[k]] <- suppressMessages(rbind(capturehistories[[k]], emptycapthist, renumber = FALSE))
-      capturehistories[[k]][,1,1] <- 1 
     }
     capture_history <- join(capturehistories)
   } else {
@@ -186,13 +179,6 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
                                     noccasions = nocc,
                                     nsession = nsess, 
                                     renumber = FALSE)
-    caught <- rownames(capture_history) 
-    all <- rownames(pop)
-    emptycap <- data.frame(session = 1, ID = all[!(all %in% caught)], occasion = 1, trap = rownames(trapn)[1])
-    emptycapthist <- make.capthist(emptycap, trapn, noccasions = n_occasions)
-    traps(emptycapthist) <- traps(capture_history)
-    capture_history <- suppressMessages(rbind(capture_history, emptycapthist, renumber = FALSE))
-    capture_history[,1,1] <- 1 
   }
   if (print) cat("done\n")
   # thin capture history by survival
@@ -201,11 +187,12 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
   ids <- as.numeric(rownames(capture_history))
   life <- life[ids,]
   seen <- rep(TRUE, n)
-  K <- dim(capture_history)[2] + 1
   for (i in seq(n)) {
-    life[i, 2:n_occasions] <- cumprod(life[i, 2:n_occasions])
-    capture_history[i, 2:n_occasions, ] <- diag(life[i, 2:n_occasions]) %*% capture_history[i, 2:n_occasions, ]
+    life[i, 1:n_occasions] <- cumprod(life[i, 1:n_occasions])
+    capture_history[i, ,] <- diag(life[i,]) %*% capture_history[i, ,]
+    if (sum(capture_history[i, ,]) == 0) seen[i] <- FALSE
   } 
+  capture_history <- subset(capture_history, (1:n)[seen])
   A <- nrow(mesh) * attr(mesh, "area")
   if (print) cat("done\n")
   if (print) cat("Creating ScrData object........")

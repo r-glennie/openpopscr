@@ -79,7 +79,7 @@ struct LlkCalculator : public Worker {
     arma::mat pr = pr0; 
     for (int i = begin; i < end; ++i) {
       llk = 0; 
-      pr = pr0; 
+      pr = pr0;
       for (int j = entry(i); j < J - 1; ++j) {
         pr %= pr_cap[i].slice(j); 
         if (num_states > 1) {
