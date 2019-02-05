@@ -98,8 +98,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // C_calc_pr_capture
-arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, Rcpp::NumericVector& capvec, Rcpp::NumericVector& enc_rate, const arma::mat usage, const int num_cores, const int num_states, const int detector_type);
-RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capvecSEXP, SEXP enc_rateSEXP, SEXP usageSEXP, SEXP num_coresSEXP, SEXP num_statesSEXP, SEXP detector_typeSEXP) {
+arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, Rcpp::NumericVector& capvec, Rcpp::NumericVector& enc_rate, const arma::mat usage, const int num_cores, const int num_states, const int detector_type, const int n_prim, const arma::vec S);
+RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capvecSEXP, SEXP enc_rateSEXP, SEXP usageSEXP, SEXP num_coresSEXP, SEXP num_statesSEXP, SEXP detector_typeSEXP, SEXP n_primSEXP, SEXP SSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -113,7 +113,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type num_cores(num_coresSEXP);
     Rcpp::traits::input_parameter< const int >::type num_states(num_statesSEXP);
     Rcpp::traits::input_parameter< const int >::type detector_type(detector_typeSEXP);
-    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type));
+    Rcpp::traits::input_parameter< const int >::type n_prim(n_primSEXP);
+    Rcpp::traits::input_parameter< const arma::vec >::type S(SSEXP);
+    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type, n_prim, S));
     return rcpp_result_gen;
 END_RCPP
 }
