@@ -148,7 +148,9 @@ ScrModel <- R6Class("ScrModel",
                                 trap_usage, 
                                 private$num_cores_, 
                                 1, 
-                                self$data()$detector_type())
+                                self$data()$detector_type(), 
+                                n_occasions, 
+                                rep(1, n_occasions))
       return(prob)
     },
     

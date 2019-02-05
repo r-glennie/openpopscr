@@ -35,6 +35,7 @@
 #'     (used for irregularly spaced occasions). Default is vector of ones.
 #'   \item cov: a list of covariate (for detector and occasion)
 #'   \item cov_type: type of covariate (j = detector cov, k = occasion cov, jk = detector+occasion,)
+#'   \item primary: vector with index for each occasion in capthist that pools occasions into primary occasions 
 #'        
 #' }
 #' 
@@ -61,8 +62,16 @@ ScrData <- R6Class("ScrData",
                           mesh, 
                           time = NULL, 
                           cov = NULL, 
-                          cov_type = NULL) {
+                          cov_type = NULL, 
+                          primary = NULL) {
       private$capthist_ <- capthist 
+      ## split capthist into primary occasions 
+      if (is.null(primary)) primary <- rep(1, dim(capthist)[2])
+      private$primary_ <- primary 
+      private$n_primary_ <- max(primary)
+      private$capthists_ <- secr:::split.capthist(capthist, as.factor(primary), byoccasion = TRUE, dropnullCH = FALSE, dropunused = FALSE)
+      private$n_occasions_ <- length(private$capthists_)
+      if (private$n_occasions_ == 1) private$n_occasions_ <- dim(capthist)[2]
       private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
                                        count = 1, 
                                        proximity = 2, 
@@ -78,28 +87,34 @@ ScrData <- R6Class("ScrData",
       }
       private$mesh_ <- mesh
       if (is.null(time)) {
-        private$time_ <- seq(1, dim(capthist)[2])
+        private$time_ <- seq(1, private$n_occasions_)
       } else {
         private$time_ <- time
       }
       private$cov_ <- cov 
-      private$cov_$t <- as.factor((1:dim(capthist)[2]) - 1)
+      private$cov_$t <- as.factor((1:private$n_occasions_ - 1))
       private$cov_type_ <- c(cov_type, "k")
       
-      if (!(private$detector_type_ %in% c(1,2,3, 4))) stop("openpopscr only implements 'count', 'proximity', 'multi', and 'transect' detectors, 
+      if (!(private$detector_type_ %in% c(1,2,3,4))) stop("openpopscr only implements 'count', 'proximity', 'multi', and 'transect' detectors, 
 you are using detectors of another type.")
       self$calc_distances()
     },
     
-    print = function() {
+    print = function(i = ".") {
        plot(self$mesh())
-       plot(self$capthist(), add = T)
+       plot(self$capthist(i), add = T)
        plot(self$traps(), add = T)
        print(summary(self$capthist())[[4]])
     },
    
-    capthist = function() {return(private$capthist_)},
-    traps = function() {return(traps(private$capthist_))},
+    capthist = function(i = ".") {
+      if (i == ".") return(private$capthist_)
+      return(private$capthists_[[i]])
+    },
+    traps = function(i = ".") {
+      if (i == ".") return(traps(private$capthist_))
+     return(traps(private$capthists_[[i]]))
+    },
     mesh = function() {return(private$mesh_)},
     time = function() {return(private$time_)},
     detector_type = function() {return(private$detector_type_)}, 
@@ -107,7 +122,7 @@ you are using detectors of another type.")
     
     covs = function(j = NULL, k = NULL, m = NULL) {
       if (any(is.null(j))) j0 <- seq(1, self$n_traps()) else j0 <- j
-      if (any(is.null(k))) k0 <- seq(1, self$n_occasions()) else k0 <- k 
+      if (any(is.null(k))) k0 <- seq(1, self$n_occasions("all")) else k0 <- k 
       if (any(is.null(m))) m0 <- seq(1, self$n_meshpts()) else m0 <- m 
       dat <- lapply(1:length(private$cov_), FUN =  function(c) {
         switch(private$cov_type_[c], 
@@ -124,29 +139,49 @@ you are using detectors of another type.")
       return(dat)
     }, 
     
-    n = function() {return(dim(private$capthist_)[1])},
-    n_occasions = function() {return(dim(private$capthist_)[2])},
+    n = function(i = ".") {
+      if (i == ".") return(dim(private$capthist_)[1])
+      return(dim(private$capthists_[[i]]))
+    },
+    n_occasions = function(i = ".") {
+      if (i == ".") return(private$n_occasions_)
+      if (i == "all") return(dim(private$capthist_)[2])
+      return(dim(private$capthists_[[i]])[2])
+    },
     n_traps = function() {
       # number of transects
       if (private$detector_type_ == 4) return(length(unique(attr(traps(private$capthist_), "polyID"))))
       return(dim(private$capthist_)[3])
       }, 
     n_meshpts = function() {return(dim(private$mesh_)[1])},
+    n_primary = function() {return(private$n_primary_)}, 
+    n_secondary = function() {return(as.numeric(table(self$primary())))}, 
+    primary = function() {return(private$primary_)},
     encrate = function() {
-      ndetections <- summary(self$capthist())[[4]][1, self$n_occasions() + 1]
-      rate <- ndetections / (self$n() * self$n_occasions())
+      ndetections <- summary(self$capthist())[[4]][1, self$n_occasions(".") + 1]
+      rate <- ndetections / (self$n() * self$n_occasions("."))
       return(rate)
     },
     encrange = function(k = NULL, each = FALSE) {
       if (is.null(k)) k <- seq(1, self$n_occasions())
       if (!each | length(k) == 1) {
-        subcap <- subset(self$capthist(), occasions = k)
+        if (private$n_primary_ == 1) {
+          subcap <- subset(self$capthist(), occasions = k)
+        } else {
+          wh <- which(self$primary() %in% k) 
+          subcap <- subset(self$capthist(), occasions = wh)
+        }
+        return(RPSV(subcap))
       } else {
-        range <- numeric(length(k))
-        for (i in seq(k)) range[i] <- RPSV(subset(self$capthist(), occasions = k[i]))
+        if (private$n_primary_ == 1) {
+          range <- numeric(length(k))
+          for (i in seq(k)) range[i] <- RPSV(subset(self$capthist(), occasions = k[i]))
+        } else {
+          range <- numeric(length(k))
+          for (i in seq(k)) range[i] <- RPSV(self$capthist(i))
+        }
         return(range)
       }
-      return(RPSV(subcap))
     },
     
     area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
@@ -195,12 +230,16 @@ you are using detectors of another type.")
   
   private = list(
     capthist_ = NULL, 
+    capthists_ = NULL, 
     mesh_ = NULL,
     time_ = NULL,
     cov_ = NULL, 
     cov_type_ = NULL, 
     distances_ = NULL,
-    detector_type_ = NULL
+    detector_type_ = NULL, 
+    primary_ = NULL, 
+    n_primary_ = NULL, 
+    n_occasions_ = NULL
   )
 )
 

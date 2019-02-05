@@ -63,7 +63,10 @@ CjsModel <- R6Class("CjsModel",
       private$data_ <- data
 			index <- 1:data$n()
 			if (print) cat("Computing entry occasions for each individual.......")
-			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) 
+		  private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) 
+		  if (private$data_$n_primary() > 1) {
+		    private$entry_ <- private$data_$primary()[private$entry_]
+		  }
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
       private$form_ <- form 
@@ -138,7 +141,9 @@ CjsModel <- R6Class("CjsModel",
     
     calc_pr_capture = function() {
       dist <- t(private$data_$distances())
-      n_occasions <- private$data_$n_occasions()
+      n_occasions <- private$data_$n_occasions("all")
+      n_primary <- private$data_$n_primary()
+      S <- private$data_$n_secondary() 
       enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
       for (k in 1:n_occasions) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
@@ -150,8 +155,18 @@ CjsModel <- R6Class("CjsModel",
       n_meshpts <- private$data_$n_meshpts() 
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
-      prob <- C_calc_pr_capture(n, n_occasions, n_traps, n_meshpts, capthist, 
-                               enc_rate0, trap_usage, private$num_cores_, 2, self$data()$detector_type())
+      prob <- C_calc_pr_capture(n, 
+                                n_occasions, 
+                                n_traps, 
+                                n_meshpts, 
+                                capthist, 
+                                enc_rate0, 
+                                trap_usage, 
+                                private$num_cores_, 
+                                2, 
+                                self$data()$detector_type(), 
+                                n_primary, 
+                                S)
       return(prob)
     },
     
