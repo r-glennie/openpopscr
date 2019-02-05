@@ -45,6 +45,8 @@ struct PrCaptureCalculator : public Worker {
   const arma::mat usage;
   const int num_states;
   const int detector_type;
+  const int n_prim; 
+  const arma::vec S; 
   
   // output 
   arma::field<arma::cube>& probfield;
@@ -58,7 +60,9 @@ struct PrCaptureCalculator : public Worker {
                         const arma::cube enc0, 
                         const arma::mat usage, 
                         const int num_states,
-                        const int detector_type, 
+                        const int detector_type,
+                        const int n_prim, 
+                        const arma::vec S, 
                         arma::field<arma::cube>& probfield) : J(J), K(K), M(M), 
                         alive_col(alive_col), 
                         capthist(capthist), 
@@ -66,10 +70,12 @@ struct PrCaptureCalculator : public Worker {
                         usage(usage), 
                         num_states(num_states), 
                         detector_type(detector_type),
+                        n_prim(n_prim), 
+                        S(S), 
                         probfield(probfield) {} 
   
   void operator()(std::size_t begin, std::size_t end) { 
-    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, J);
+    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, n_prim);
     arma::vec enc; 
     arma::vec penc; 
     arma::vec savedenc;
@@ -78,51 +84,55 @@ struct PrCaptureCalculator : public Worker {
     arma::vec probslice = arma::zeros<arma::vec>(M);
     double sumcap; 
     for (int i = begin; i < end; ++i) {
-      for (int j = 0; j < J; ++j) { 
-        bool unseen = true;
-        encslice = enc0.slice(j);
+      int j = -1; 
+      for (int prim = 0; prim < n_prim; ++prim) { 
         probslice.zeros(); 
-        penc = arma::zeros<arma::vec>(M); 
-        savedenc = arma::zeros<arma::vec>(M); 
-        sumcap = 0; 
-        for (int k = 0; k < K; ++k) {
-          if (usage(k, j) < 1e-16) continue; 
-          enc = encslice.col(k) * usage(k, j); 
-          if (detector_type == 1 | detector_type == 4) {
-            // avoid zeros 
-            enc += 1e-16;
-            probslice += capthist(i, j, k) * log(enc) - enc;// - lgamma(capthist(i, j, k) + 1); 
-          } else if (detector_type == 2) {
-            penc = 1.0 - exp(-enc); 
-            // avoid zeros 
-            penc += 1e-16; 
-            probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
-          } else if (detector_type == 3) {
-            penc += enc; 
-            sumcap += capthist(i, j, k); 
-            if(capthist(i, j, k) > 0.5) savedenc += capthist(i, j, k) * log(enc); 
+        bool unseen = true;
+        for (int s = 0; s < S(prim); ++s) {
+          ++j; 
+          encslice = enc0.slice(j);
+          penc = arma::zeros<arma::vec>(M); 
+          savedenc = arma::zeros<arma::vec>(M); 
+          sumcap = 0; 
+          for (int k = 0; k < K; ++k) {
+            if (usage(k, j) < 1e-16) continue; 
+            enc = encslice.col(k) * usage(k, j); 
+            if (detector_type == 1 | detector_type == 4) {
+              // avoid zeros 
+              enc += 1e-16;
+              probslice += capthist(i, j, k) * log(enc) - enc;// - lgamma(capthist(i, j, k) + 1); 
+            } else if (detector_type == 2) {
+              penc = 1.0 - exp(-enc); 
+              // avoid zeros 
+              penc += 1e-16; 
+              probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
+            } else if (detector_type == 3) {
+              penc += enc; 
+              sumcap += capthist(i, j, k); 
+              if(capthist(i, j, k) > 0.5) savedenc += capthist(i, j, k) * log(enc); 
+            }
+            if (capthist(i, j, k) > 1e-16) unseen = false; 
           }
-          if (capthist(i, j, k) > 1e-16) unseen = false; 
-        }
-        if (detector_type == 3) {
-          // avoid zeros
-          penc += 1e-16; 
-          if (!unseen) probslice += savedenc - sumcap * log(penc); 
-          probslice += -(1.0 - sumcap) * penc + sumcap * log(1.0 - exp(-penc)); 
+          if (detector_type == 3) {
+            // avoid zeros
+            penc += 1e-16; 
+            if (!unseen) probslice += savedenc - sumcap * log(penc); 
+            probslice += -(1.0 - sumcap) * penc + sumcap * log(1.0 - exp(-penc)); 
+          }
         }
         if (unseen) {
-          if (num_states == 2) iprob.slice(j).col(1 - alive_col).ones(); 
+          if (num_states == 2) iprob.slice(prim).col(1 - alive_col).ones(); 
           if (num_states == 3) {
-            iprob.slice(j).col(0).ones(); 
-            iprob.slice(j).col(2).ones();  
+            iprob.slice(prim).col(0).ones(); 
+            iprob.slice(prim).col(2).ones();  
           }
         }
-        iprob.slice(j).col(alive_col) = exp(probslice); 
+        iprob.slice(prim).col(alive_col) = exp(probslice); 
       }
-      probfield(i) = iprob; 
+     probfield(i) = iprob;
     }
   }
-};
+};  
   
 //' Computes probability of each capture record
 //'
@@ -146,14 +156,16 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              const arma::mat usage, 
                              const int num_cores, 
                              const int num_states,
-                             const int detector_type) {
+                             const int detector_type, 
+                             const int n_prim, 
+                             const arma::vec S) {
   
   const arma::cube capthist(capvec.begin(), n, J, K, false);
   const arma::cube enc0(enc_rate.begin(), M, K, J, false);
   int alive_col = 1; 
   if (num_states < 3) alive_col = 0; 
   arma::field<arma::cube> probfield(n);
-  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, detector_type, probfield); 
+  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, detector_type, n_prim, S, probfield); 
   parallelFor(0, n, pr_capture_calc); 
   return(probfield);
 }

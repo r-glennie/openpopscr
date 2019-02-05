@@ -13,7 +13,7 @@ extern SEXP _openpopscr_C_calc_llk(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEX
 extern SEXP _openpopscr_C_calc_move_llk(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP _openpopscr_C_calc_pdet(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP _openpopscr_C_calc_move_pdet(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP _openpopscr_C_calc_pr_capture(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+extern SEXP _openpopscr_C_calc_pr_capture(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
     {"_openpopscr_C_calc_D",          (DL_FUNC) &_openpopscr_C_calc_D,          4},
@@ -21,7 +21,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_openpopscr_C_calc_move_llk",   (DL_FUNC) &_openpopscr_C_calc_move_llk,   13},
     {"_openpopscr_C_calc_pdet",       (DL_FUNC) &_openpopscr_C_calc_pdet,       5},
     {"_openpopscr_C_calc_move_pdet",  (DL_FUNC) &_openpopscr_C_calc_move_pdet,  10},
-    {"_openpopscr_C_calc_pr_capture", (DL_FUNC) &_openpopscr_C_calc_pr_capture, 10},
+    {"_openpopscr_C_calc_pr_capture", (DL_FUNC) &_openpopscr_C_calc_pr_capture, 12},
     {NULL, NULL, 0}
 };
 
