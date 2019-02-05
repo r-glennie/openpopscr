@@ -10,6 +10,7 @@ License: MIT + file LICENSE
 Depends: R(>= 3.0.0)
 Imports: Rcpp (>= 0.12.10), RcppParallel, R6, secr, numDeriv
 LinkingTo: Rcpp, RcppArmadillo, RcppParallel
+SystemRequirements: GNU make
 RoxygenNote: 6.1.0
 Suggests: testthat, knitr, rmarkdown
 VignetteBuilder: knitr
