@@ -55,3 +55,14 @@ for (sim in 1:nsims) {
   saveRDS(obj_list, "scr_basic_results.Rds")
 
 }
+
+# look at results  --------------------------------------------------------
+
+# point and interval estimates of D
+res <- sapply(obj_list, FUN = function(obj) { 
+  obj$estimates()$par["D",]
+})
+
+# transpose the output of sapply 
+res <- t(res) 
+
