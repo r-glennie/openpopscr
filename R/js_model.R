@@ -186,7 +186,13 @@ JsModel <- R6Class("JsModel",
     
     calc_pr_capture = function() {
       dist <- t(private$data_$distances())
-      n_occasions <- private$data_$n_occasions()
+      n_occasions <- private$data_$n_occasions("all")
+      n_primary <- private$data_$n_primary()
+      S <- private$data_$n_secondary() 
+      if (n_primary == 1) {
+        n_primary <- n_occasions
+        S <- rep(1, n_occasions)
+      }
       enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
       for (k in 1:n_occasions) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
@@ -198,8 +204,18 @@ JsModel <- R6Class("JsModel",
       n_meshpts <- private$data_$n_meshpts() 
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
-      prob <- C_calc_pr_capture(n, n_occasions, n_traps, n_meshpts, capthist, 
-                               enc_rate0, trap_usage, private$num_cores_, 3, self$data()$detector_type())
+      prob <- C_calc_pr_capture(n, 
+                                n_occasions, 
+                                n_traps, 
+                                n_meshpts, 
+                                capthist, 
+                                enc_rate0, 
+                                trap_usage, 
+                                private$num_cores_, 
+                                3, 
+                                self$data()$detector_type(),
+                                n_primary, 
+                                S)
       return(prob)
     },
     

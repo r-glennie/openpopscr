@@ -144,6 +144,10 @@ CjsModel <- R6Class("CjsModel",
       n_occasions <- private$data_$n_occasions("all")
       n_primary <- private$data_$n_primary()
       S <- private$data_$n_secondary() 
+      if (n_primary == 1) {
+        n_primary <- n_occasions
+        S <- rep(1, n_occasions)
+      }
       enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
       for (k in 1:n_occasions) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
