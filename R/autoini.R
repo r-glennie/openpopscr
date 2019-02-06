@@ -34,6 +34,7 @@ get_start_values <- function(obj, model = "ScrModel") {
     diff <- diff(range_seen)
     diff <- diff[diff > 0]
     auto$phi <- 1 - 1 / mean(diff)
+    auto$phi <- auto$phi ^ (1 / mean(diff(obj$time())))
   }
   if (model %in% c("JsModel", "JsTransientModel")) {
     auto$beta <- sum(range_seen[1,]==1)/ncol(range_seen)
