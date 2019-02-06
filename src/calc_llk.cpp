@@ -55,11 +55,11 @@ struct LlkCalculator : public Worker {
   
   // initialiser
   LlkCalculator(const int n, const int J, const int M, 
-                const arma::mat pr0, 
+                const arma::mat& pr0, 
                 const Rcpp::List pr_capture, 
                 const Rcpp::List tpms,
                 const int num_states,
-                const arma::vec entry,
+                const arma::vec& entry,
                 arma::vec& illk) : n(n), J(J), M(M), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_states(num_states), entry(entry), illk(illk) {
     if (num_states > 1) {
       tpm.resize(J); 
