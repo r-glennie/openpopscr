@@ -220,9 +220,7 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE,
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num_meshpts <- nrow(mesh)
-  A <- num_meshpts * attr(mesh, "area") 
   D <- par$D / 100
-  N <- rpois(1, D * A)
   phi <- par$phi
   if (length(phi) == 1) phi <- rep(phi, n_occasions - 1)
   beta <- par$beta
@@ -230,8 +228,6 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE,
   # simulate population
   if (print) cat("Simulating population and activity centres.......")
   pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
-  while(nrow(pop) < N) pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
-  pop <- pop[1:N,]
   if (print) cat("done\n")
   birth_time <- sample(1:n_occasions, size = nrow(pop), prob = beta, replace = TRUE)
   dt <- diff(time)

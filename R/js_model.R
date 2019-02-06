@@ -215,7 +215,8 @@ JsModel <- R6Class("JsModel",
                                 3, 
                                 self$data()$detector_type(),
                                 n_primary, 
-                                S)
+                                S,
+                                rep(0, n))
       return(prob)
     },
     
@@ -266,29 +267,27 @@ JsModel <- R6Class("JsModel",
       return(llk)
     },
     
-    fit = function(ini_par = NULL) {
+    fit = function(ini_par = NULL, nlm.args = NULL) {
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
       if (private$print_) cat("Fitting model..........\n")
       t0 <- Sys.time()
-      mod <- suppressWarnings(optim(w_par, 
-                                    private$calc_negllk,
-                   names = names(w_par),
-                   hessian = TRUE))
+      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
+      mod <- do.call(nlm, args)
       t1 <- Sys.time()
       difft <- t1 - t0
       if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      mle <- mod$par
-      code <- mod$convergence 
-      if (code > 0) warning("model failed to converge with optim code ", code, "\n")
-      if (private$print_ & code == 0) cat("Checking convergence.......converged", code, "\n")
+      mle <- mod$estimate
+      code <- mod$code
+      if (code > 2) warning("model failed to converge with optim code ", code, "\n")
+      if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
       self$set_par(mle)
       private$mle_ <- mle
-      private$llk_ <- -mod$value
+      private$llk_ <- -mod$minimum
       private$V_ <- solve(mod$hessian)
       if (any(diag(private$V) <= 0)) {
         cat("Variance estimates not reliable, do a bootstrap.")

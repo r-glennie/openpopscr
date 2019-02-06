@@ -89,7 +89,7 @@ C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, d
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 
-C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type, n_prim, S) {
-    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type, n_prim, S)
+C_calc_pr_capture <- function(n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type, n_prim, S, entry) {
+    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capvec, enc_rate, usage, num_cores, num_states, detector_type, n_prim, S, entry)
 }
 

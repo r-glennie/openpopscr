@@ -150,7 +150,8 @@ ScrModel <- R6Class("ScrModel",
                                 1, 
                                 self$data()$detector_type(), 
                                 n_occasions, 
-                                rep(1, n_occasions))
+                                rep(1, n_occasions),
+                                rep(0, n))
       return(prob)
     },
     
@@ -194,34 +195,31 @@ ScrModel <- R6Class("ScrModel",
       # compute log-likelihood
       llk <- llk - n * log(self$calc_pdet())
       llk <- llk + self$calc_D_llk()
-      #plot(self$par()$beta[-1])
       cat("llk:", llk, "\n")
       return(llk)
     },
     
-    fit = function(ini_par = NULL) {
+    fit = function(ini_par = NULL, nlm.args = NULL) {
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
       t0 <- Sys.time()
       if (private$print_) cat("Fitting model..........\n")
-      mod <- suppressWarnings(optim(w_par, 
-                                    private$calc_negllk,
-                                    names = names(w_par),
-                                    hessian = TRUE))
+      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
+      mod <- do.call(nlm, args)
       t1 <- Sys.time()
       difft <- t1 - t0 
       if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      code <- mod$convergence 
-      if (code > 0) warning("model failed to converge with nlm code ", code)
-      if (private$print_ & code == 0) cat("Checking convergence.......converged", code, "\n")
-      mle <- mod$par
+      code <- mod$code
+      if (code > 2) warning("model failed to converge with nlm code ", code)
+      if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
+      mle <- mod$estimate
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
       self$set_par(mle)
       private$mle_ <- mle
-      private$llk_ <- -mod$value
+      private$llk_ <- -mod$minimum
       if (private$print_) cat("Computing variance.......")
       private$V_ <- solve(mod$hessian)
       if (private$print_) cat("done\n")

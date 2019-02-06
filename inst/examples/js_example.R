@@ -5,7 +5,7 @@ library(secr)
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 20, phi = 0.5, beta = 0.25)
+true_par <- list(D = 1000, lambda0 = 1, sigma = 20, phi = 0.75, beta = 0.7)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")

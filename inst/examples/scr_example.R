@@ -1,15 +1,15 @@
 # SCR example 
 library(openpopscr)
 library(secr)
-
+RcppParallel::setThreadOptions(numThreads = 7)
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 20)
+true_par <- list(D = 2000, lambda0 = 2, sigma = 20)
 
 # make detectors array 
-detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "multi")
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 
 # make mesh 
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
@@ -18,7 +18,7 @@ mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer"
 n_occasions <- 5 
 
 # simulate ScrData 
-scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 15483)
+scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh)
 
 # secr fit ----------------------------------------------------------------
 
@@ -36,7 +36,7 @@ start <- list(lambda0 = 2,
               sigma = 20,
               D = 1000)
 
-obj <- ScrModel$new(form, scrdat, start, num_cores = 4)
+obj <- ScrModel$new(form, scrdat, start)
 
 # compute initial likelihood 
 obj$calc_llk()

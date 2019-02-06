@@ -63,7 +63,7 @@ CjsModel <- R6Class("CjsModel",
       private$data_ <- data
 			index <- 1:data$n()
 			if (print) cat("Computing entry occasions for each individual.......")
-		  private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) 
+		  private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])})
 		  if (private$data_$n_primary() > 1) {
 		    private$entry_ <- private$data_$primary()[private$entry_]
 		  }
@@ -170,7 +170,8 @@ CjsModel <- R6Class("CjsModel",
                                 2, 
                                 self$data()$detector_type(), 
                                 n_primary, 
-                                S)
+                                S,
+                                private$entry_)
       return(prob)
     },
     
@@ -194,31 +195,29 @@ CjsModel <- R6Class("CjsModel",
       return(llk)
     },
     
-    fit = function(ini_par = NULL) {
+    fit = function(ini_par = NULL, nlm.args = NULL) {
       if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
       if (private$print_) cat("Fitting model..........\n")
       t0 <- Sys.time()
-      mod <- suppressMessages(optim(w_par, 
-                                    private$calc_negllk,
-                   names = names(w_par),
-                   hessian = TRUE))
+      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
+      mod <- do.call(nlm, args)
       t1 <- Sys.time()
       difft <- t1 - t0
       if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      code <- mod$convergence 
-      if (code > 0) warning("model failed to converge with nlm code ", code)
-      if (private$print_ & code == 0) cat("Checking convergence.......converged", code, "\n")
-      mle <- mod$par
+      code <- mod$code
+      if (code > 2) warning("model failed to converge with nlm code ", code, "\n")
+      if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
+      mle <- mod$estimate
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       self$set_par(mle)
       private$mle_ <- mle
-      private$llk_ <- -mod$value
+      private$llk_ <- -mod$minimum
       private$V_ <- solve(mod$hessian)
       if (any(diag(private$V) <= 0)) {
-        cat("Variance estimates not reliable, do a bootstrap.")
+        cat("Variance estimates not reliable, do a bootstrap?")
         return(0)
       } else {
         sd <- sqrt(diag(private$V_))
