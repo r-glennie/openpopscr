@@ -176,7 +176,7 @@ JsModel <- R6Class("JsModel",
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
         phi <- self$get_par("phi", j = 1, k = k, m = 1)
-        if (dt[k] > 1) phi <- phi^dt[k]
+        phi <- phi^dt[k]
         tpms[[k]] <- matrix(c(1 - pr_entry[k], 0, 0, 
                             pr_entry[k], phi, 0,
                             0, 1 - phi, 1), nrow = 3, ncol = 3)

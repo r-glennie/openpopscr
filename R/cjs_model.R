@@ -132,7 +132,7 @@ CjsModel <- R6Class("CjsModel",
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
         phi <- self$get_par("phi", j = 1, k = k, m = 1)
-        if (dt[k] > 1) phi <- phi^dt[k]
+        phi <- phi^dt[k]
         tpms[[k]] <- matrix(c(phi, 0, 
                             1 - phi, 1), nrow = 2, ncol = 2)
       }
