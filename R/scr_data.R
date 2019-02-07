@@ -87,13 +87,16 @@ ScrData <- R6Class("ScrData",
       }
       private$mesh_ <- mesh
       if (is.null(time)) {
-        private$time_ <- seq(1, private$n_occasions_)
+        private$time_ <- seq(1, self$n_occasions("all"))
       } else {
         private$time_ <- time
       }
       private$cov_ <- cov 
-      private$cov_$t <- as.factor((1:private$n_occasions_ - 1))
+      private$cov_$t <- as.factor((1:self$n_occasions("all") - 1))
       private$cov_type_ <- c(cov_type, "k")
+      
+      private$cov_$primary <- as.factor((private$primary_ - 1))
+      private$cov_type_ <- c(private$cov_type_, "k")
       
       if (!(private$detector_type_ %in% c(1,2,3,4))) stop("openpopscr only implements 'count', 'proximity', 'multi', and 'transect' detectors, 
 you are using detectors of another type.")
