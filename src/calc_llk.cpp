@@ -74,16 +74,16 @@ struct LlkCalculator : public Worker {
   }
  
   void operator()(std::size_t begin, std::size_t end) { 
-    double llk = 0; 
-    double sum_pr; 
-    arma::mat pr = pr0; 
+    
     for (int i = begin; i < end; ++i) {
-      llk = 0; 
-      pr = pr0;
+      double llk = 0; 
+      double sum_pr; 
+      arma::mat pr = pr0; 
+      arma::cube prcap; 
       for (int j = entry(i); j < J - 1; ++j) {
         pr %= pr_cap[i].slice(j); 
         if (num_states > 1) {
-           pr *= tpm[j]; 
+          pr *= tpm[j]; 
         }
         sum_pr = accu(pr); 
         llk += log(sum_pr); 
@@ -122,7 +122,7 @@ double C_calc_llk(const int n, const int J, const int M,
   arma::vec illk(n);
   LlkCalculator llk_calulator(n, J, M, pr0, pr_capture, tpms, num_states, entry, illk); 
   parallelFor(0, n, llk_calulator); 
-  return(arma::sum(illk)); 
+  return(arma::accu(illk)); 
 }
 
 //' Computes detection probability (seen at least once) for Jolly-Seber model 

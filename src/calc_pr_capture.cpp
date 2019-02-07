@@ -40,15 +40,16 @@ struct PrCaptureCalculator : public Worker {
   const int K; 
   const int M;
   const int alive_col; 
-  const arma::cube capthist;
-  const arma::cube enc0;
-  const arma::mat usage;
+  const arma::cube& capthist;
+  const arma::cube& enc0;
+  const arma::mat& usage;
   const int num_states;
   const int detector_type;
   const int n_prim; 
-  const arma::vec S; 
-  const arma::vec entry; 
-  
+  const arma::vec& S; 
+  const arma::vec& entry; 
+  arma::mat penc; 
+
   // output 
   arma::field<arma::cube>& probfield;
   
@@ -75,18 +76,32 @@ struct PrCaptureCalculator : public Worker {
                         n_prim(n_prim), 
                         S(S), 
                         entry(entry), 
-                        probfield(probfield) {} 
+                        penc(M, arma::accu(S)), 
+                        probfield(probfield) {
+    
+    if (detector_type == 3) { 
+      int j = -1; 
+      for (int prim = 0; prim < n_prim; ++prim) {
+        for (int s = 0; s < S(prim); ++s) {
+          ++j; 
+          penc.col(j) = enc0.slice(j) * usage.col(j); 
+        }
+      }
+      // avoid zeros 
+      penc += 1e-10; 
+    }
+  } 
   
   void operator()(std::size_t begin, std::size_t end) { 
-    arma::cube iprob = arma::zeros<arma::cube>(M, num_states, n_prim);
-    arma::vec enc; 
-    arma::vec penc; 
-    arma::vec savedenc;
-    arma::mat encslice; 
-    double num; 
-    arma::vec probslice = arma::zeros<arma::vec>(M);
-    double sumcap; 
     for (int i = begin; i < end; ++i) {
+      arma::cube iprob = arma::zeros<arma::cube>(M, num_states, n_prim);
+      arma::vec enc; 
+      arma::vec savedenc;
+      arma::mat encslice; 
+      double num; 
+      arma::vec probslice = arma::zeros<arma::vec>(M);
+      double sumcap;
+      arma::vec penc_prim(M); 
       int j = -1; 
       for (int prim = 0; prim < n_prim; ++prim) { 
         probslice.zeros(); 
@@ -95,33 +110,30 @@ struct PrCaptureCalculator : public Worker {
           for (int s = 0; s < S(prim); ++s) {
             ++j; 
             encslice = enc0.slice(j);
-            penc = arma::zeros<arma::vec>(M); 
             savedenc = arma::zeros<arma::vec>(M); 
             sumcap = 0; 
             for (int k = 0; k < K; ++k) {
               if (usage(k, j) < 1e-16) continue; 
-              enc = encslice.col(k) * usage(k, j); 
+              if (capthist(i, j, k) < 0.5 & detector_type == 3) continue; 
+              enc = encslice.col(k) * usage(k, j);
               if (detector_type == 1 | detector_type == 4) {
                 // avoid zeros 
                 enc += 1e-16;
                 probslice += capthist(i, j, k) * log(enc) - enc;// - lgamma(capthist(i, j, k) + 1); 
               } else if (detector_type == 2) {
-                penc = 1.0 - exp(-enc); 
+                penc_prim = 1.0 - exp(-enc); 
                 // avoid zeros 
-                penc += 1e-16; 
-                probslice += capthist(i, j, k) * log(penc) - (1.0 - capthist(i, j, k)) * enc; 
+                penc_prim += 1e-16; 
+                probslice += capthist(i, j, k) * log(penc_prim) - (1.0 - capthist(i, j, k)) * enc; 
               } else if (detector_type == 3) {
-                penc += enc; 
                 sumcap += capthist(i, j, k); 
-                if(capthist(i, j, k) > 0.5) savedenc += capthist(i, j, k) * log(enc); 
+                savedenc += capthist(i, j, k) * log(enc); 
               }
               if (capthist(i, j, k) > 1e-16) unseen = false; 
             }
             if (detector_type == 3) {
-              // avoid zeros
-              penc += 1e-16; 
-              if (!unseen) probslice += savedenc - sumcap * log(penc); 
-              probslice += -(1.0 - sumcap) * penc + sumcap * log(1.0 - exp(-penc)); 
+              if (!unseen) probslice += savedenc - sumcap * log(penc.col(j)); 
+              probslice += -(1.0 - sumcap) * penc.col(j) + sumcap * log(1.0 - exp(-penc.col(j))); 
             }
           }
         }
