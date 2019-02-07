@@ -201,6 +201,7 @@ CjsModel <- R6Class("CjsModel",
       w_par <- private$convert_par2vec(par)
       if (private$print_) cat("Fitting model..........\n")
       t0 <- Sys.time()
+      if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
       args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
       mod <- do.call(nlm, args)
       t1 <- Sys.time()
