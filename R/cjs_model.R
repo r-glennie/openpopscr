@@ -61,11 +61,11 @@ CjsModel <- R6Class("CjsModel",
     
     initialize = function(form, data, start, num_cores = 1, print = TRUE) {
       private$data_ <- data
-			index <- 1:data$n()
+			index <- 1:data$n_occasions("all")
 			if (print) cat("Computing entry occasions for each individual.......")
-		  private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])})
+		  private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) - 1
 		  if (private$data_$n_primary() > 1) {
-		    private$entry_ <- private$data_$primary()[private$entry_]
+		    private$entry_ <- private$data_$primary()[private$entry_ + 1] - 1 
 		  }
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
@@ -255,6 +255,7 @@ CjsModel <- R6Class("CjsModel",
   par = function() {return(private$par_)},
   mle = function() {return(private$mle_)},
   data = function() {return(private$data_)}, 
+  entry = function() {return(private$entry_)}, 
   
   estimates = function() {
       ests <- NULL
