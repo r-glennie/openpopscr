@@ -83,9 +83,9 @@ struct PrCaptureCalculator : public Worker {
                         probfield(probfield) {
     
     if (detector_type == 3) { 
-      total_enc = arma::zeros<arma::mat>(M, n_prim); 
-      log_total_enc = arma::zeros<arma::mat>(M, n_prim); 
-      log_total_penc = arma::zeros<arma::mat>(M, n_prim); 
+      total_enc = arma::zeros<arma::mat>(M, J); 
+      log_total_enc = arma::zeros<arma::mat>(M, J); 
+      log_total_penc = arma::zeros<arma::mat>(M, J); 
       int j = -1; 
       for (int prim = 0; prim < n_prim; ++prim) {
         for (int s = 0; s < S(prim); ++s) {
@@ -94,7 +94,8 @@ struct PrCaptureCalculator : public Worker {
         }
       }
       log_total_enc = log(total_enc); 
-      log_total_penc = log(1.0 - exp(-total_enc));  
+      log_total_penc = 1.0 - exp(-total_enc); 
+      log_total_penc = log(log_total_penc + 1e-16); 
     } else if (detector_type == 2) {
       log_penc = arma::zeros<arma::cube>(M, K, J); 
       int j = -1; 
