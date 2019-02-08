@@ -434,7 +434,9 @@ JsModel <- R6Class("JsModel",
       ## D tab
       D_tab <- matrix(0, nr = self$data()$n_occasions(), nc = 4)
       colnames(D_tab) <- c("Estimate", "SE", "LCL", "UCL")
-      rownames(D_tab) <- private$data_$time()
+      time <- private$data_$time() 
+      if (private$data_$n_primary() > 1) time <- 1:private$data_$n_primary()
+      rownames(D_tab) <- time
       D_tab[, 1] <- private$Dk_
       D_tab[ ,2] <- sqrt((exp(private$var_$Dkvar) - 1) * private$Dk_^2 * exp(private$var_$Dkvar))
       D_tab[, 3] <- private$confint_$Dk$lcl
