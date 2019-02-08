@@ -98,12 +98,13 @@ simulate_scr <- function(par, n_occasions, detectors, mesh, move = FALSE, time =
 #' @param mesh secr mesh object
 #' @param move if TRUE then activity centres move and true_par$sd must be specified
 #' @param time vector with time units between occasions 
+#' @param primary index of primary periods that each occasion belongs to (default is 1 primary period)
 #' @param seed seed to set before simulating 
 #' @param print if TRUE then useful output is printed 
 #'
 #' @return ScrData object 
 #' @export
-simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FALSE, time = NULL, seed = NULL, print = TRUE) {
+simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num_meshpts <- nrow(mesh)
@@ -119,8 +120,17 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
   if (print) cat("done\n")
   life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
   life[, 1] <- 1
+  if (!is.null(primary)) {
+    diffprim <- diff(primary)
+  } else {
+    diffprim <- rep(0, n_occasions - 1)
+  }
   for (k in 2:n_occasions) {
-    life[,k] <- rbinom(N, 1, phi[k - 1]) * life[, k - 1]
+    if(diffprim[k - 1] > 0.5) {
+      life[,k] <- rbinom(N, 1, phi[k - 1]) * life[, k - 1]
+    } else {
+      life[,k] <- life[,k-1]
+    }
   }
   dt <- rep(1, n_occasions - 1)
   if (!is.null(time))  dt <- diff(time)
@@ -196,12 +206,11 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
   A <- nrow(mesh) * attr(mesh, "area")
   if (print) cat("done\n")
   if (print) cat("Creating ScrData object........")
-  simdat <- ScrData$new(capture_history, mesh, time) 
+  if (is.null(primary)) primary <- rep(1, n_occasions) 
+  simdat <- ScrData$new(capture_history, mesh, time, primary = primary) 
   if (print) cat("done\n")
   return(simdat)
 }
-
-
 
 #' Simulate SCR open population Jolly-Seber survey 
 #'
@@ -216,7 +225,7 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
 #'
 #' @return ScrData object 
 #' @export
-simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE, time = NULL, seed = NULL, print = TRUE) {
+simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num_meshpts <- nrow(mesh)
