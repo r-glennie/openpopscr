@@ -117,13 +117,15 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
   if (print) cat("Simulating activity centres.......")
   while (nrow(pop) < N) pop <- sim.popn(D = D, core = mesh, Ndist = "fixed", buffertype = "convex")
   pop <- pop[1:N,]
+  covariates(pop) <- covariates(pop)[1:N,]
   if (print) cat("done\n")
   life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
   life[, 1] <- 1
-  if (!is.null(primary)) {
-    diffprim <- diff(primary)
+  diffprim <- diff(primary)
+  if (all(diffprim == 0)) {
+    diffprim <- rep(1, n_occasions - 1)
   } else {
-    diffprim <- rep(0, n_occasions - 1)
+    diffprim <- diff(primary)
   }
   for (k in 2:n_occasions) {
     if(diffprim[k - 1] > 0.5) {
@@ -197,12 +199,24 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
   ids <- as.numeric(rownames(capture_history))
   life <- life[ids,]
   seen <- rep(TRUE, n)
+  full_cap <- capture_history 
   for (i in seq(n)) {
     life[i, 1:n_occasions] <- cumprod(life[i, 1:n_occasions])
     capture_history[i, ,] <- diag(life[i,]) %*% capture_history[i, ,]
     if (sum(capture_history[i, ,]) == 0) seen[i] <- FALSE
-  } 
-  capture_history <- subset(capture_history, (1:n)[seen])
+  }
+  if (!is.null(attr(capture_history, "detectedXY"))) { 
+    xy <- attr(capture_history, "detectedXY")
+    inc <- rep(FALSE, nrow(xy))
+    r <- 1 
+    for (i in 1:length(full_cap)) {
+      if (capture_history[i] > 0) inc[seq(r, r + capture_history[i] - 1)] <- TRUE
+      r <- r + full_cap[i]
+    }  
+    xy <- xy[inc,]
+    attributes(capture_history)$detectedXY <- xy 
+  }
+  capture_history <- subset(capture_history, subset = (1:n)[seen])
   A <- nrow(mesh) * attr(mesh, "area")
   if (print) cat("done\n")
   if (print) cat("Creating ScrData object........")
@@ -239,12 +253,25 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE,
   pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
   if (print) cat("done\n")
   birth_time <- sample(1:n_occasions, size = nrow(pop), prob = beta, replace = TRUE)
+  if (!is.null(primary)) {
+    birth_time <- primary[birth_time]
+    birth_time <- match(birth_time, primary)
+  }
   dt <- diff(time)
   phi <- phi^dt
   life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
   life[birth_time == 1, 1] <- 1
+  if (all(diffprim == 0)) {
+    diffprim <- rep(1, n_occasions - 1)
+  } else {
+    diffprim <- diff(primary)
+  }
   for (k in 2:n_occasions) {
-    life[birth_time < k,k] <- rbinom(sum(birth_time < k), 1, phi[k - 1]) 
+    if (diffprim[k - 1] > 0.5) {
+      life[birth_time < k,k] <- rbinom(sum(birth_time < k), 1, phi[k - 1]) 
+    } else {
+      life[birth_time < k,k] <- life[birth_time < k, k - 1]
+    }
     life[birth_time == k, k] <- 1
   }
   dt <- rep(1, n_occasions - 1)
@@ -318,11 +345,22 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE,
     capture_history[i, ,] <- diag(life[i,]) %*% capture_history[i, ,]
     if (sum(capture_history[i, ,]) == 0) seen[i] <- FALSE
   } 
+  if (!is.null(attr(capture_history, "detectedXY"))) { 
+    xy <- attr(capture_history, "detectedXY")
+    inc <- rep(FALSE, nrow(xy))
+    r <- 1 
+    for (i in 1:length(full_cap)) {
+      if (capture_history[i] > 0) inc[seq(r, r + capture_history[i] - 1)] <- TRUE
+      r <- r + full_cap[i]
+    }  
+    xy <- xy[inc,]
+    attributes(capture_history)$detectedXY <- xy 
+  }
   capture_history <- subset(capture_history, (1:n)[seen])
   A <- nrow(mesh) * attr(mesh, "area")
   if (print) cat("done\n")
   if (print) cat("Creating ScrData object......")
-  simdat <- ScrData$new(capture_history, mesh, time) 
+  simdat <- ScrData$new(capture_history, mesh, time, primary = primary) 
   if (print) cat("done\n")
   return(simdat)
 }
