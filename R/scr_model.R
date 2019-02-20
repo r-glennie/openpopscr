@@ -232,6 +232,7 @@ ScrModel <- R6Class("ScrModel",
         names(sd) <- names(w_par)
         private$make_results()
       }
+      return(invisible())
     }, 
     
   print = function() {
@@ -305,6 +306,7 @@ ScrModel <- R6Class("ScrModel",
       }
       private$par_[[3]] <- 0
       names(private$par_) <- c(names(private$form_), "D") 
+      return(invisible())
     }, 
     
     initialise_par = function(start) {
@@ -314,6 +316,7 @@ ScrModel <- R6Class("ScrModel",
                                            list(start$sigma))
         private$par_$D <- do.call(private$response2link_$D, 
                                            list(start$D))
+        return(invisible())
     }, 
     
     make_results = function() {
@@ -327,6 +330,7 @@ ScrModel <- R6Class("ScrModel",
       colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
       rownames(results) <- names(par)
       private$results_ <- results 
+      return(invisible())
     
   }, 
   

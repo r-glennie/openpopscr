@@ -31,10 +31,9 @@ scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, primar
 
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
-            phi ~ 1)
+            phi ~ primary)
 
 start <- get_start_values(scrdat, model = "CjsModel")
-
 
 oo <- CjsModel$new(par, scrdat, start)
 

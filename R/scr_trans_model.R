@@ -222,6 +222,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       }
       private$par_[[4]] <- 0
       names(private$par_) <- c(names(private$form_), "D") 
+      return(invisible())
     }, 
     
     initialise_par = function(start) {
@@ -233,6 +234,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                                         list(start$sd))
         private$par_$D <- do.call(private$response2link_$D, 
                                            list(start$D))
+        return(invisible())
     }, 
     
     convert_vec2par = function(vec) {

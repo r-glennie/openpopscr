@@ -6,7 +6,7 @@ RcppParallel::setThreadOptions(numThreads = 7)
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(lambda0 = 1, sigma = 20, phi = 0.7)
+true_par <- list(lambda0 = 2, sigma = 30, phi = 0.7)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -29,9 +29,7 @@ par <- list(lambda0 ~ 1,
             sigma ~ 1, 
             phi ~ 1)
 
-start <- list(lambda0 = 2, 
-              sigma = 20, 
-              phi = 0.5)
+start <- get_start_values(scrdat, model = "CjsModel")
 
 
 oo <- CjsModel$new(par, scrdat, start)
@@ -47,4 +45,3 @@ oo
 oo$get_par("lambda0", k = 1)
 oo$get_par("sigma", k = 1)
 oo$get_par("phi", k = 1)
-

@@ -5,10 +5,10 @@ library(secr)
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 1, sigma = 20, phi = 0.75, beta = 0.7)
+true_par <- list(D = 1000, lambda0 = 1, sigma = 30, phi = 0.5, beta = 0.3)
 
 # make detectors array 
-detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "proximity")
 
 # make mesh 
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
@@ -35,7 +35,7 @@ start <- list(lambda0 = 2,
               D = 1000)
 
 
-oo <- JsModel$new(par, scrdat, start, num_cores = 4)
+oo <- JsModel$new(par, scrdat, start)
 
 oo$calc_llk()
 

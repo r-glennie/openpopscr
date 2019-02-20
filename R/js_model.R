@@ -95,6 +95,7 @@ JsModel <- R6Class("JsModel",
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
+      n_primary <- private$data_$n_primary() 
      if (name == "D") {
        D <- do.call(private$link2response_[[5]], list(as.numeric(self$par()["D"])))
        return(D)
@@ -102,15 +103,21 @@ JsModel <- R6Class("JsModel",
      if (name == "beta") {
        k_save <- k
        k <- 2:(private$data_$n_occasions()) 
+       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
      } 
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
+       n_primary <- private$data_$n_primary() 
+       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
      }
      covs <- private$data_$covs(j = j, k = k, m = m)
      i_par <- which(names(private$form_) == name) 
      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
      if (name %in% c("phi", "beta") & "t" %in% all.vars(private$form_[[i_par]])) {
        X <- X[,colnames(X) != paste("t1", sep ="")] 
+     }
+     if (name %in% c("phi", "beta") & "primary" %in% all.vars(private$form_[[i_par]])) {
+       X <- X[,colnames(X) != paste("primary1", sep ="")] 
      }
      theta <- private$par_[[i_par]]
      l_par <- which(names(private$link2response_) == name)
@@ -172,10 +179,14 @@ JsModel <- R6Class("JsModel",
       # compute entry probabilities 
       pr_entry <- self$calc_pr_entry()      
       n_occasions <- private$data_$n_occasions()
+      n_primary <- private$data_$n_primary() 
+      if (n_primary > 1) first <- match(2:n_primary, private$data_$primary())
       tpms <- vector("list", length = n_occasions)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
-        phi <- self$get_par("phi", j = 1, k = k, m = 1)
+        occ <- k 
+        if (n_primary > 1) occ <- first[k]
+        phi <- self$get_par("phi", j = 1, k = occ, m = 1)
         phi <- phi^dt[k]
         tpms[[k]] <- matrix(c(1 - pr_entry[k], 0, 0, 
                             pr_entry[k], phi, 0,
@@ -223,23 +234,30 @@ JsModel <- R6Class("JsModel",
     calc_pdet = function() {
       # compute probability of zero capture history 
       dist <- private$data_$distances()
-      n_occasions <- private$data_$n_occasions()
-      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      for (k in 1:n_occasions) {
+      n_occasions_all <- private$data_$n_occasions("all")
+      n_occasions <- private$data_$n_occasions() 
+      enc_rate <- array(0, dim = c(n_occasions_all, nrow(dist), ncol(dist))) 
+      for (k in 1:n_occasions_all) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
         sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
         enc_rate[k,,] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
       }
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
-      for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 3)
-        pr_empty[[j]][, 2] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
+      j <- 0 
+      for (prim in 1:private$data_$n_primary()) { 
+        pr_empty[[prim]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 3)
+        pr_empty[[prim]][ , 2] <- 0 
+        for (s in 1:private$data_$n_secondary()[prim]) { 
+          j <- j + 1
+          pr_empty[[prim]][, 2] <- pr_empty[[prim]][, 2] - t(trap_usage[, j]) %*% enc_rate[j,,]
+        }
+        pr_empty[[prim]][,2] <- exp(pr_empty[[prim]][,2])
       }
       # average over all life histories 
       pr0 <- self$calc_initial_distribution()
       tpms <- self$calc_tpms()
-      pdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, 3); 
+      pdet <- C_calc_pdet(n_occasions, pr0, pr_empty, tpms, 3); 
       return(pdet)
     },
     
@@ -298,6 +316,7 @@ JsModel <- R6Class("JsModel",
         names(sd) <- names(w_par)
         private$make_results()
       }
+      return(invisible())
     }, 
     
   print = function() {
@@ -389,7 +408,11 @@ JsModel <- R6Class("JsModel",
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
-        } else {
+        } else if (par %in% c(3, 4) & "primary" %in% all.vars(private$form_[[par]])) {
+          n_par[par] <- ncol(X) - 1
+          par_vec <- rep(0, n_par[par])
+          names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
+        }  else {
           n_par[par] <- ncol(X)
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)
@@ -397,7 +420,8 @@ JsModel <- R6Class("JsModel",
         private$par_[[par]] <- par_vec
       }
       private$par_[[5]] <- 0
-      names(private$par_) <- c(names(private$form_), "D") 
+      names(private$par_) <- c(names(private$form_), "D")
+      return(invisible())
     }, 
     
     initialise_par = function(start) {
@@ -411,6 +435,7 @@ JsModel <- R6Class("JsModel",
                                         list(c(1 / start$beta - 1)/self$data()$n_occasions()))
         private$par_$D <- do.call(private$response2link_$D, 
                                            list(start$D))
+        return(invisible())
     }, 
     
     make_results = function() {
@@ -426,7 +451,6 @@ JsModel <- R6Class("JsModel",
       private$calc_confint()
       if (private$print_) cat("done\n")
       results <- cbind(par, private$var_$sds, private$confint_$est$lcl, private$confint_$est$ucl)
-      print(results)
       colnames(results) <- c("Estimate", "SE", "LCL", "UCL")
       rownames(results) <- names(par)
       private$results_ <- results 
@@ -443,6 +467,8 @@ JsModel <- R6Class("JsModel",
       D_tab[, 4] <- private$confint_$Dk$ucl
 
       private$D_tab_ <- D_tab
+      
+      return(invisible())
     
   }, 
   
@@ -508,6 +534,7 @@ JsModel <- R6Class("JsModel",
       Dk_var <- Dk_var / (self$data()$area() * Dk)
     }
     private$var_ <- list(sds = sds, Dvar = Dvar, Dkvar = Dk_var)
+    return(invisible())
   }, 
   
    calc_confint = function() {
@@ -530,6 +557,7 @@ JsModel <- R6Class("JsModel",
         Dkmat <- data.frame(Dk = Dk, lcl = Dk_lcl, ucl = Dk_ucl) 
       }
       private$confint_ <- list(est = estmat, Dk = Dkmat)
+      return(invisible())
     },
   
      infer_D = function() {
@@ -537,6 +565,7 @@ JsModel <- R6Class("JsModel",
        a0 <- self$get_par("beta", k = 1)
        pr0 <- c(1 - a0, a0, 0)
        private$Dk_ <- C_calc_D(self$get_par("D"), self$data()$n_occasions(), pr0, tpms)
+       return(invisible())
     },
   
      calc_negllk = function(param = NULL, names = NULL) {
