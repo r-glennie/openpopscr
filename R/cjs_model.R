@@ -94,12 +94,17 @@ CjsModel <- R6Class("CjsModel",
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
+       n_primary <- private$data_$n_primary() 
+       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
      }
      covs <- private$data_$covs(j = j, k = k, m = m)
      i_par <- which(names(private$form_) == name) 
      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
      if (name %in% c("phi") & "t" %in% all.vars(private$form_[[i_par]])) {
        X <- X[,colnames(X) != paste("t1", sep ="")] 
+     }
+     if (name %in% c("phi") & "primary" %in% all.vars(private$form_[[i_par]])) {
+       X <- X[,colnames(X) != paste("primary1", sep ="")] 
      }
      theta <- private$par_[[i_par]]
      l_par <- which(names(private$link2response_) == name)
@@ -128,10 +133,14 @@ CjsModel <- R6Class("CjsModel",
     calc_tpms = function() {
       # compute entry probabilities 
       n_occasions <- private$data_$n_occasions()
+      n_primary <- private$data_$n_primary() 
+      if (n_primary > 1) first <- match(2:n_primary, private$data_$primary())
       tpms <- vector("list", length = n_occasions)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
-        phi <- self$get_par("phi", j = 1, k = k, m = 1)
+        occ <- k 
+        if (n_primary > 1) occ <- first[k]
+        phi <- self$get_par("phi", j = 1, k = occ, m = 1)
         phi <- phi^dt[k]
         tpms[[k]] <- matrix(c(phi, 0, 
                             1 - phi, 1), nrow = 2, ncol = 2)
@@ -225,6 +234,7 @@ CjsModel <- R6Class("CjsModel",
         names(sd) <- names(w_par)
         private$make_results()
       }
+      return(invisible())
     }, 
     
   print = function() {
@@ -297,7 +307,11 @@ CjsModel <- R6Class("CjsModel",
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
-        } else {
+        } else if (par %in% c(3) & "primary" %in% all.vars(private$form_[[par]])) {
+          n_par[par] <- ncol(X) - 1
+          par_vec <- rep(0, n_par[par])
+          names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
+        }  else {
           n_par[par] <- ncol(X)
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)
@@ -305,6 +319,7 @@ CjsModel <- R6Class("CjsModel",
         private$par_[[par]] <- par_vec
       }
       names(private$par_) <- names(private$form_)
+      return(invisible())
     }, 
     
     initialise_par = function(start) {
@@ -314,6 +329,7 @@ CjsModel <- R6Class("CjsModel",
                                            list(start$sigma))
         private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
+        return(invisible())
     }, 
     
     make_results = function(nsims) {
@@ -325,6 +341,7 @@ CjsModel <- R6Class("CjsModel",
       colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
       rownames(results) <- names(par)
       private$results_ <- results 
+      return(invisible())
   }, 
   
    calc_confint = function() {
