@@ -160,6 +160,10 @@ CjsTransientModel <- R6Class("CjsTransientModel",
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
+        } else if (par %in% c(3) & "primary" %in% all.vars(private$form_[[par]])) {
+          n_par[par] <- ncol(X) - 1
+          par_vec <- rep(0, n_par[par])
+          names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
         } else {
           n_par[par] <- ncol(X)
           par_vec <- rep(0, n_par[par])
@@ -168,6 +172,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
         private$par_[[par]] <- par_vec
       }
       names(private$par_) <- names(private$form_)
+      return(invisible())
     }, 
     
     initialise_par = function(start) {
@@ -179,6 +184,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                                            list(start$phi))
         private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                      list(start$sd))
+        return(invisible())
     }, 
     
 		convert_vec2par = function(vec) {
