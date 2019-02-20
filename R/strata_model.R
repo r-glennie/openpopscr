@@ -208,6 +208,7 @@ StrataModel <- R6Class("StrataModel",
 		  for (s in 1:private$n_strata_) {
 		    private$objs_[[s]]$set_mle(private$ipar_[[s]], private$iV_[[s]], private$llk_)
 		  }
+		  return(invisible())
 		}, 
 		
 		convert_par2vec = function(par) {
