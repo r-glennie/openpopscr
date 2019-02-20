@@ -105,7 +105,8 @@ you are using detectors of another type.")
     
     print = function(i = ".") {
        plot(self$mesh())
-       plot(self$capthist(i), add = T)
+       varycol <- ifelse(self$n() > 1000, FALSE, TRUE)
+       plot(self$capthist(i), add = T, varycol = varycol)
        plot(self$traps(), add = T)
        print(summary(self$capthist())[[4]])
     },
