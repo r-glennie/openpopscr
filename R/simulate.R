@@ -261,6 +261,7 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE,
   phi <- phi^dt
   life <- matrix(0, nr = nrow(pop), ncol = n_occasions) 
   life[birth_time == 1, 1] <- 1
+  diffprim <- diff(primary)
   if (all(diffprim == 0)) {
     diffprim <- rep(1, n_occasions - 1)
   } else {

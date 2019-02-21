@@ -27,8 +27,6 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item num_cores (optional, default = 1): number of processors cores to use 
-#'   in parallelised code 
 #'   \item print (default = TRUE): if TRUE then helpful output is printed
 #' }
 #' 
@@ -47,7 +45,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              inherit = ScrModel, 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
+    initialize = function(form, data, start, print = TRUE) {
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
       private$dx_ <- attr(newmesh, "spacing")
@@ -82,7 +80,6 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
       if (print) cat("done\n")
-      private$num_cores_ = num_cores
       private$print_ = print 
     },
     
@@ -162,7 +159,6 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              private$dx_, 
                              dt, 
                              sd, 
-                             private$num_cores_, 
                              1, 
                              rep(0, private$data_$n()))
       # compute log-likelihood

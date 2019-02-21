@@ -165,7 +165,6 @@ struct PrCaptureCalculator : public Worker {
 //' @param capvec a pointer to the capthist array 
 //' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 //' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
-//' @param num_cores number of processor cores to use in parallelisation 
 //' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
 //' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
 //'
@@ -176,7 +175,6 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              const arma::cube& capthist, 
                              const arma::cube& enc0,
                              const arma::mat usage, 
-                             const int num_cores, 
                              const int num_states,
                              const int detector_type, 
                              const int n_prim, 

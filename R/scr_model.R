@@ -26,8 +26,6 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item num_cores (optional, default = 1): number of processors cores to use 
-#'   in parallelised code 
 #'   \item print (default = TRUE): if TRUE then helpful output is printed
 #' }
 #' 
@@ -60,7 +58,7 @@
 ScrModel <- R6Class("ScrModel", 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
+    initialize = function(form, data, start, print = TRUE) {
       private$data_ <- data
       if (print) cat("Reading formulae.......")
       private$form_ <- form 
@@ -80,7 +78,6 @@ ScrModel <- R6Class("ScrModel",
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
       if (print) cat("done\n")
-      private$num_cores_ = num_cores
       private$print_ = print 
     },
     
@@ -146,7 +143,6 @@ ScrModel <- R6Class("ScrModel",
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
-                                private$num_cores_, 
                                 1, 
                                 self$data()$detector_type(), 
                                 n_occasions, 
@@ -190,8 +186,7 @@ ScrModel <- R6Class("ScrModel",
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
       tpms <- list(matrix(0, nr = 2, nc = 2))
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms,
-			private$num_cores_, 1, rep(0, private$data_$n()))
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 1, rep(0, private$data_$n()))
       # compute log-likelihood
       llk <- llk - n * log(self$calc_pdet())
       llk <- llk + self$calc_D_llk()
@@ -290,7 +285,6 @@ ScrModel <- R6Class("ScrModel",
     V_ = NULL, 
     llk_ = NULL, 
     sig_level_ = 0.05, 
-    num_cores_ = NULL,
     print_  = NULL, 
     
     make_par = function() {

@@ -22,13 +22,12 @@ C_calc_D <- function(D, J, pr0, tpms) {
 #' @param pr0 initial distribution over life states
 #' @param pr_capture output of calc_pr_capture() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
-#' @param num_cores number of processor cores to use in parallelisation 
 #' @param num_states 2 = CJS model, 3 = JS model 
 #'
 #' @return log-likelihood value 
 #' 
-C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_cores, num_states, entry) {
-    .Call(`_openpopscr_C_calc_llk`, n, J, M, pr0, pr_capture, tpms, num_cores, num_states, entry)
+C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
+    .Call(`_openpopscr_C_calc_llk`, n, J, M, pr0, pr_capture, tpms, num_states, entry)
 }
 
 #' Computes detection probability (seen at least once) for Jolly-Seber model 
@@ -52,13 +51,12 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms, num_states) {
 #' @param pr0 initial distribution over life states
 #' @param pr_capture output of calc_pr_capture() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
-#' @param num_cores number of processor cores to use in parallelisation 
 #' @param num_states 2 = CJS model, 3 = JS model 
 #'
 #' @return log-likelihood value 
 #' 
-C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_cores, num_states, entry) {
-    .Call(`_openpopscr_C_calc_move_llk`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_cores, num_states, entry)
+C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry) {
+    .Call(`_openpopscr_C_calc_move_llk`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry)
 }
 
 #' Computes detection probability (seen at least once) for Jolly-Seber model 
@@ -83,13 +81,12 @@ C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, d
 #' @param capvec a pointer to the capthist array 
 #' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
 #' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
-#' @param num_cores number of processor cores to use in parallelisation 
 #' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
 #' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 
-C_calc_pr_capture <- function(n, J, K, M, capthist, enc0, usage, num_cores, num_states, detector_type, n_prim, S, entry) {
-    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capthist, enc0, usage, num_cores, num_states, detector_type, n_prim, S, entry)
+C_calc_pr_capture <- function(n, J, K, M, capthist, enc0, usage, num_states, detector_type, n_prim, S, entry) {
+    .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capthist, enc0, usage, num_states, detector_type, n_prim, S, entry)
 }
 

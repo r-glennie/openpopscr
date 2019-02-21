@@ -28,8 +28,6 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item num_cores (optional, default = 1): number of processors cores to use 
-#'   in parallelised code 
 #'   \item print (defualt = TRUE): if TRUE then helpful output is printed to the screen
 #' }
 #' 
@@ -48,7 +46,7 @@ JsTransientModel <- R6Class("JsTransientModel",
                             inherit = JsModel, 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
+    initialize = function(form, data, start, print = TRUE) {
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
       private$dx_ <- attr(newmesh, "spacing")
@@ -89,7 +87,6 @@ JsTransientModel <- R6Class("JsTransientModel",
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
       if (print) cat("done\n")
-      private$num_cores_ = num_cores
       private$print_ = print 
     },
     
@@ -172,7 +169,6 @@ JsTransientModel <- R6Class("JsTransientModel",
                              private$dx_, 
                              dt, 
                              sd, 
-                             private$num_cores_, 
                              3, 
                              rep(0, private$data_$n()))
       # compute log-likelihood

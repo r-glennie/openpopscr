@@ -27,8 +27,6 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item num_cores (optional, default = 1): number of processors cores to use 
-#'   in parallelised code 
 #'   \item print (defualt = TRUE): if TRUE then helpful output is printed to the screen
 #' }
 #' 
@@ -64,7 +62,7 @@
 JsModel <- R6Class("JsModel", 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
+    initialize = function(form, data, start, print = TRUE) {
       private$data_ <- data
       if (print) cat("Reading formulae.......")
       private$form_ <- form 
@@ -90,7 +88,6 @@ JsModel <- R6Class("JsModel",
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
       if (print) cat("done\n")
-      private$num_cores_ = num_cores
       private$print_ = print 
     },
     
@@ -222,7 +219,6 @@ JsModel <- R6Class("JsModel",
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
-                                private$num_cores_, 
                                 3, 
                                 self$data()$detector_type(),
                                 n_primary, 
@@ -236,6 +232,12 @@ JsModel <- R6Class("JsModel",
       dist <- private$data_$distances()
       n_occasions_all <- private$data_$n_occasions("all")
       n_occasions <- private$data_$n_occasions() 
+      n_primary <- private$data_$n_primary()
+      S <- private$data_$n_secondary()
+      if (n_primary == 1) {
+        n_primary <- n_occasions
+        S <- rep(1, n_occasions)
+      }
       enc_rate <- array(0, dim = c(n_occasions_all, nrow(dist), ncol(dist))) 
       for (k in 1:n_occasions_all) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
@@ -245,10 +247,10 @@ JsModel <- R6Class("JsModel",
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       j <- 0 
-      for (prim in 1:private$data_$n_primary()) { 
+      for (prim in 1:n_primary) { 
         pr_empty[[prim]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 3)
         pr_empty[[prim]][ , 2] <- 0 
-        for (s in 1:private$data_$n_secondary()[prim]) { 
+        for (s in 1:S[prim]) { 
           j <- j + 1
           pr_empty[[prim]][, 2] <- pr_empty[[prim]][, 2] - t(trap_usage[, j]) %*% enc_rate[j,,]
         }
@@ -275,8 +277,7 @@ JsModel <- R6Class("JsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms,
-			private$num_cores_, 3, rep(0, private$data_$n()))
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 3, rep(0, private$data_$n()))
       # compute log-likelihood
       llk <- llk - n * log(self$calc_pdet())
       llk <- llk + self$calc_D_llk()
@@ -395,7 +396,6 @@ JsModel <- R6Class("JsModel",
     llk_ = NULL, 
     sig_level_ = 0.05,
     print_ = NULL, 
-    num_cores_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)

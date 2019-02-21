@@ -194,7 +194,6 @@ arma::vec ExpG(const arma::vec v,
 //' @param pr0 initial distribution over life states
 //' @param pr_capture output of calc_pr_capture() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
-//' @param num_cores number of processor cores to use in parallelisation 
 //' @param num_states 2 = CJS model, 3 = JS model 
 //'
 //' @return log-likelihood value 
@@ -209,7 +208,6 @@ double C_calc_move_llk(const int n, const int J,
                   const double dx, 
                   const arma::vec dt, 
                   const arma::vec sd, 
-                  const int num_cores,
                   const int num_states,
                   const arma::vec entry) {
   

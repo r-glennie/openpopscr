@@ -105,7 +105,6 @@ struct LlkCalculator : public Worker {
 //' @param pr0 initial distribution over life states
 //' @param pr_capture output of calc_pr_capture() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
-//' @param num_cores number of processor cores to use in parallelisation 
 //' @param num_states 2 = CJS model, 3 = JS model 
 //'
 //' @return log-likelihood value 
@@ -115,7 +114,6 @@ double C_calc_llk(const int n, const int J, const int M,
                   const arma::mat pr0, 
                   const Rcpp::List pr_capture, 
                   const Rcpp::List tpms,
-                  const int num_cores,
                   const int num_states,
 									const arma::vec entry) {
   

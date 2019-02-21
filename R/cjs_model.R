@@ -27,8 +27,6 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item num_cores (optional, default = 1): number of processors cores to use 
-#'   in parallelised code 
 #'   \item print: (defualt TRUE) if TRUE then useful output is printed
 #' }
 #' 
@@ -59,7 +57,7 @@
 CjsModel <- R6Class("CjsModel", 
   public = list(
     
-    initialize = function(form, data, start, num_cores = 1, print = TRUE) {
+    initialize = function(form, data, start, print = TRUE) {
       private$data_ <- data
 			index <- 1:data$n_occasions("all")
 			if (print) cat("Computing entry occasions for each individual.......")
@@ -87,7 +85,6 @@ CjsModel <- R6Class("CjsModel",
       if (print) cat("Initilising parameters.......")
       private$initialise_par(start)
       if (print) cat("done\n")
-      private$num_cores_ = num_cores
       private$print_ = print
     },
     
@@ -175,7 +172,6 @@ CjsModel <- R6Class("CjsModel",
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
-                                private$num_cores_, 
                                 2, 
                                 self$data()$detector_type(), 
                                 n_primary, 
@@ -198,8 +194,7 @@ CjsModel <- R6Class("CjsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms,
-			private$num_cores_, 2, private$entry_)
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 2, private$entry_)
       cat("llk:", llk, "\n")
       return(llk)
     },
@@ -293,7 +288,6 @@ CjsModel <- R6Class("CjsModel",
     V_ = NULL, 
     llk_ = NULL, 
     sig_level_ = 0.05, 
-    num_cores_ = NULL, 
 		print_ = NULL, 
     
     make_par = function() {
