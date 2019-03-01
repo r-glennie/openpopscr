@@ -14,7 +14,14 @@ devtools::install_github("r-glennie/openpopscr@v1.1.0", build = TRUE, build_opts
 The package requires you have a <code>C</code> compiler installed on your system. 
 Windows users may need to install <code>R-tools</code> for this reason. 
 It is assumed Linux and Mac users have a compiler installed. 
-For parallel processing and faster performance, install <code>openMP</code>. 
+For parallel processing and faster performance, install <code>openMP</code>.
+
+The development version of the package can be installed similarly: 
+
+```
+devtools::install_github("r-glennie/openpopscr", build = TRUE, build_opts = c("--no-resave-data", "--no-manual"))
+```
+
 
 ## Use
 
