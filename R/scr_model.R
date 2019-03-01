@@ -58,9 +58,10 @@
 ScrModel <- R6Class("ScrModel", 
   public = list(
     
-    initialize = function(form, data, start, print = TRUE) {
+    initialize = function(form, data, start, detectfn = "HHN", print = TRUE) {
       private$data_ <- data
       if (print) cat("Reading formulae.......")
+      private$detectfn_ <- detectfn 
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       private$form_[[1]]<- form[par_names == "lambda0"][[1]]
@@ -74,6 +75,10 @@ ScrModel <- R6Class("ScrModel",
       private$response2link_ <- list(lambda0 = "log", 
                                      sigma = "log", 
                                      D = "log")
+      if (private$detectfn_ == "HN") {
+        private$link2response_$lambda0 <- "plogis"
+        private$response2link_$lambda0 <- "qlogis"
+      }
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
@@ -122,15 +127,38 @@ ScrModel <- R6Class("ScrModel",
       return(pr0)
     },
     
-    calc_pr_capture = function() {
-      dist <- t(private$data_$distances())
+    detectfn_type = function() {return(private$detectfn_)}, 
+    
+    detectfn = function(d, lambda0, sigma) {
+      if(private$detectfn_ == "HHN") {
+        e <- lambda0 * exp(-d ^ 2 / (2  * sigma ^ 2))
+      } else if (private$detectfn_ == "HN") {
+        p <- lambda0 * exp(-d ^ 2 / (2  * sigma ^ 2))
+        e <- -log(1 - p)
+        # avoid zeros
+        e <- e + 1e-10
+      }
+      return(e)
+    },
+    
+    calc_encrate = function(transpose = FALSE) {
+      dist <- private$data_$distances()
+      if (transpose) dist <- t(dist)
       n_occasions <- private$data_$n_occasions()
-      enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
+      if(transpose) enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
+      if(!transpose) enc_rate0 <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
       for (k in 1:n_occasions) {
         lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
         sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
-        enc_rate0[,,k] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
+        if(transpose) enc_rate0[,,k] <- self$detectfn(dist, lambda0, sigma)
+        if(!transpose) enc_rate0[k,,] <- self$detectfn(dist, lambda0, sigma)
       }
+     return(enc_rate0) 
+    }, 
+    
+    calc_pr_capture = function() {
+      n_occasions <- private$data_$n_occasions()
+      enc_rate0 <- self$calc_encrate(transpose = TRUE)
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
       n_meshpts <- private$data_$n_meshpts() 
@@ -152,15 +180,7 @@ ScrModel <- R6Class("ScrModel",
     },
     
     calc_pdet = function() {
-      # compute probability of zero capture history 
-      dist <- private$data_$distances()
-      n_occasions <- private$data_$n_occasions()
-      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      for (k in 1:n_occasions) {
-        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
-        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
-        enc_rate[k,,] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
-      }
+      enc_rate <- self$calc_encrate() 
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
@@ -286,6 +306,7 @@ ScrModel <- R6Class("ScrModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
     print_  = NULL, 
+    detectfn_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
