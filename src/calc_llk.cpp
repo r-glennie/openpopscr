@@ -97,7 +97,7 @@ struct LlkCalculator : public Worker {
 };
 
 
-//' Computes log-likelihood of Jolly-Seber model 
+//' Computes log-likelihood 
 //'
 //' @param n number of individuals 
 //' @param J total number of occasions 
@@ -123,7 +123,7 @@ double C_calc_llk(const int n, const int J, const int M,
   return(arma::accu(illk)); 
 }
 
-//' Computes detection probability (seen at least once) for Jolly-Seber model 
+//' Computes detection probability (seen at least once)  
 //'
 //' @param J total number of occasions 
 //' @param pr0 initial distribution over life states
