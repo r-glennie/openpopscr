@@ -72,7 +72,9 @@ ScrModel <- R6Class("ScrModel",
         private$detfn_ <- detectfn 
       }
       for (i in 1:private$detfn_$npars()) {
-        private$form_[[i]]<- form[par_names == private$detfn_$par(i)][[1]]
+        find <- par_names == private$detfn_$par(i)
+        if (all(!find)) stop("Parameters in formulae incorrect.")
+        private$form_[[i]]<- form[find][[1]]
       }
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
       names(private$form_) <- private$detfn_$pars()
