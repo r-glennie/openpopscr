@@ -67,7 +67,6 @@ CjsModel <- R6Class("CjsModel",
 		  }
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
-		  private$detectfn_ <- detectfn 
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       # detection function 
@@ -314,7 +313,6 @@ CjsModel <- R6Class("CjsModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
 		print_ = NULL, 
-		detectfn_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
@@ -402,14 +400,7 @@ CjsModel <- R6Class("CjsModel",
       par$phi <- vec[grep("phi", names)]
       names(par$phi) <- gsub("phi.", "", names(par$phi))
       return(par)
-    }, 
-  
-   qlog = function(p) {
-     q <- p
-     q <- ifelse(abs(1 - q) < 1e-16, 1 - 1e-16, q)
-     q <- ifelse(abs(q) < 1e-16, 1e-16, q)
-     return(qlogis(q))
-   }
+    }
   )                 
 )
 
