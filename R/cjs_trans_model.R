@@ -42,7 +42,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                          inherit = CjsModel, 
   public = list(
     
-    initialize = function(form, data, start, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
       private$dx_ <- attr(newmesh, "spacing")
@@ -63,21 +63,28 @@ CjsTransientModel <- R6Class("CjsTransientModel",
 			if (print) cat("Reading formulae.......")
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
-      private$form_[[1]]<- form[par_names == "lambda0"][[1]]
-      private$form_[[2]] <- form[par_names == "sigma"][[1]]
-      private$form_[[3]] <- form[par_names == "phi"][[1]]
-      private$form_[[4]] <- form[par_names == "sd"][[1]]
+      # detection function 
+      if (is.null(detectfn)) {
+        private$detfn_ <- DetFn$new()
+      } else if (class(detectfn)[1] == "character") {
+        private$detfn_ <- DetFn$new(fn = detectfn)
+      } else {
+        private$detfn_ <- detectfn 
+      }
+      for (i in 1:private$detfn_$npars()) {
+        find <- par_names == private$detfn_$par(i)
+        if (all(!find)) stop("Parameters in formulae incorrect.")
+        private$form_[[i]]<- form[find][[1]]
+      }
+      private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "phi"][[1]]
+      private$form_[[private$detfn_$npars() + 2]] <- form[par_names == "sd"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c("lambda0", "sigma", "phi", "sd")
+      names(private$form_) <- c(private$detfn_$pars(), "phi", "sd")
       private$make_par() 
-      private$link2response_ <- list(lambda0 = "exp", 
-                            sigma = "exp", 
-                            phi = "plogis", 
-                            sd = "exp")
-      private$response2link_ <- list(lambda0 = "log", 
-                                     sigma = "log", 
-                                     phi = "qlogis", 
-                                     sd = "log") 
+      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("exp"))
+      names(private$link2response_) <- c(private$detfn_$pars(), "phi", "sd")
+      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("log"))
+      names(private$response2link_) <- c(private$detfn_$pars(), "phi", "sd")
       if (print) cat("done\n") 
       if (print) cat("Initilising parameters.......")
       private$initialise_par(start)
@@ -147,16 +154,17 @@ CjsTransientModel <- R6Class("CjsTransientModel",
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_par <- numeric(4)
-      private$par_ <- vector(mode = "list", length = 3)
-      for (par in 1:4) {
+      n_det_par <- private$detfn_$npars()
+      private$par_ <- vector(mode = "list", length = n_det_par + 2)
+      n_par <- numeric(n_det_par)
+      for (par in 1:(n_det_par + 2)) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
-        if (par %in% c(3) & "t" %in% all.vars(private$form_[[par]])) {
+        if (par %in% c(n_det_par + 1) & "t" %in% all.vars(private$form_[[par]])) {
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
-        } else if (par %in% c(3) & "primary" %in% all.vars(private$form_[[par]])) {
+        } else if (par %in% c(n_det_par + 1) & "primary" %in% all.vars(private$form_[[par]])) {
           n_par[par] <- ncol(X) - 1
           par_vec <- rep(0, n_par[par])
           names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
@@ -172,38 +180,38 @@ CjsTransientModel <- R6Class("CjsTransientModel",
     }, 
     
     initialise_par = function(start) {
-        private$par_$lambda0[1] <- do.call(private$response2link_$lambda0, 
-                                           list(start$lambda0))
-        private$par_$sigma[1] <-do.call(private$response2link_$sigma, 
-                                           list(start$sigma))
-        private$par_$phi[1] <- do.call(private$response2link_$phi, 
+      n_det_par <- private$detfn_$npars()
+      names <- private$detfn_$pars()
+      for (i in 1:n_det_par) {
+        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
+                                        list(start[[i]]))
+      }
+      names(private$par_) <- c(names, "phi", "sd")
+      private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
-        private$par_$sd[1] <-do.call(private$response2link_$sd, 
+      private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                      list(start$sd))
         return(invisible())
     }, 
     
 		convert_vec2par = function(vec) {
-      par <- NULL
-      n_occasions <- private$data_$n_occasions()
-      names <- names(vec)
-      par$lambda0 <- vec[grep("lambda0", names)]
-      names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
-      par$sigma <- vec[grep("sigma", names)]
-      names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
+		  par <- NULL
+		  n_occasions <- private$data_$n_occasions()
+		  names <- names(vec)
+		  n_det_par <- self$detectfn()$npars()
+		  parnames <- self$detectfn()$pars()
+		  par <- vector(mode = "list", length = n_det_par)
+		  for (i in 1:n_det_par) {
+		    par[[i]] <- vec[grep(parnames[i], names)]
+		    names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
+		  }
+		  names(par) <- parnames 
       par$phi <- vec[grep("phi", names)]
       names(par$phi) <- gsub("phi.", "", names(par$phi))
       par$sd <- vec[grep("sd", names)]
       names(par$sd) <- gsub("sd.", "", names(par$sd))
       return(par)
-    }, 
-  
-   qlog = function(p) {
-     q <- p
-     q <- ifelse(abs(1 - q) < 1e-16, 1 - 1e-16, q)
-     q <- ifelse(abs(q) < 1e-16, 1e-16, q)
-     return(qlogis(q))
-   }
+    }
   )                 
 )
 
