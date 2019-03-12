@@ -8,14 +8,15 @@
 #' @return initial values for parameters 
 #' @export
 get_start_values <- function(obj, model = "ScrModel") {
-  auto <- list(sigma = RPSV(obj$capthist(), CC = TRUE))
+  auto.sigma <- RPSV(obj$capthist(), CC = TRUE)
   est_encrate <- obj$encrate() 
   # compute unit encounter rate for given sigma
   r <- obj$distances()
-  encrate <- colSums(exp(-r^2 / (2 * auto$sigma^2)))
+  encrate <- colSums(exp(-r^2 / (2 * auto.sigma^2)))
   unit_encrate <- mean(encrate)
   # guess lambda0 
-  auto$lambda0 <- est_encrate / unit_encrate
+  auto <- list(lambda0 = est_encrate / unit_encrate) 
+  auto$sigma <- auto.sigma
   # compute detection probability given lambda0, sigma
   pdot <- mean(1 - exp(-auto$lambda0 * encrate * obj$n_occasions()))
   auto$D <- obj$n() / (obj$area() * pdot)

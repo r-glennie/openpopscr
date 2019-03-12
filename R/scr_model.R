@@ -58,27 +58,29 @@
 ScrModel <- R6Class("ScrModel", 
   public = list(
     
-    initialize = function(form, data, start, detectfn = "HHN", print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
       private$data_ <- data
       if (print) cat("Reading formulae.......")
-      private$detectfn_ <- detectfn 
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
-      private$form_[[1]]<- form[par_names == "lambda0"][[1]]
-      private$form_[[2]] <- form[par_names == "sigma"][[1]]
-      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c("lambda0", "sigma")
-      private$make_par() 
-      private$link2response_ <- list(lambda0 = "exp", 
-                            sigma = "exp", 
-                            D = "exp")
-      private$response2link_ <- list(lambda0 = "log", 
-                                     sigma = "log", 
-                                     D = "log")
-      if (private$detectfn_ == "HN") {
-        private$link2response_$lambda0 <- "plogis"
-        private$response2link_$lambda0 <- "qlogis"
+      # detection function 
+      if (is.null(detectfn)) {
+        private$detfn_ <- DetFn$new()
+      } else if (class(detectfn)[1] == "character") {
+        private$detfn_ <- DetFn$new(fn = detectfn)
+      } else {
+        private$detfn_ <- detectfn 
       }
+      for (i in 1:private$detfn_$npars()) {
+        private$form_[[i]]<- form[par_names == private$detfn_$par(i)][[1]]
+      }
+      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
+      names(private$form_) <- private$detfn_$pars()
+      private$make_par() 
+      private$link2response_ <- c(private$detfn_$link2response(), list("exp"))
+      names(private$link2response_) <- c(private$detfn_$pars(), "D")
+      private$response2link_ <- c(private$detfn_$response2link(), list("log"))
+      names(private$response2link_) <- c(private$detfn_$pars(), "D")
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
@@ -88,14 +90,14 @@ ScrModel <- R6Class("ScrModel",
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
       if (name == "D") return(do.call(private$link2response_$D, list(as.numeric(self$par()["D"]))))
-     covs <- private$data_$covs(j = j, k = k, m = m)
-     i_par <- which(names(private$form_) == name) 
-     if (is.null(i_par)) stop("No parameters with that name.")
-     X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
-     theta <- private$par_[[i_par]]
-     l_par <- which(names(private$link2response_) == name)
-     resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
-     return(resp)
+      covs <- private$data_$covs(j = j, k = k, m = m)
+      i_par <- which(names(private$form_) == name) 
+      if (length(i_par) == 0) stop("No parameters with that name.")
+      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
+      theta <- private$par_[[i_par]]
+      l_par <- which(names(private$link2response_) == name)
+      resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
+      return(resp)
     }, 
     
     set_par = function(par) {
@@ -127,33 +129,22 @@ ScrModel <- R6Class("ScrModel",
       return(pr0)
     },
     
-    detectfn_type = function() {return(private$detectfn_)}, 
-    
-    detectfn = function(d, lambda0, sigma) {
-      if(private$detectfn_ == "HHN") {
-        e <- lambda0 * exp(-d ^ 2 / (2  * sigma ^ 2))
-      } else if (private$detectfn_ == "HN") {
-        p <- lambda0 * exp(-d ^ 2 / (2  * sigma ^ 2))
-        e <- -log(1 - p)
-        # avoid zeros
-        e <- e + 1e-10
-      }
-      return(e)
-    },
-    
     calc_encrate = function(transpose = FALSE) {
       dist <- private$data_$distances()
       if (transpose) dist <- t(dist)
       n_occasions <- private$data_$n_occasions()
-      if(transpose) enc_rate0 <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
-      if(!transpose) enc_rate0 <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+      if(transpose) enc_rate <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
+      if(!transpose) enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+      n_det_par <- self$detectfn()$npars()
+      det_par <- vector(mode = "list", length = n_det_par)
       for (k in 1:n_occasions) {
-        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
-        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
-        if(transpose) enc_rate0[,,k] <- self$detectfn(dist, lambda0, sigma)
-        if(!transpose) enc_rate0[k,,] <- self$detectfn(dist, lambda0, sigma)
+        for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1))
+        if(transpose) enc_rate[,,k] <- self$detectfn()$h(dist, det_par)
+        if(!transpose) enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
       }
-     return(enc_rate0) 
+      # add epsilon to stop log(0.0)
+      enc_rate <- enc_rate + 1e-16
+     return(enc_rate) 
     }, 
     
     calc_pr_capture = function() {
@@ -250,34 +241,35 @@ ScrModel <- R6Class("ScrModel",
       return(invisible())
     }, 
     
-  print = function() {
-    options(scipen = 999)
-    if (is.null(private$mle_)) {
-      print("Fit model using $fit method")
-    } else {
-      cat("PARAMETER ESTIMATES (link scale)\n")
-      print(signif(private$results_, 4))
-    }
-    options(scipen = 0)
-  }, 
-  
-  simulate = function(seed = NULL) {
-    if (!is.null(seed)) set.seed(seed)
-    new_dat <- simulate_scr(self$par(), 
-                            self$data()$n_occasions(), 
-                            self$data()$traps(), 
-                            self$data()$mesh(), 
-                            self$data()$time(), 
-                            seed, 
-                            private$print_)
-    return(new_dat)
-  }, 
-  
-  par = function() {return(private$par_)},
-  mle = function() {return(private$mle_)},
-  data = function() {return(private$data_)}, 
-  
-  estimates = function() {
+    print = function() {
+      options(scipen = 999)
+      if (is.null(private$mle_)) {
+        print("Fit model using $fit method")
+      } else {
+        cat("PARAMETER ESTIMATES (link scale)\n")
+        print(signif(private$results_, 4))
+      }
+      options(scipen = 0)
+    }, 
+    
+    simulate = function(seed = NULL) {
+      if (!is.null(seed)) set.seed(seed)
+      new_dat <- simulate_scr(self$par(), 
+                              self$data()$n_occasions(), 
+                              self$data()$traps(), 
+                              self$data()$mesh(), 
+                              self$data()$time(), 
+                              seed, 
+                              private$print_)
+      return(new_dat)
+    }, 
+    
+    par = function() {return(private$par_)},
+    mle = function() {return(private$mle_)},
+    data = function() {return(private$data_)}, 
+    detectfn = function() {return(private$detfn_)}, 
+    
+    estimates = function() {
       ests <- NULL
       if (is.null(private$mle_)) {
         ests <- "Fit model using $fit method"
@@ -287,14 +279,15 @@ ScrModel <- R6Class("ScrModel",
       }
       return(ests)
     },
-  
+    
     cov_matrix = function() {return(private$V_)}, 
     mle_llk = function() {return(private$llk_)}
+    
+  ),
   
-),
-                   
   private = list(
     data_ = NULL,
+    detfn_ = NULL, 
     form_ = NULL, 
     par_ = NULL, 
     link2response_ = NULL, 
@@ -306,32 +299,35 @@ ScrModel <- R6Class("ScrModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
     print_  = NULL, 
-    detectfn_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_par <- numeric(4)
-      private$par_ <- vector(mode = "list", length = 3)
-      for (par in 1:2) {
+      n_det_par <- private$detfn_$npars()
+      private$par_ <- vector(mode = "list", length = n_det_par + 1)
+      n_par <- numeric(n_det_par)
+      for (par in 1:n_det_par) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         par_vec <- rep(0, n_par[par])
         names(par_vec) <- colnames(X)
         private$par_[[par]] <- par_vec
       }
-      private$par_[[3]] <- 0
+      private$par_[[n_det_par + 1]] <- 0
       names(private$par_) <- c(names(private$form_), "D") 
       return(invisible())
     }, 
     
     initialise_par = function(start) {
-        private$par_$lambda0[1] <- do.call(private$response2link_$lambda0, 
-                                           list(start$lambda0))
-        private$par_$sigma[1] <-do.call(private$response2link_$sigma, 
-                                           list(start$sigma))
-        private$par_$D <- do.call(private$response2link_$D, 
-                                           list(start$D))
-        return(invisible())
+      n_det_par <- private$detfn_$npars()
+      names <- private$detfn_$pars()
+      for (i in 1:n_det_par) {
+        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
+                                        list(start[[i]]))
+      }
+      names(private$par_) <- c(names, "D")
+      private$par_$D <- do.call(private$response2link_$D, 
+                                list(start$D))
+      return(invisible())
     }, 
     
     make_results = function() {
@@ -346,10 +342,10 @@ ScrModel <- R6Class("ScrModel",
       rownames(results) <- names(par)
       private$results_ <- results 
       return(invisible())
+      
+    }, 
     
-  }, 
-  
-   calc_confint = function() {
+    calc_confint = function() {
       V <- private$V_ 
       sds <- sqrt(diag(V))
       est <- private$convert_par2vec(private$mle_)
@@ -359,13 +355,13 @@ ScrModel <- R6Class("ScrModel",
       names(lcl) <- names(ucl) <- names(est)
       return(list(LCL = lcl, UCL = ucl))
     },
-  
-     calc_negllk = function(param = NULL, names = NULL) {
-       negllk <- -self$calc_llk(param, names)
-       return(negllk)
+    
+    calc_negllk = function(param = NULL, names = NULL) {
+      negllk <- -self$calc_llk(param, names)
+      return(negllk)
     },
-  
-   convert_par2vec = function(par) {
+    
+    convert_par2vec = function(par) {
       return(unlist(par))
     },
     
@@ -373,16 +369,19 @@ ScrModel <- R6Class("ScrModel",
       par <- NULL
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
-      par$lambda0 <- vec[grep("lambda0", names)]
-      names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
-      par$sigma <- vec[grep("sigma", names)]
-      names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
+      n_det_par <- self$detectfn()$npars()
+      parnames <- self$detectfn()$pars()
+      par <- vector(mode = "list", length = n_det_par)
+      for (i in 1:n_det_par) {
+        par[[i]] <- vec[grep(parnames[i], names)]
+        names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
+      }
+      names(par) <- parnames 
       par$D <- vec["D"]
       names(par$D) <- NULL 
       return(par)
     }
-  )                 
+  )
 )
-
 
 
