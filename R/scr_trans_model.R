@@ -45,7 +45,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              inherit = ScrModel, 
   public = list(
     
-    initialize = function(form, data, start, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
       private$dx_ <- attr(newmesh, "spacing")
@@ -60,22 +60,27 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$num_cells_[3] <- nrow(newmesh) / private$num_cells_[2]
       if (print) cat("done\n")
       if (print) cat("Reading formulae.......")
-      private$form_ <- form 
+      private$form_ <- form
       par_names <- sapply(form, function(f){f[[2]]})
-      private$form_[[1]]<- form[par_names == "lambda0"][[1]]
-      private$form_[[2]] <- form[par_names == "sigma"][[1]]
-      private$form_[[3]] <- form[par_names == "sd"][[1]]
+      # detection function 
+      if (is.null(detectfn)) {
+        private$detfn_ <- DetFn$new()
+      } else if (class(detectfn)[1] == "character") {
+        private$detfn_ <- DetFn$new(fn = detectfn)
+      } else {
+        private$detfn_ <- detectfn 
+      }
+      for (i in 1:private$detfn_$npars()) {
+        private$form_[[i]]<- form[par_names == private$detfn_$par(i)][[1]]
+      }
+      private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "sd"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c("lambda0", "sigma", "sd")
+      names(private$form_) <- c(private$detfn_$pars(), "sd")
       private$make_par() 
-      private$link2response_ <- list(lambda0 = "exp", 
-                            sigma = "exp", 
-                            sd = "exp", 
-                            D = "exp")
-      private$response2link_ <- list(lambda0 = "log", 
-                                     sigma = "log", 
-                                     sd = "log", 
-                                     D = "log")
+      private$link2response_ <- c(private$detfn_$link2response(), list("exp"), list("exp"))
+      names(private$link2response_) <- c(private$detfn_$pars(), "sd", "D")
+      private$response2link_ <- c(private$detfn_$response2link(), list("log"), list("log"))
+      names(private$response2link_) <- c(private$detfn_$pars(), "sd", "D")
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
@@ -103,14 +108,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     calc_pdet = function() {
       # compute probability of zero capture history 
-      dist <- private$data_$distances()
-      n_occasions <- private$data_$n_occasions()
-      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      for (k in 1:n_occasions) {
-        lambda0 <- as.vector(self$get_par("lambda0", k = k, m = 1))
-        sigma <- as.vector(self$get_par("sigma", k = k, m = 1))
-        enc_rate[k,,] <- lambda0 * exp(-dist ^ 2 / (2  * sigma ^ 2))
-      }
+      enc_rate <- self$calc_encrate() 
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
@@ -207,40 +205,49 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_par <- numeric(4)
-      private$par_ <- vector(mode = "list", length = 3)
-      for (par in 1:3) {
+      n_det_par <- private$detfn_$npars()
+      private$par_ <- vector(mode = "list", length = n_det_par + 1)
+      n_par <- numeric(n_det_par)
+      for (par in 1:n_det_par) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         par_vec <- rep(0, n_par[par])
         names(par_vec) <- colnames(X)
         private$par_[[par]] <- par_vec
       }
-      private$par_[[4]] <- 0
-      names(private$par_) <- c(names(private$form_), "D") 
+      private$par_[[n_det_par + 1]] <- 0
+      private$par_[[n_det_par + 2]] <- 0
+      names(private$par_) <- c(private$detfn_$pars(), "sd", "D") 
       return(invisible())
     }, 
     
     initialise_par = function(start) {
-        private$par_$lambda0[1] <- do.call(private$response2link_$lambda0, 
-                                           list(start$lambda0))
-        private$par_$sigma[1] <-do.call(private$response2link_$sigma, 
-                                           list(start$sigma))
-        private$par_$sd[1] <-do.call(private$response2link_$sd, 
-                                        list(start$sd))
-        private$par_$D <- do.call(private$response2link_$D, 
-                                           list(start$D))
-        return(invisible())
+      n_det_par <- private$detfn_$npars()
+      names <- private$detfn_$pars()
+      for (i in 1:n_det_par) {
+        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
+                                        list(start[[i]]))
+      }
+      names(private$par_) <- c(names, "sd", "D")
+      private$par_$sd[1] <-do.call(private$response2link_$sd, 
+                                   list(start$sd))
+      private$par_$D <- do.call(private$response2link_$D, 
+                                list(start$D))
+      return(invisible())
     }, 
     
     convert_vec2par = function(vec) {
       par <- NULL
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
-      par$lambda0 <- vec[grep("lambda0", names)]
-      names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
-      par$sigma <- vec[grep("sigma", names)]
-      names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
+      n_det_par <- self$detectfn()$npars()
+      parnames <- self$detectfn()$pars()
+      par <- vector(mode = "list", length = n_det_par)
+      for (i in 1:n_det_par) {
+        par[[i]] <- vec[grep(parnames[i], names)]
+        names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
+      }
+      names(par) <- parnames 
       par$sd <- vec[grep("sd", names)]
       names(par$sd) <- gsub("sd.", "", names(par$sd))
       par$D <- vec["D"]
