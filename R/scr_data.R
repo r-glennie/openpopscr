@@ -76,9 +76,12 @@ ScrData <- R6Class("ScrData",
                                        count = 1, 
                                        proximity = 2, 
                                        multi = 3,
-                                       transect = 4)
+                                       transect = 4, 
+                                       transectX = 5, 
+                                       polygon = 6, 
+                                       polygonX = 7)
       if (is.null(secr::usage(secr::traps(capthist)))) {
-        if (private$detector_type_ == 4) {
+        if (private$detector_type_ %in% 4:7) {
           nids <- length(unique(attr(traps(capthist), "polyID")))
           secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = nids, nc = dim(capthist)[2])
         } else {
@@ -98,9 +101,16 @@ ScrData <- R6Class("ScrData",
       private$cov_$primary <- as.factor((private$primary_ - 1))
       private$cov_type_ <- c(private$cov_type_, "k")
       
-      if (!(private$detector_type_ %in% c(1,2,3,4))) stop("openpopscr only implements 'count', 'proximity', 'multi', and 'transect' detectors, 
-you are using detectors of another type.")
+      if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
       self$calc_distances()
+      if (private$detector_type_ %in% 4:7) {
+        private$locs_ <- attributes(capthist)$detectedXY
+        private$locs_index_ <- sapply(1:dim(capthist)[1], FUN = function(i) {sum(capthist[1:i,,]) + 1})
+        self$calc_dist2locs() 
+      }
+      if (private$detector_type_ %in% 6:7) {
+        self$calc_orientation() 
+      }
     },
     
     print = function(i = ".") {
@@ -118,6 +128,10 @@ you are using detectors of another type.")
     traps = function(i = ".") {
       if (i == ".") return(traps(private$capthist_))
      return(traps(private$capthists_[[i]]))
+    },
+    locs = function(i = ".") {
+      if (i == ".") return(private$locs_)
+      return(private$locs_[private$locs_index_[i]:(private$locs_index_[i] - 1),])
     },
     mesh = function() {return(private$mesh_)},
     time = function() {return(private$time_)},
@@ -154,7 +168,7 @@ you are using detectors of another type.")
     },
     n_traps = function() {
       # number of transects
-      if (private$detector_type_ == 4) return(length(unique(attr(traps(private$capthist_), "polyID"))))
+      if (private$detector_type_ %in% 4:7) return(length(unique(attr(traps(private$capthist_), "polyID"))))
       return(dim(private$capthist_)[3])
       }, 
     n_meshpts = function() {return(dim(private$mesh_)[1])},
@@ -190,27 +204,39 @@ you are using detectors of another type.")
     
     area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
     distances = function(){return(private$distances_)},
+    dist2locs = function(){return(private$dist2locs_)}, 
+    orientation = function(){return(private$orientation_)}, 
     
     calc_distances = function() {
-      dist_to_row <- function(r) {
-        dist <- function(r2) {
-          sqrt(sum((r2 - r)^2))
-        }
-        apply(private$mesh_, 1, dist)
+      private$distances_ <- t(apply(self$traps(), 1, private$dist_to_row))
+    }, 
+    
+    calc_dist2locs = function() {
+      private$dist2locs_ <- t(apply(self$locs(), 1, private$dist_to_row))
+    }, 
+    
+    calc_orientation = function() { 
+      polyids <- unique(attr(self$traps(), "polyID"))
+      # get polygon associated with each point 
+      poly <- sapply(strsplit(rownames(self$traps()), split =".", fixed = TRUE), FUN = function(x){as.numeric(x[1])})
+      private$orientation_ <- NULL
+      for (p in 1:length(polyids)) {
+        polypts <- self$traps()[poly == polyids[p],]
+        n_pts <- nrow(polypts)
+        grad <- polypts[-1,]-polypts[-n_pts,]
+        grad <- grad[,2]/grad[,1]
+        zeros <- grad==0
+        grad[zeros] <- 1 
+        norm <- 1/grad
+        norm[is.infinite(grad)] <- 0 
+        midpt <- (polypts[-1,] + polypts[-n_pts,]) / 2
+        testpt <- midpt
+        testpt[,1] <- testpt[,1] + 1*(!zeros)
+        testpt[,2] <- testpt[,2] + norm 
+        orient <- ifelse(secr::pointsInPolygon(testpt, polypts), -1, 1)
+        orient[is.infinite(grad)] <- 0 
+        private$orientation_ <- c(private$orientation_, orient)
       }
-      private$distances_ <- t(apply(self$traps(), 1, dist_to_row))
-      ## if transect detectors, then take minimum distance approached
-      if (self$detector_type() == 4) {
-        ids <- attr(self$traps(), "polyID")
-        unique_ids <- unique(ids)
-        nids <- length(unique_ids)
-        newdist <- matrix(0, nr = nids, nc = self$n_meshpts())
-        for (i in 1:nids) {
-          subdist <- private$distances_[ids == unique_ids[i],]
-          newdist[i,] <- apply(subdist, 2, min)
-        }
-        private$distances_ <- newdist 
-      } 
     }, 
     
     add_covariate = function(cov_name, cov, cov_type) {
@@ -240,10 +266,21 @@ you are using detectors of another type.")
     cov_ = NULL, 
     cov_type_ = NULL, 
     distances_ = NULL,
+    dist2locs_ = NULL, 
+    orientation_ = NULL, 
     detector_type_ = NULL, 
     primary_ = NULL, 
     n_primary_ = NULL, 
-    n_occasions_ = NULL
+    n_occasions_ = NULL, 
+    locs_ = NULL, 
+    locs_index_ = NULL, 
+    
+    dist_to_row = function(r) {
+      dist <- function(r2) {
+        sqrt(sum((r2 - r)^2))
+      }
+      apply(private$mesh_, 1, dist)
+    }
   )
 )
 
