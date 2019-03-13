@@ -14,7 +14,7 @@ C_calc_D <- function(D, J, pr0, tpms) {
     .Call(`_openpopscr_C_calc_D`, D, J, pr0, tpms)
 }
 
-#' Computes log-likelihood of Jolly-Seber model 
+#' Computes log-likelihood 
 #'
 #' @param n number of individuals 
 #' @param J total number of occasions 
@@ -30,7 +30,7 @@ C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
     .Call(`_openpopscr_C_calc_llk`, n, J, M, pr0, pr_capture, tpms, num_states, entry)
 }
 
-#' Computes detection probability (seen at least once) for Jolly-Seber model 
+#' Computes detection probability (seen at least once)  
 #'
 #' @param J total number of occasions 
 #' @param pr0 initial distribution over life states
