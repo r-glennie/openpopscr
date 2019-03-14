@@ -129,9 +129,9 @@ struct PrCaptureCalculator : public Worker {
               if (usage(k, j) < 1e-16) continue;
               if (capthist(i, j, k) < 0.5 & detector_type == 3) continue;
               if (detector_type == 1 | detector_type == 4) {
-                probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * logenc0.slice(j).col(k) - enc0.slice(j).col(k);
+                probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * logenc0.slice(j).col(k) - usage(k, j) * enc0.slice(j).col(k);
               } else if (detector_type == 2) {
-                probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * log_penc.slice(j).col(k) - (1.0 - capthist(i, j, k)) * enc0.slice(j).col(k);
+                probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * log_penc.slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0.slice(j).col(k);
               } 
               if (capthist(i, j, k) > 1e-16) unseen = false;
             }
