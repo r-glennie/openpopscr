@@ -64,14 +64,6 @@ ScrData <- R6Class("ScrData",
                           cov = NULL, 
                           cov_type = NULL, 
                           primary = NULL) {
-      private$capthist_ <- capthist 
-      ## split capthist into primary occasions 
-      if (is.null(primary)) primary <- rep(1, dim(capthist)[2])
-      private$primary_ <- primary 
-      private$n_primary_ <- max(primary)
-      private$capthists_ <- secr:::split.capthist(capthist, as.factor(primary), byoccasion = TRUE, dropnullCH = FALSE, dropunused = FALSE)
-      private$n_occasions_ <- length(private$capthists_)
-      if (private$n_occasions_ == 1) private$n_occasions_ <- dim(capthist)[2]
       private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
                                        count = 1, 
                                        proximity = 2, 
@@ -80,6 +72,7 @@ ScrData <- R6Class("ScrData",
                                        transectX = 5, 
                                        polygon = 6, 
                                        polygonX = 7)
+      private$capthist_ <- capthist 
       if (is.null(secr::usage(secr::traps(capthist)))) {
         if (private$detector_type_ %in% 4:7) {
           nids <- length(unique(attr(traps(capthist), "polyID")))
@@ -88,6 +81,24 @@ ScrData <- R6Class("ScrData",
           secr::usage(secr::traps(private$capthist_)) <- matrix(1, nr = dim(capthist)[3], nc = dim(capthist)[2])
         }
       }
+      if (private$detector_type_ %in% 4:7) {
+        outputdetector <- ifelse(private$detector_type_ %in% c(4, 6), "count", "proximity")
+        spacing <- attr(mesh, "polygon_trap_spacing")
+        if (is.null(spacing)) spacing <- attr(mesh, "spacing")
+        private$capthist_ <- secr::discretize(capthist, 
+                                              spacing = spacing, 
+                                              outputdetector = outputdetector, 
+                                              cell.overlap = TRUE)
+        if (outputdetector == "proximity") attributes(traps(private$capthist_))$detector <- "multi"
+        private$detector_type_ <- ifelse(outputdetector == "count", 1, 3)
+      }
+      ## split capthist into primary occasions 
+      if (is.null(primary)) primary <- rep(1, dim(capthist)[2])
+      private$primary_ <- primary 
+      private$n_primary_ <- max(primary)
+      private$capthists_ <- secr:::split.capthist(capthist, as.factor(primary), byoccasion = TRUE, dropnullCH = FALSE, dropunused = FALSE)
+      private$n_occasions_ <- length(private$capthists_)
+      if (private$n_occasions_ == 1) private$n_occasions_ <- dim(capthist)[2]
       private$mesh_ <- mesh
       if (is.null(time)) {
         private$time_ <- seq(1, self$n_occasions("all"))
@@ -103,14 +114,6 @@ ScrData <- R6Class("ScrData",
       
       if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
       self$calc_distances()
-      if (private$detector_type_ %in% 4:7) {
-        private$locs_ <- attributes(capthist)$detectedXY
-        private$locs_index_ <- sapply(1:dim(capthist)[1], FUN = function(i) {sum(capthist[1:i,,]) + 1})
-        self$calc_dist2locs() 
-      }
-      if (private$detector_type_ %in% 6:7) {
-        self$calc_orientation() 
-      }
     },
     
     print = function(i = ".") {
