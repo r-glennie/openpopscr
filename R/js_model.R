@@ -59,7 +59,8 @@
 #'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
 #' }
 #' 
-JsModel <- R6Class("JsModel", 
+JsModel <- R6Class("JsModel",
+                   inherit = ScrModel,
   public = list(
     
     initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
@@ -141,23 +142,6 @@ JsModel <- R6Class("JsModel",
       private$par_ <- par
     },
     
-    set_mle = function(mle, V, llk) {
-      private$mle_ <- mle
-      private$llk_ <- -llk
-      private$V_ <- V
-      private$make_results()
-    }, 
-    
-    calc_D_llk = function() {
-      D <- do.call(private$link2response_$D, list(self$par()$D))
-      A <- private$data_$area()
-      n <- private$data_$n()
-      pdet <- self$calc_pdet()
-      llk <- n * log(D * A * pdet) - D * A * pdet - lfactorial(n)
-      names(llk) <- NULL 
-      return(llk)
-    },
-    
     calc_initial_distribution = function() {
       a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
@@ -196,24 +180,6 @@ JsModel <- R6Class("JsModel",
                             0, 1 - phi, 1), nrow = 3, ncol = 3)
       }
       return(tpms)
-    }, 
-    
-    calc_encrate = function(transpose = FALSE) {
-      dist <- private$data_$distances()
-      if (transpose) dist <- t(dist)
-      n_occasions <- private$data_$n_occasions()
-      if(transpose) enc_rate <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
-      if(!transpose) enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      n_det_par <- self$detectfn()$npars()
-      det_par <- vector(mode = "list", length = n_det_par)
-      for (k in 1:n_occasions) {
-        for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1))
-        if(transpose) enc_rate[,,k] <- self$detectfn()$h(dist, det_par)
-        if(!transpose) enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
-      }
-      # add epsilon to stop log(0.0)
-      enc_rate <- enc_rate + 1e-16
-      return(enc_rate) 
     }, 
     
     calc_pr_capture = function() {
@@ -298,40 +264,6 @@ JsModel <- R6Class("JsModel",
       return(llk)
     },
     
-    fit = function(ini_par = NULL, nlm.args = NULL) {
-      if (!is.null(ini_par)) self$set_par(ini_par)
-      par <- self$par()
-      w_par <- private$convert_par2vec(par)
-      if (private$print_) cat("Fitting model..........\n")
-      t0 <- Sys.time()
-      if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
-      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
-      mod <- do.call(nlm, args)
-      t1 <- Sys.time()
-      difft <- t1 - t0
-      if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      mle <- mod$estimate
-      code <- mod$code
-      if (code > 2) warning("model failed to converge with optim code ", code, "\n")
-      if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
-      names(mle) <- names(w_par)
-      mle <- private$convert_vec2par(mle)
-      #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
-      self$set_par(mle)
-      private$mle_ <- mle
-      private$llk_ <- -mod$minimum
-      private$V_ <- solve(mod$hessian)
-      if (any(diag(private$V) <= 0)) {
-        cat("Variance estimates not reliable, do a bootstrap.")
-        return(0)
-      } else {
-        sd <- sqrt(diag(private$V_))
-        names(sd) <- names(w_par)
-        private$make_results()
-      }
-      return(invisible())
-    }, 
-    
   print = function() {
     options(scipen = 999)
     if (is.null(private$mle_)) {
@@ -361,55 +293,24 @@ JsModel <- R6Class("JsModel",
     return(new_dat)
   }, 
   
-  par = function() {return(private$par_)},
-  mle = function() {return(private$mle_)},
-  data = function() {return(private$data_)}, 
-  detectfn = function() {return(private$detfn_)}, 
+  sample_D = function(nsims = 99) {
+    if (is.null(private$mle_)) stop("Fit model using $fit method.")
+    sds <- sqrt(diag(private$V_))
+    return(private$infer_D(nsims, extract_samples = 1))
+  }, 
   
-  estimates = function() {
-      ests <- NULL
-      if (is.null(private$mle_)) {
-        ests <- "Fit model using $fit method"
-      } else {
-        ests$par <- private$results_
-        ests$D <- private$D_tab_
-      }
-      return(ests)
-    },
-  
-    cov_matrix = function() {return(private$V_)}, 
-    mle_llk = function() {return(private$llk_)},
-  
-    sample_D = function(nsims = 99) {
-      if (is.null(private$mle_)) stop("Fit model using $fit method.")
-      sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, extract_samples = 1))
-    }, 
-    sample_R = function(nsims = 99) {
-      if (is.null(private$mle_)) stop("Fit model using $fit method.")
-      sds <- sqrt(diag(private$V_))
-      return(private$infer_D(nsims, extract_samples = 2))
-    } 
+  sample_R = function(nsims = 99) {
+    if (is.null(private$mle_)) stop("Fit model using $fit method.")
+    sds <- sqrt(diag(private$V_))
+    return(private$infer_D(nsims, extract_samples = 2))
+  } 
   
 ),
                    
   private = list(
-    data_ = NULL,
-    detfn_ = NULL, 
-    form_ = NULL, 
-    par_ = NULL, 
-    link2response_ = NULL, 
-    response2link_ = NULL, 
-    mle_ = NULL,
-    results_ = NULL,
-    D_tab_ = NULL, 
     Dk_ = NULL, 
     var_ = NULL, 
     confint_ = NULL, 
-    V_ = NULL, 
-    llk_ = NULL, 
-    sig_level_ = 0.05,
-    print_ = NULL, 
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
@@ -584,16 +485,7 @@ JsModel <- R6Class("JsModel",
        private$Dk_ <- C_calc_D(self$get_par("D"), self$data()$n_occasions(), pr0, tpms)
        return(invisible())
     },
-  
-     calc_negllk = function(param = NULL, names = NULL) {
-       negllk <- -self$calc_llk(param, names)
-       return(negllk)
-    },
-  
-   convert_par2vec = function(par) {
-      return(unlist(par))
-    },
-    
+
     convert_vec2par = function(vec) {
       par <- NULL
       n_occasions <- private$data_$n_occasions()
