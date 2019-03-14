@@ -55,6 +55,7 @@
 #' }
 #' 
 CjsModel <- R6Class("CjsModel", 
+                    inherit = ScrModel, 
   public = list(
     
     initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
@@ -119,17 +120,9 @@ CjsModel <- R6Class("CjsModel",
      return(resp)
     }, 
     
-    set_par = function(par) {
-      private$par_ <- par
-    },
-    
-    set_mle = function(mle, V, llk) {
-      private$mle_ <- mle
-      private$llk_ <- -llk
-      private$V_ <- V
-      private$make_results()
-    }, 
-    
+    calc_D_llk = function() {warning("No D parameter in CJS model.")}, 
+    calc_pdet = function() {warning("No pdet parameter in CJS model.")}, 
+  
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
@@ -153,24 +146,6 @@ CjsModel <- R6Class("CjsModel",
                             1 - phi, 1), nrow = 2, ncol = 2)
       }
       return(tpms)
-    }, 
-    
-    calc_encrate = function(transpose = FALSE) {
-      dist <- private$data_$distances()
-      if (transpose) dist <- t(dist)
-      n_occasions <- private$data_$n_occasions()
-      if(transpose) enc_rate <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
-      if(!transpose) enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
-      n_det_par <- self$detectfn()$npars()
-      det_par <- vector(mode = "list", length = n_det_par)
-      for (k in 1:n_occasions) {
-        for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1))
-        if(transpose) enc_rate[,,k] <- self$detectfn()$h(dist, det_par)
-        if(!transpose) enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
-      }
-      # add epsilon to stop log(0.0)
-      enc_rate <- enc_rate + 1e-16
-      return(enc_rate) 
     }, 
     
     calc_pr_capture = function() {
@@ -220,50 +195,6 @@ CjsModel <- R6Class("CjsModel",
       cat("llk:", llk, "\n")
       return(llk)
     },
-    
-    fit = function(ini_par = NULL, nlm.args = NULL) {
-      if (!is.null(ini_par)) self$set_par(ini_par)
-      par <- self$par()
-      w_par <- private$convert_par2vec(par)
-      if (private$print_) cat("Fitting model..........\n")
-      t0 <- Sys.time()
-      if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
-      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
-      mod <- do.call(nlm, args)
-      t1 <- Sys.time()
-      difft <- t1 - t0
-      if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      code <- mod$code
-      if (code > 2) warning("model failed to converge with nlm code ", code, "\n")
-      if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
-      mle <- mod$estimate
-      names(mle) <- names(w_par)
-      mle <- private$convert_vec2par(mle)
-      self$set_par(mle)
-      private$mle_ <- mle
-      private$llk_ <- -mod$minimum
-      private$V_ <- solve(mod$hessian)
-      if (any(diag(private$V) <= 0)) {
-        cat("Variance estimates not reliable, do a bootstrap?")
-        return(0)
-      } else {
-        sd <- sqrt(diag(private$V_))
-        names(sd) <- names(w_par)
-        private$make_results()
-      }
-      return(invisible())
-    }, 
-    
-  print = function() {
-    options(scipen = 999)
-    if (is.null(private$mle_)) {
-      print("Fit model using $fit method")
-    } else {
-      cat("PARAMETER ESTIMATES (link scale)\n")
-      print(signif(private$results_, 4))
-    }
-    options(scipen = 0)
-  }, 
   
   simulate = function(N = NULL, seed = NULL) {
     if (!is.null(N)) N <- self$data()$n()
@@ -279,11 +210,7 @@ CjsModel <- R6Class("CjsModel",
     return(new_dat)
   }, 
   
-  par = function() {return(private$par_)},
-  mle = function() {return(private$mle_)},
-  data = function() {return(private$data_)}, 
   entry = function() {return(private$entry_)}, 
-  detectfn = function() {return(private$detfn_)}, 
   
   estimates = function() {
       ests <- NULL
@@ -293,26 +220,11 @@ CjsModel <- R6Class("CjsModel",
         ests$par <- private$results_
       }
       return(ests)
-    },
-  
-    cov_matrix = function() {return(private$V_)}, 
-    mle_llk = function() {return(private$llk_)}
+    }
 ),
                    
   private = list(
-    data_ = NULL,
-    detfn_ = NULL, 
-		entry_ = NULL, 
-    form_ = NULL, 
-    par_ = NULL, 
-    link2response_ = NULL, 
-    response2link_ = NULL, 
-    mle_ = NULL,
-    results_ = NULL,
-    V_ = NULL, 
-    llk_ = NULL, 
-    sig_level_ = 0.05, 
-		print_ = NULL, 
+		entry_ = NULL,
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
@@ -353,39 +265,7 @@ CjsModel <- R6Class("CjsModel",
       return(invisible())
     }, 
     
-    make_results = function(nsims) {
-      if (is.null(private$mle_)) print("Fit model using $fit method.")
-      par <- private$convert_par2vec(private$mle_) 
-      sd <- sqrt(diag(private$V_))
-      ci <- private$calc_confint()
-      results <- cbind(par, sd, ci$LCL, ci$UCL)
-      colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
-      rownames(results) <- names(par)
-      private$results_ <- results 
-      return(invisible())
-  }, 
-  
-   calc_confint = function() {
-      V <- private$V_ 
-      sds <- sqrt(diag(V))
-      est <- private$convert_par2vec(private$mle_)
-      alp <- qnorm(1 - private$sig_level_ / 2)
-      lcl <- est - alp * sds
-      ucl <- est + alp * sds 
-      names(lcl) <- names(ucl) <- names(est)
-      return(list(LCL = lcl, UCL = ucl))
-    },
-  
-    calc_negllk = function(param = NULL, names = NULL) {
-       negllk <- -self$calc_llk(param, names)
-       return(negllk)
-    },
-  
-   convert_par2vec = function(par) {
-      return(unlist(par))
-    },
-    
-    convert_vec2par = function(vec) {
+  convert_vec2par = function(vec) {
       par <- NULL
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
