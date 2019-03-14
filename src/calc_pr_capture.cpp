@@ -124,6 +124,7 @@ struct PrCaptureCalculator : public Worker {
            ++j;
            if (detector_type == 3) savedenc.zeros();
            sumcap = 0;
+           if (detector_type != 3) {
             for (int k = 0; k < K; ++k) {
               if (usage(k, j) < 1e-16) continue;
               if (capthist(i, j, k) < 0.5 & detector_type == 3) continue;
@@ -131,13 +132,15 @@ struct PrCaptureCalculator : public Worker {
                 probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * logenc0.slice(j).col(k) - enc0.slice(j).col(k);
               } else if (detector_type == 2) {
                 probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * log_penc.slice(j).col(k) - (1.0 - capthist(i, j, k)) * enc0.slice(j).col(k);
-              } else if (detector_type == 3) {
-                sumcap += capthist(i, j, k);
-                savedenc += capthist(i, j, k) * logenc0.slice(j).col(k);
-              }
+              } 
               if (capthist(i, j, k) > 1e-16) unseen = false;
             }
+           }
             if (detector_type == 3) {
+              arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all); 
+              sumcap = arma::accu(cap_ij); 
+              if (sumcap > 0) unseen = false; 
+              savedenc += logenc0.slice(j) * cap_ij;  
               if (!unseen) probfield(i).slice(prim).col(alive_col) += savedenc - sumcap * log_total_enc.col(j); 
               probfield(i).slice(prim).col(alive_col) += -(1.0 - sumcap) * total_enc.col(j) + sumcap * log_total_penc.col(j); 
             }
