@@ -188,6 +188,6 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
   arma::field<arma::cube> probfield(n);
   for (int i = 0; i < n; ++i) probfield(i) = arma::zeros<arma::cube>(M, num_states, n_prim); 
   PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, detector_type, n_prim, S, entry, probfield); 
-  parallelFor(0, n, pr_capture_calc); 
+  parallelFor(0, n, pr_capture_calc, 1); 
   return(probfield);
 }
