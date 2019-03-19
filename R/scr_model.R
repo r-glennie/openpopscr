@@ -134,7 +134,7 @@ ScrModel <- R6Class("ScrModel",
     calc_encrate = function(transpose = FALSE) {
       dist <- private$data_$distances()
       if (transpose) dist <- t(dist)
-      n_occasions <- private$data_$n_occasions()
+      n_occasions <- private$data_$n_occasions("all")
       if(transpose) enc_rate <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
       if(!transpose) enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
       n_det_par <- self$detectfn()$npars()
