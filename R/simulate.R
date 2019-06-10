@@ -11,15 +11,22 @@
 #'
 #' @return a ScrData object 
 #' @export
-simulate_scr <- function(par, n_occasions, detectors, mesh, move = FALSE, time = NULL, seed = NULL, print = TRUE) {
+simulate_scr <- function(par, n_occasions, detectors, mesh, ihp = NULL, move = FALSE, time = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num.meshpts <- nrow(mesh)
   box <- attr(mesh, "boundingbox")
-  D <- par$D / 100
+  D <- par$D
+  if (!is.null(ihp)) {
+    D <- D * ihp 
+    model2D <- "IHP"
+  } else {
+    model2D <- "poisson"
+  }
+  D <- D / 100
   # simulate population
   if (print) cat("Simulating population and activity centres.......")
-  pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
+  pop <- sim.popn(D = D, core = mesh, model2D = model2D, Ndist = "poisson", buffertype = "rect")
   if (print) cat("done\n")
   dt <- rep(1, n_occasions - 1)
   if (!is.null(time))  dt <- diff(time)
@@ -104,7 +111,7 @@ simulate_scr <- function(par, n_occasions, detectors, mesh, move = FALSE, time =
 #'
 #' @return ScrData object 
 #' @export
-simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
+simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num_meshpts <- nrow(mesh)
@@ -239,18 +246,25 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh, move = FA
 #'
 #' @return ScrData object 
 #' @export
-simulate_js_openscr <- function(par, n_occasions, detectors, mesh, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
+simulate_js_openscr <- function(par, n_occasions, detectors, mesh, ihp = NULL, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
   if (is.null(time)) time <- 1:n_occasions
   num_meshpts <- nrow(mesh)
-  D <- par$D / 100
+  D <- par$D
+  if (!is.null(ihp)) {
+    D <- D * ihp 
+    model2D <- "IHP"
+  } else {
+    model2D <- "poisson"
+  }
+  D <- D / 100
   phi <- par$phi
   if (length(phi) == 1) phi <- rep(phi, n_occasions - 1)
   beta <- par$beta
   if (length(beta) == 1) beta <- c(beta, rep((1 - beta) / (n_occasions - 1), n_occasions - 1))
   # simulate population
   if (print) cat("Simulating population and activity centres.......")
-  pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
+  pop <- sim.popn(D = D, core = mesh, model2D = model2D, Ndist = "poisson", buffertype = "rect")
   if (print) cat("done\n")
   birth_time <- sample(1:n_occasions, size = nrow(pop), prob = beta, replace = TRUE)
   if (!is.null(primary)) {
