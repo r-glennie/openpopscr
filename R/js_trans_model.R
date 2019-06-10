@@ -63,6 +63,10 @@ JsTransientModel <- R6Class("JsTransientModel",
       if (print) cat("Reading formulae.......")
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
+      if (!("D" %in% par_names)) {
+        private$form_ <- c(private$form_, list(D ~ 1))
+        par_names <- c(par_names, "D") 
+      }
       # detection function 
       if (is.null(detectfn)) {
         private$detfn_ <- DetFn$new()
@@ -80,7 +84,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       private$form_[[private$detfn_$npars() + 2]] <- form[par_names == "beta"][[1]]
       private$form_[[private$detfn_$npars() + 3]] <- form[par_names == "sd"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "sd")
+      names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("exp"), list("exp"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
@@ -97,22 +101,22 @@ JsTransientModel <- R6Class("JsTransientModel",
       a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
-      pr0 <- pr0 * private$inside_
-      pr0 <- pr0 / sum(pr0)
+      a <- private$data_$cell_area()
+      D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
+      pr0[,1] <- pr0[,1] * D
+      pr0[,2] <- pr0[,2] * D 
       return(pr0)
     },
     
     calc_D_llk = function() {
-      D <- do.call(private$link2response_$D, list(self$par()$D))
-      A <- sum(private$inside_) * private$dx_^2 / 1000^2
       n <- private$data_$n()
-      pdet <- self$calc_pdet()
-      llk <- n * log(D * A * pdet) - D * A * pdet - lfactorial(n)
+      Dpdet <- self$calc_Dpdet()
+      llk <- n * log(sum(Dpdet)) - sum(Dpdet) - lfactorial(n)
       names(llk) <- NULL 
       return(llk)
     },
     
-    calc_pdet = function() {
+    calc_Dpdet = function() {
       # compute probability of zero capture history 
       n_occasions_all <- private$data_$n_occasions("all")
       n_occasions <- private$data_$n_occasions() 
@@ -140,7 +144,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       tpms <- self$calc_tpms()
       dt <- diff(self$data()$time())
       sd <- self$get_par("sd", m = 1)
-      pdet <- C_calc_move_pdet(private$data_$n_occasions(), 
+      Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
                                pr_empty, 
                                tpms, 
@@ -150,7 +154,10 @@ JsTransientModel <- R6Class("JsTransientModel",
                                dt, 
                                sd,
                                3); 
-      return(pdet)
+      a <- private$data_$cell_area()
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
+      Dpdet <- sum(D) - Dpdet
+      return(Dpdet)
     },
     
     calc_llk = function(param = NULL, names = NULL) {
@@ -182,7 +189,7 @@ JsTransientModel <- R6Class("JsTransientModel",
                              3, 
                              rep(0, private$data_$n()))
       # compute log-likelihood
-      llk <- llk - n * log(self$calc_pdet())
+      llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
       #plot(self$par()$beta[-1])
       if(private$print_) cat("llk:", llk, "\n")
@@ -212,8 +219,8 @@ JsTransientModel <- R6Class("JsTransientModel",
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_det_par <- private$detfn_$npars()
       private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par)
-      for (par in 1:(n_det_par + 2)) {
+      n_par <- numeric(n_det_par + 4)
+      for (par in 1:(n_det_par + 4)) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         if (par %in% c(n_det_par + 1, n_det_par + 2) & "t" %in% all.vars(private$form_[[par]])) {
@@ -231,9 +238,7 @@ JsTransientModel <- R6Class("JsTransientModel",
         }
         private$par_[[par]] <- par_vec
       }
-      private$par_[[n_det_par + 3]] <- 0
-      private$par_[[n_det_par + 4]] <- 0
-      names(private$par_) <- c(names(private$form_), "D") 
+      names(private$par_) <- names(private$form_) 
       return(invisible())
     }, 
     
@@ -257,8 +262,8 @@ JsTransientModel <- R6Class("JsTransientModel",
                                          list(private$par_$beta))
         private$par_$beta[-1] <- private$par_$beta[-1] - private$par_$beta[1]
       }
-      private$par_$D <- do.call(private$response2link_$D, 
-                                         list(start$D))
+      private$par_$D[1] <- do.call(private$response2link_$D, 
+                                         list(start$D / private$data_$n_meshpts()))
       return(invisible())
     }, 
     
@@ -280,8 +285,8 @@ JsTransientModel <- R6Class("JsTransientModel",
       names(par$beta) <- gsub("beta.", "", names(par$beta))
       par$sd <- vec[grep("sd", names)]
       names(par$sd) <- gsub("sd.", "", names(par$sd))
-      par$D <- vec["D"]
-      names(par$D) <- NULL 
+      par$D <- vec[grep("D", names)]
+      names(par$D) <- gsub("D", "", names(par$D))
       return(par)
     }
   )                 
