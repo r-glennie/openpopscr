@@ -43,7 +43,7 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms, num_states) {
     .Call(`_openpopscr_C_calc_pdet`, J, pr0, pr_captures, tpms, num_states)
 }
 
-#' Computes log-likelihood of Jolly-Seber model 
+#' Computes log-likelihood 
 #'
 #' @param n number of individuals 
 #' @param J total number of occasions 
