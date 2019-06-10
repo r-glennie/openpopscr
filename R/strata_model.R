@@ -115,7 +115,7 @@ StrataModel <- R6Class("StrataModel",
       res <- sapply(self$get_object(), FUN = AIC)
       return(sum(res))
     }, 
-    
+  
     fit = function() {
       par <- self$par()
       if (private$print_) cat("Fitting model..........\n")
@@ -136,8 +136,11 @@ StrataModel <- R6Class("StrataModel",
       private$llk_ <- -mod$value
       private$mle_ <- mle
       private$par_ <- mle
+      cat("split pars\n")
       private$split_par()
+      cat("calc V\n")
       private$split_V()
+      cat("set mle\n")
       private$set_mles()
     }, 
     
@@ -206,7 +209,10 @@ StrataModel <- R6Class("StrataModel",
 		
 		set_mles = function() {
 		  for (s in 1:private$n_strata_) {
-		    private$objs_[[s]]$set_mle(private$ipar_[[s]], private$iV_[[s]], private$llk_)
+		    cat("ipar\n")
+		    ipar <- private$convert_vec2par(private$ipar_[[s]])
+		    cat("setmle spec\n")
+		    private$objs_[[s]]$set_mle(ipar, private$iV_[[s]], private$llk_)
 		  }
 		  return(invisible())
 		}, 
@@ -217,7 +223,6 @@ StrataModel <- R6Class("StrataModel",
 		
 		convert_vec2par = function(vec) {
 		  par <- NULL
-		  n_occasions <- private$data_$n_occasions()
 		  names <- names(vec)
 		  par$lambda0 <- vec[grep("lambda0", names)]
 		  names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
@@ -227,8 +232,8 @@ StrataModel <- R6Class("StrataModel",
 		  names(par$phi) <- gsub("phi.", "", names(par$phi))
 		  par$beta <- vec[grep("beta", names)]
 		  names(par$beta) <- gsub("beta.", "", names(par$beta))
-		  par$D <- vec["D"]
-		  names(par$D) <- NULL 
+		  par$D <- vec[grep("D", names)]
+		  names(par$D) <- gsub("D.", "", names(par$D))
 		  return(par)
 		}
   )                 
