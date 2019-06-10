@@ -23,6 +23,10 @@
 #define ARMA_DONT_PRINT_ERRORS
 #include <iostream>
 #include <RcppArmadillo.h>
+#include <RcppParallel.h>
+#include <vector>
+
+using namespace RcppParallel; 
 
 arma::sp_mat CalcTrm(const arma::vec num_cells, const double sd, const double dx, const arma::vec inside) {
   arma::sp_mat tpr = arma::zeros<arma::sp_mat>(num_cells(0), num_cells(0));
@@ -107,7 +111,6 @@ arma::vec ExpG(const arma::vec v,
   arma::mat fmat;
   arma::vec p;
   while (t_now < t_out) {
-    Rcpp::checkUserInterrupt();
     ++nstep;
     t_step = fmin(t_out - t_now, t_new);
     vmat.zeros();
@@ -186,7 +189,90 @@ arma::vec ExpG(const arma::vec v,
   return w;
 }
 
-//' Computes log-likelihood of Jolly-Seber model 
+struct MoveLlkCalculator : public Worker {
+  
+  // input 
+  const int n; 
+  const int J;
+  const arma::mat pr0; 
+  const Rcpp::List pr_capture; 
+  const Rcpp::List tpms;
+  const arma::vec num_cells; 
+  const arma::vec inside; 
+  const double dx; 
+  const arma::vec dt; 
+  const arma::vec sd; 
+  const int num_states;
+  const arma::vec entry; 
+  
+  // transform 
+  std::vector<arma::mat> tpm; 
+  std::vector<arma::cube> pr_cap; 
+  std::vector<arma::sp_mat> trm; 
+  int alive_col; 
+  
+  // output 
+  arma::vec& illk; 
+  
+  // initialiser
+  MoveLlkCalculator(const int n, const int J, 
+                const arma::mat pr0, 
+                const Rcpp::List pr_capture, 
+                const Rcpp::List tpms,
+                const arma::vec num_cells, 
+                const arma::vec inside, 
+                const double dx, 
+                const arma::vec dt, 
+                const arma::vec sd,
+                const int num_states,
+                const arma::vec entry,
+                arma::vec& illk) : n(n), J(J), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_cells(num_cells), inside(inside), dx(dx), dt(dt), sd(sd), num_states(num_states), entry(entry), illk(illk) {
+    if (num_states > 1) {
+      tpm.resize(J); 
+      for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]); 
+    }
+    trm.resize(J); 
+    for (int j = 0; j < J - 1; ++j) trm[j] = CalcTrm(num_cells, sd(j), dx, inside); 
+    pr_cap.resize(n);
+    for (int i = 0; i < n; ++i) {
+      Rcpp::NumericVector pr_capvec(pr_capture[i]);
+      arma::cube pr_icap(pr_capvec.begin(), num_cells(0), num_states, J, false);
+      pr_cap[i] = pr_icap;
+    }
+    alive_col = 0; 
+    if (num_states > 2) alive_col = 1; 
+  }
+  
+  void operator()(std::size_t begin, std::size_t end) { 
+    for (int i = 0; i < n; ++i) {
+      double llk = 0;
+      double sum_pr;
+      arma::mat pr = pr0;
+      arma::cube prcap;
+      for (int j = entry(i); j < J - 1; ++j) {
+        pr %= pr_cap[i].slice(j);
+        if (num_states > 1) {
+          pr *= tpm[j];
+        }
+        try {
+          pr.col(alive_col) = ExpG(pr.col(alive_col), trm[j], dt(j));
+        } catch(...) {
+          illk(i) = -arma::datum::inf;
+          break;
+        }
+        sum_pr = accu(pr);
+        llk += log(sum_pr);
+        pr /= sum_pr;
+      }
+      pr %= pr_cap[i].slice(J - 1);
+      llk += log(accu(pr));
+      illk(i) = llk;
+    }
+  }
+};
+
+
+//' Computes log-likelihood 
 //'
 //' @param n number of individuals 
 //' @param J total number of occasions 
@@ -200,54 +286,20 @@ arma::vec ExpG(const arma::vec v,
 //' 
 // [[Rcpp::export]]
 double C_calc_move_llk(const int n, const int J,
-                  const arma::mat pr0, 
-                  const Rcpp::List pr_capture, 
-                  const Rcpp::List tpms,
-                  const arma::vec num_cells, 
-                  const arma::vec inside, 
-                  const double dx, 
-                  const arma::vec dt, 
-                  const arma::vec sd, 
-                  const int num_states,
-                  const arma::vec entry) {
+                       const arma::mat pr0, 
+                       const Rcpp::List pr_capture, 
+                       const Rcpp::List tpms,
+                       const arma::vec num_cells, 
+                       const arma::vec inside, 
+                       const double dx, 
+                       const arma::vec dt, 
+                       const arma::vec sd, 
+                       const int num_states,
+                       const arma::vec entry) {
   
   arma::vec illk(n);
-  arma::mat pr; 
-  double llk; 
-  double sum_pr; 
-  arma::mat tpm; 
-  Rcpp::NumericVector pr_capvec; 
-  arma::sp_mat trm(num_cells(0), num_cells(0));  
-  int alive_col = 0; 
-  if (num_states > 2) alive_col = 1; 
-  int M = num_cells(0); 
-  for (int i = 0; i < n; ++i) {
-    llk = 0; 
-    sum_pr; 
-    pr = pr0; 
-    tpm; 
-    pr_capvec = pr_capture[i]; 
-    arma::cube pr_cap(pr_capvec.begin(), M, num_states, J, false); 
-    for (int j = entry(i); j < J - 1; ++j) {
-      pr %= pr_cap.slice(j); 
-      trm = CalcTrm(num_cells, sd(j), dx, inside);
-      if (num_states > 1) {
-        tpm = Rcpp::as<arma::mat>(tpms[j]); 
-        pr *= tpm; 
-      }
-      try {
-        pr.col(alive_col) = ExpG(pr.col(alive_col), trm, dt(j)); 
-      } catch(...) {
-        return -arma::datum::inf; 
-      }
-      sum_pr = accu(pr); 
-      llk += log(sum_pr); 
-      pr /= sum_pr; 
-    }
-    pr %= pr_cap.slice(J - 1);
-    llk += log(accu(pr)); 
-    illk(i) = llk;  
-  }
+  MoveLlkCalculator move_llk_calulator(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry, illk); 
+  parallelFor(0, n, move_llk_calulator, 1); 
   return(arma::accu(illk)); 
 }
 
@@ -297,9 +349,10 @@ double C_calc_move_pdet(const int J,
     pdet += log(sum_pr); 
     pr /= sum_pr; 
   }
+  pr_capture = Rcpp::as<arma::mat>(pr_captures[J - 1]);
   pr %= pr_capture;
   pdet += log(accu(pr)); 
-  pdet = 1 - exp(pdet); 
+  pdet = exp(pdet); 
   return(pdet); 
 }
 
