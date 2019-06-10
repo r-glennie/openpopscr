@@ -99,6 +99,7 @@ CjsModel <- R6Class("CjsModel",
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
+     if (name == "phi") j <- 1 
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
        n_primary <- private$data_$n_primary() 
