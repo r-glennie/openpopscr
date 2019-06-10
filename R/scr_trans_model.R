@@ -62,6 +62,10 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       if (print) cat("Reading formulae.......")
       private$form_ <- form
       par_names <- sapply(form, function(f){f[[2]]})
+      if (!("D" %in% par_names)) {
+        private$form_ <- c(private$form_, list(D ~ 1))
+        par_names <- c(par_names, "D") 
+      }
       # detection function 
       if (is.null(detectfn)) {
         private$detfn_ <- DetFn$new()
@@ -77,7 +81,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       }
       private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "sd"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c(private$detfn_$pars(), "sd")
+      names(private$form_) <- c(private$detfn_$pars(), "sd", "D")
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("exp"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "sd", "D")
@@ -93,22 +97,21 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(1, nrow = n_mesh, ncol = 1, byrow = TRUE)
-      pr0 <- pr0 * private$inside_
-      pr0 <- pr0 / sum(pr0)
+      a <- private$data_$cell_area() 
+      D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_ 
+      pr0 <- pr0 * D
       return(pr0)
     },
     
     calc_D_llk = function() {
-      D <- do.call(private$link2response_$D, list(self$par()$D))
-      A <- sum(private$inside_) * private$dx_^2 / 1000^2
       n <- private$data_$n()
-      pdet <- self$calc_pdet()
-      llk <- n * log(D * A * pdet) - D * A * pdet - lfactorial(n)
+      Dpdet <- self$calc_Dpdet()
+      llk <- n * log(sum(Dpdet)) - sum(Dpdet) - lfactorial(n)
       names(llk) <- NULL 
       return(llk)
     },
     
-    calc_pdet = function() {
+    calc_Dpdet = function() {
       # compute probability of zero capture history 
       enc_rate <- self$calc_encrate() 
       trap_usage <- usage(private$data_$traps())
@@ -121,7 +124,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       tpms <- list(matrix(0, nr = 2, nc = 2))
       dt <- diff(self$data()$time())
       sd <- self$get_par("sd", m = 1)
-      pdet <- C_calc_move_pdet(private$data_$n_occasions(), 
+      Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
                                pr_empty, 
                                tpms, 
@@ -131,7 +134,10 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                                dt, 
                                sd,
                                1); 
-      return(pdet)
+      a <- private$data_$cell_area() 
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
+      Dpdet <- sum(D) - Dpdet 
+      return(Dpdet)
     },
     
     calc_llk = function(param = NULL, names = NULL) {
@@ -162,7 +168,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              1, 
                              rep(0, private$data_$n()))
       # compute log-likelihood
-      llk <- llk - n * log(self$calc_pdet())
+      llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
       #plot(self$par()$beta[-1])
       cat("llk:", llk, "\n")
@@ -209,17 +215,15 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_det_par <- private$detfn_$npars()
       private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par)
-      for (par in 1:n_det_par) {
+      n_par <- numeric(n_det_par + 2)
+      for (par in 1:c(n_det_par + 2)) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         par_vec <- rep(0, n_par[par])
         names(par_vec) <- colnames(X)
         private$par_[[par]] <- par_vec
       }
-      private$par_[[n_det_par + 1]] <- 0
-      private$par_[[n_det_par + 2]] <- 0
-      names(private$par_) <- c(private$detfn_$pars(), "sd", "D") 
+      names(private$par_) <- names(private$form_)
       return(invisible())
     }, 
     
@@ -233,8 +237,8 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       names(private$par_) <- c(names, "sd", "D")
       private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                    list(start$sd))
-      private$par_$D <- do.call(private$response2link_$D, 
-                                list(start$D))
+      private$par_$D[1] <- do.call(private$response2link_$D, 
+                                list(start$D / private$data_$n_meshpts()))
       return(invisible())
     }, 
     
@@ -243,17 +247,15 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
       n_det_par <- self$detectfn()$npars()
-      parnames <- self$detectfn()$pars()
-      par <- vector(mode = "list", length = n_det_par)
-      for (i in 1:n_det_par) {
+      parnames <- c(self$detectfn()$pars(), "sd", "D")
+      par <- vector(mode = "list", length = n_det_par + 2)
+      for (i in (c(1:n_det_par, n_det_par + 2))) {
         par[[i]] <- vec[grep(parnames[i], names)]
         names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
       }
       names(par) <- parnames 
       par$sd <- vec[grep("sd", names)]
       names(par$sd) <- gsub("sd.", "", names(par$sd))
-      par$D <- vec["D"]
-      names(par$D) <- NULL 
       return(par)
     }
   )                 

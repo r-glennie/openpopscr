@@ -63,6 +63,10 @@ ScrModel <- R6Class("ScrModel",
       if (print) cat("Reading formulae.......")
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
+      if (!("D" %in% par_names)) {
+        private$form_ <- c(private$form_, list(D ~ 1))
+        par_names <- c(par_names, "D") 
+      }
       # detection function 
       if (is.null(detectfn)) {
         private$detfn_ <- DetFn$new()
@@ -77,7 +81,7 @@ ScrModel <- R6Class("ScrModel",
         private$form_[[i]]<- form[find][[1]]
       }
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- private$detfn_$pars()
+      names(private$form_) <- c(private$detfn_$pars(), "D")
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "D")
@@ -91,7 +95,12 @@ ScrModel <- R6Class("ScrModel",
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
-      if (name == "D") return(do.call(private$link2response_$D, list(as.numeric(self$par()["D"]))))
+      if (name == "D") {
+        j <- 1 
+        k <- 1 
+      } else {
+        m <- 1 
+      }
       covs <- private$data_$covs(j = j, k = k, m = m)
       i_par <- which(names(private$form_) == name) 
       if (length(i_par) == 0) stop("No parameters with that name.")
@@ -99,6 +108,7 @@ ScrModel <- R6Class("ScrModel",
       theta <- private$par_[[i_par]]
       l_par <- which(names(private$link2response_) == name)
       resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
+      if (name == "D" & is.null(m)) return(mean(resp))
       return(resp)
     }, 
     
@@ -111,15 +121,14 @@ ScrModel <- R6Class("ScrModel",
       private$par_ <- mle
       private$llk_ <- -llk
       private$V_ <- V
+      cat("make results\n")
       private$make_results()
     }, 
     
     calc_D_llk = function() {
-      D <- do.call(private$link2response_$D, list(self$par()$D))
-      A <- private$data_$area()
       n <- private$data_$n()
-      pdet <- self$calc_pdet()
-      llk <- n * log(D * A * pdet) - D * A * pdet - lfactorial(n)
+      Dpdet <- self$calc_Dpdet()
+      llk <- n * log(sum(Dpdet)) - sum(Dpdet) - lfactorial(n)
       names(llk) <- NULL 
       return(llk)
     },
@@ -127,7 +136,9 @@ ScrModel <- R6Class("ScrModel",
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(1, nrow = n_mesh, ncol = 1, byrow = TRUE)
-      pr0 <- pr0 / n_mesh
+      a <- private$data_$cell_area()
+      D <- self$get_par("D", m = 1:n_mesh) * a 
+      pr0 <- pr0 * D
       return(pr0)
     },
     
@@ -172,7 +183,7 @@ ScrModel <- R6Class("ScrModel",
       return(prob)
     },
     
-    calc_pdet = function() {
+    calc_Dpdet = function() {
       enc_rate <- self$calc_encrate() 
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
@@ -182,9 +193,23 @@ ScrModel <- R6Class("ScrModel",
       }
       pr0 <- self$calc_initial_distribution()
       tpms <- list(matrix(0, nr = 2, nc = 2))
-      pdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, 1); 
-      return(pdet)
+      Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, 1);
+      a <- private$data_$cell_area()
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
+      Dpdet <- sum(D) - Dpdet
+      return(Dpdet)
     },
+    
+    calc_pdet = function() {
+      savepar <- self$par()
+      newpar <- self$par() 
+      newpar$D <- rep(0, length(savepar$D))
+      newpar$D[1] <- log(1.0 / self$data()$area())
+      self$set_par(newpar)
+      pdet <- self$calc_Dpdet()  
+      self$set_par(savepar)
+      return(pdet)
+    }, 
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
@@ -201,7 +226,7 @@ ScrModel <- R6Class("ScrModel",
       tpms <- list(matrix(0, nr = 2, nc = 2))
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 1, rep(0, private$data_$n()))
       # compute log-likelihood
-      llk <- llk - n * log(self$calc_pdet())
+      llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
       cat("llk:", llk, "\n")
       return(llk)
@@ -306,16 +331,15 @@ ScrModel <- R6Class("ScrModel",
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_det_par <- private$detfn_$npars()
       private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par)
-      for (par in 1:n_det_par) {
+      n_par <- numeric(n_det_par + 1)
+      for (par in 1:(n_det_par + 1)) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         par_vec <- rep(0, n_par[par])
         names(par_vec) <- colnames(X)
         private$par_[[par]] <- par_vec
       }
-      private$par_[[n_det_par + 1]] <- 0
-      names(private$par_) <- c(names(private$form_), "D") 
+      names(private$par_) <- names(private$form_)
       return(invisible())
     }, 
     
@@ -327,8 +351,8 @@ ScrModel <- R6Class("ScrModel",
                                         list(start[[i]]))
       }
       names(private$par_) <- c(names, "D")
-      private$par_$D <- do.call(private$response2link_$D, 
-                                list(start$D))
+      private$par_$D[1] <- do.call(private$response2link_$D, 
+                                list(start$D / private$data_$n_meshpts()))
       return(invisible())
     }, 
     
@@ -337,6 +361,7 @@ ScrModel <- R6Class("ScrModel",
       par <- private$convert_par2vec(private$mle_)
       sd <- sqrt(diag(private$V_))
       if (private$print_) cat("Computing confidence intervals.......")
+      cat("confint\n")
       ci <- private$calc_confint()
       if (private$print_) cat("done\n")
       results <- cbind(par, sd, ci$LCL, ci$UCL)
@@ -372,15 +397,13 @@ ScrModel <- R6Class("ScrModel",
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
       n_det_par <- self$detectfn()$npars()
-      parnames <- self$detectfn()$pars()
+      parnames <- c(self$detectfn()$pars(), "D")
       par <- vector(mode = "list", length = n_det_par)
-      for (i in 1:n_det_par) {
+      for (i in 1:(n_det_par + 1)) {
         par[[i]] <- vec[grep(parnames[i], names)]
         names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
       }
       names(par) <- parnames 
-      par$D <- vec["D"]
-      names(par$D) <- NULL 
       return(par)
     }
   )
