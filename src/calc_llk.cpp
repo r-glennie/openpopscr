@@ -158,7 +158,7 @@ double C_calc_pdet(const int J,
   pr_capture = Rcpp::as<arma::mat>(pr_captures[J - 1]);
   pr %= pr_capture;
   pdet += log(accu(pr)); 
-  pdet = 1 - exp(pdet); 
+  pdet = exp(pdet); 
   return(pdet); 
 }
 
