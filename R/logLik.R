@@ -9,7 +9,7 @@
 #' @export
 logLik.ScrModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -23,7 +23,7 @@ logLik.ScrModel <- function(object, ...) {
 #' @export
 logLik.ScrTransientModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -37,7 +37,7 @@ logLik.ScrTransientModel <- function(object, ...) {
 #' @export
 logLik.CjsModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -51,7 +51,7 @@ logLik.CjsModel <- function(object, ...) {
 #' @export
 logLik.CjsTransientModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -65,7 +65,7 @@ logLik.CjsTransientModel <- function(object, ...) {
 #' @export
 logLik.JsModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -79,7 +79,7 @@ logLik.JsModel <- function(object, ...) {
 #' @export
 logLik.JsTransientModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
@@ -93,7 +93,7 @@ logLik.JsTransientModel <- function(object, ...) {
 #' @export
 logLik.StrataModel <- function(object, ...) {
   llk <- object$mle_llk()
-  attributes(llk) <- list(df = length(object$par()))
+  attributes(llk) <- list(df = length(unlist(object$par())))
   class(llk) <- "logLik"
   return(llk)
 }
