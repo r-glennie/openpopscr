@@ -68,6 +68,10 @@ JsModel <- R6Class("JsModel",
       if (print) cat("Reading formulae.......")
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
+      if (!("D" %in% par_names)) {
+        private$form_ <- c(private$form_, list(D ~ 1))
+        par_names <- c(par_names, "D") 
+      }
       # detection function 
       if (is.null(detectfn)) {
         private$detfn_ <- DetFn$new()
@@ -84,7 +88,7 @@ JsModel <- R6Class("JsModel",
       private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "phi"][[1]]
       private$form_[[private$detfn_$npars() + 2]] <- form[par_names == "beta"][[1]]
       private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c(private$detfn_$pars(), "phi", "beta")
+      names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("exp"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi", "beta", "D")
@@ -98,17 +102,22 @@ JsModel <- R6Class("JsModel",
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
+      if (name == "phi" | name == "beta") j <- 1 
+      if (name == "D") {
+        j <- 1 
+        k <- 1 
+      } else {
+        m <- 1 
+      }
       n_primary <- private$data_$n_primary() 
-     if (name == "D") {
-       D <- do.call(private$link2response_[[5]], list(as.numeric(self$par()["D"])))
-       return(D)
-     }
      if (name == "beta") {
+       j <- 1 
        k_save <- k
        k <- 2:(private$data_$n_occasions()) 
        if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
      } 
      if (name == "phi" & is.null(k)) {
+       j <- 1 
        k <- 1:(private$data_$n_occasions() - 1) 
        n_primary <- private$data_$n_primary() 
        if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
@@ -135,6 +144,7 @@ JsModel <- R6Class("JsModel",
        resp <- resp / sum(resp)
        if(!is.null(k_save)) resp <- resp[k_save]
      }
+     if (name == "D" & is.null(m)) return(mean(resp))
      return(resp)
     }, 
     
@@ -146,7 +156,10 @@ JsModel <- R6Class("JsModel",
       a0 <- self$get_par("beta", j = 1, k = 1)
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
-      pr0 <- pr0 / n_mesh
+      a <- private$data_$cell_area()
+      D <- self$get_par("D", m = 1:n_mesh) * a 
+      pr0[,1] <- pr0[,1] * D
+      pr0[,2] <- pr0[,2] * D
       return(pr0)
     },
     
@@ -211,7 +224,7 @@ JsModel <- R6Class("JsModel",
       return(prob)
     },
     
-    calc_pdet = function() {
+    calc_Dpdet = function() {
       # compute probability of zero capture history 
       n_occasions_all <- private$data_$n_occasions("all")
       n_occasions <- private$data_$n_occasions() 
@@ -237,9 +250,23 @@ JsModel <- R6Class("JsModel",
       # average over all life histories 
       pr0 <- self$calc_initial_distribution()
       tpms <- self$calc_tpms()
-      pdet <- C_calc_pdet(n_occasions, pr0, pr_empty, tpms, 3); 
-      return(pdet)
+      pdet <- C_calc_pdet(n_occasions, pr0, pr_empty, tpms, 3);
+      a <- private$data_$cell_area() 
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
+      Dpdet <- sum(D) - pdet 
+      return(Dpdet)
     },
+    
+    calc_pdet = function() {
+      savepar <- self$par()
+      newpar <- self$par() 
+      newpar$D <- rep(0, length(savepar$D))
+      newpar$D[1] <- log(1.0 / self$data()$area())
+      self$set_par(newpar)
+      pdet <- self$calc_Dpdet()  
+      self$set_par(savepar)
+      return(pdet)
+    }, 
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
@@ -257,9 +284,8 @@ JsModel <- R6Class("JsModel",
       n_meshpts <- private$data_$n_meshpts() 
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 3, rep(0, private$data_$n()))
       # compute log-likelihood
-      llk <- llk - n * log(self$calc_pdet())
+      llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
-      #plot(self$par()$beta[-1])
       if(private$print_) cat("llk:", llk, "\n")
       return(llk)
     },
@@ -316,8 +342,8 @@ JsModel <- R6Class("JsModel",
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_det_par <- private$detfn_$npars()
       private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par)
-      for (par in 1:(n_det_par + 2)) {
+      n_par <- numeric(n_det_par + 3)
+      for (par in 1:(n_det_par + 3)) {
         X <- model.matrix(private$form_[[par]], data = samp_cov)
         n_par[par] <- ncol(X)
         if (par %in% c(n_det_par+1, n_det_par+2) & "t" %in% all.vars(private$form_[[par]])) {
@@ -335,8 +361,7 @@ JsModel <- R6Class("JsModel",
         }
         private$par_[[par]] <- par_vec
       }
-      private$par_[[n_det_par + 3]] <- 0
-      names(private$par_) <- c(names(private$form_), "D")
+      names(private$par_) <- names(private$form_)
       return(invisible())
     }, 
     
@@ -351,8 +376,8 @@ JsModel <- R6Class("JsModel",
                                      list(start$phi))
       private$par_$beta[1] <- do.call(private$response2link_$beta,
                                       list(c(1 / start$beta - 1)/self$data()$n_occasions()))
-      private$par_$D <- do.call(private$response2link_$D, 
-                                list(start$D))
+      private$par_$D[1] <- do.call(private$response2link_$D, 
+                                list(start$D / private$data_$n_meshpts()))
       return(invisible())
     }, 
     
@@ -428,13 +453,15 @@ JsModel <- R6Class("JsModel",
     wpar <- private$convert_par2vec(self$par())
     np <- length(wpar)
     pdet <- self$calc_pdet()
-    del_pdet <- grad(private$calc_wpdet, wpar[-np]) 
+    nparD <- length(wpar[grep("D", names(wpar))])
+    exc <- (np-nparD + 1):np
+    del_pdet <- grad(private$calc_wpdet, wpar)[-exc] 
     # get covariance matrix 
     V <- self$cov_matrix()
     sds <- sqrt(diag(V))
     # theta variance
     dist <- self$data()$distances()
-    V_theta <- V[-np, -np] * pdet 
+    V_theta <- V[-exc, -exc] * pdet 
     V_theta <- V_theta * self$data()$n()
     # log(D) variance
     Dvar <- t(del_pdet) %*% V_theta %*% del_pdet / pdet^3 + 1 / pdet
@@ -445,7 +472,7 @@ JsModel <- R6Class("JsModel",
     if (!is.null(Dk)) {
       Dk_var <- numeric(n_occasions) 
       for (k in 1:n_occasions) {
-        del_alpha <- grad(private$calc_alpha, wpar[-np], k = k)
+        del_alpha <- grad(private$calc_alpha, wpar, k = k)[-exc]
         sig_alpha <- t(del_alpha) %*% V_theta %*% del_alpha
         Dk_var[k] <- Dk[k] * Dvar / self$get_par("D") + sig_alpha / self$get_par("D")
       }
@@ -502,8 +529,8 @@ JsModel <- R6Class("JsModel",
       names(par$phi) <- gsub("phi.", "", names(par$phi))
       par$beta <- vec[grep("beta", names)]
       names(par$beta) <- gsub("beta.", "", names(par$beta))
-      par$D <- vec["D"]
-      names(par$D) <- NULL 
+      par$D <- vec[grep("D", names)]
+      names(par$D) <- gsub("D.", "", names(par$D))
       return(par)
     }
   )                 
