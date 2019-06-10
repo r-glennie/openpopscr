@@ -68,10 +68,12 @@ ScrData <- R6Class("ScrData",
                                        count = 1, 
                                        proximity = 2, 
                                        multi = 3,
+                                       single = 3, 
                                        transect = 4, 
                                        transectX = 5, 
                                        polygon = 6, 
                                        polygonX = 7)
+      if (attr(traps(capthist), "detector")[1] == "single") warning("Single-catch detectors treated as multi-catch detectors.")
       private$capthist_ <- capthist 
       if (is.null(secr::usage(secr::traps(capthist)))) {
         if (private$detector_type_ %in% 4:7) {
@@ -112,17 +114,79 @@ ScrData <- R6Class("ScrData",
       private$cov_$primary <- as.factor((private$primary_ - 1))
       private$cov_type_ <- c(private$cov_type_, "k")
       
+      private$cov_$x <- scale(private$mesh_[,1]) 
+      private$cov_$y <- scale(private$mesh_[,2])
+      private$cov_type_ <- c(private$cov_type_, "m")
+      private$cov_type_ <- c(private$cov_type_, "m")
+      
       if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
       self$calc_distances()
     },
     
-    print = function(i = ".") {
-       plot(self$mesh())
-       varycol <- ifelse(self$n() > 1000, FALSE, TRUE)
-       plot(self$capthist(i), add = T, varycol = varycol)
-       plot(self$traps(), add = T)
+    print = function(i = NULL, k = NULL, cov = NULL, nbreaks = 10) {
+       tr <- self$traps() 
+       tr <- scale(tr, scale = FALSE)
+       if (is.null(i)) i <- 1:self$n()
+       if (is.null(k)) k <- 1:self$n_occasions()
+       dim <- 3 
+       if (length(i) == 1) dim <- dim - 1  
+       if (length(k) == 1) dim <- dim - 1 
+       if (dim > 1){
+         count <- apply(self$capthist()[i,k,], dim, sum)
+       } else {
+         count <- self$capthist()[i,k,]
+       }
+       plt <- self$plot_mesh(cov, nbreaks, alpha = 0.5) 
+       trapcol <- ifelse(count > 0, "firebrick3", "steelblue")
+       plt <- plt + geom_point(data = data.frame(x = tr[,1], y = tr[,2], col = trapcol), 
+                                 aes(x = x, y = y, col  = col), 
+                                 shape = 19, 
+                                 size = 5, 
+                                 show.legend = FALSE) 
+       plt <- plt + geom_text(data = data.frame(x = tr[,1], y = tr[,2], c = count), 
+                              aes(x = x, y = y, label = count), col = "white")
+       plt <- plt + ggtitle("Number of detections per detector")
        print(summary(self$capthist())[[4]])
+       print(plt)
     },
+    
+    plot_mesh = function(cov = NULL, nbreaks = 10, ...) {
+      mesh <- self$mesh()
+      mesh[,1] <- scale(mesh[,1], scale = F)
+      mesh[,2] <- scale(mesh[,2], scale = F)
+      meshdat <- data.frame(x = mesh[,1], y = mesh[,2])
+      var <- NULL
+      if (!is.null(cov)) {
+        if (is.character(cov)) {
+          nmesh <- self$n_meshpts()
+          if (cov %in% names(self$covs())) {
+            f <- which(names(self$covs()) == cov) 
+            if (!grepl("m", private$cov_type_[f])) stop ("Covariate must be spatial.")
+            var <- self$covs()[cov][[1]]
+            name <- cov 
+          }
+        } else {
+          var <- cov 
+          name <- ""
+        }
+        if (is.factor(var)) nbreaks <- nlevels(var)
+        collist <- viridis(nbreaks)
+        fvar <- cut(as.numeric(var), breaks = nbreaks)
+        meshdat$cols <- collist[fvar] 
+      }
+      if (is.factor(var)) {
+        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = cols), ...) + 
+        scale_color_viridis_d("Legend", labels = levels(var)) 
+      } else if (!is.null(var)) {
+        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = cols), ...) + 
+          scale_color_viridis_d("Value", labels = levels(fvar)) 
+      } else {
+        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y), col = "grey", ...) +
+          theme(legend.position = "none")
+      }
+      plt <- plt + theme_bw()
+      return(plt)
+    }, 
    
     capthist = function(i = ".") {
       if (i == ".") return(private$capthist_)
@@ -178,9 +242,15 @@ ScrData <- R6Class("ScrData",
     n_primary = function() {return(private$n_primary_)}, 
     n_secondary = function() {return(as.numeric(table(self$primary())))}, 
     primary = function() {return(private$primary_)},
-    encrate = function() {
-      ndetections <- summary(self$capthist())[[4]][1, self$n_occasions(".") + 1]
-      rate <- ndetections / (self$n() * self$n_occasions("."))
+    encrate = function(each = FALSE) {
+      ndet <- as.numeric(summary(self$capthist())[[4]][6,1:self$n_occasions("all")])
+      nind <- as.numeric(summary(self$capthist())[[4]][1,1:self$n_occasions("all")])
+      enc <- ndet/nind
+      if (each) {
+        return(enc)
+      } else {
+        return(mean(enc))
+      }
       return(rate)
     },
     encrange = function(k = NULL, each = FALSE) {
@@ -204,8 +274,11 @@ ScrData <- R6Class("ScrData",
         return(range)
       }
     },
-    
+    unique = function() {
+      return(as.numeric(summary(self$capthist())[[4]][2,1:self$n_occasions("all")]))
+    },
     area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
+    cell_area = function() {return(attributes(private$mesh_)$area * 0.01)}, 
     distances = function(){return(private$distances_)},
     dist2locs = function(){return(private$dist2locs_)}, 
     orientation = function(){return(private$orientation_)}, 
