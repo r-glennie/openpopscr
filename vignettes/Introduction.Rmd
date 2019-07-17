@@ -1,0 +1,75 @@
+---
+title: "Introduction"
+author: ""
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 7, 
+  fig.height = 7, 
+  comment = "#>"
+)
+```
+
+This vignette provides an introduction to the <code>openpopscr</code> package. The package fits open population spatial capture-recapture (SCR) models with activity centre movement by maximum likelihood.
+
+```{r load_pkg}
+library(openpopscr)
+library(secr)
+```
+
+## Installation and setup
+
+In R, the latest release of the package can be installed using the devtools package with the command: 
+```{r eval = FALSE}
+devtools::install_github("r-glennie/openpopscr@v1.1.0", build = TRUE, build_opts = c("--no-resave-data", "--no-manual"))
+```
+
+The package requires you to have a C compiler installed on your system. Windows users may need to install R-tools for this reason. It is assumed Linux and Mac users have a compiler installed. 
+
+The package uses the <code>RcppParallel</code> package for parallel processing and faster performance. To set the number of threads used by RcppParallel use the following code:
+```{r eval = FALSE}
+RcppParallel::setThreadOptions(numThreads = 7)
+```
+
+To find out the number of cores your machine has available run the following code: <code>RcppParallel::defaultNumThreads()</code>. For further information about RcppParallel, [see the package's CRAN webpage](https://cran.r-project.org/web/packages/RcppParallel/index.html). 
+
+
+## R6
+
+This package uses <code>R6 classes</code>. <code>R6 classes</code> are used to create objects, which can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain all the information and methods related to them. For further information about <code>R6</code>, see this intoduction to [<code>R6</code>](https://r6.r-lib.org/articles/Introduction.html).
+
+
+## The secr package
+
+It is currently assumed that you already know the [<code>secr</code> ](https://CRAN.R-project.org/package=secr) package. If not, it is strongly advised that you read the vignettes included with the secr package and other help files included on the package [website](https://www.otago.ac.nz/density/SECRinR.html). The guides on Habitat Masks and Data Input are recommended.
+
+
+## Using the Package
+
+In this package, there are two main types of <code>R6 classes</code>: model classes and the data class. The ScrData class is used to create data objects. There are also classes used to create model objects, which you can fit to your data and obtain inference from. The package contains the following model classes:
+
+* ScrModel for fitting closed population SCR models
+* ScrTransientModel as above but with transience
+* CjsModel for fitting a Cormack-Jolly-Seber model
+* CjsTransientModel as above but with transience
+* JsModel for fitting Jolly-Seber models
+* JsTransientModel as above but with transience
+* StrataModel for fitting stratified models
+
+A third type of class is the DetFn class, which is used to create detection functions. 
+
+There is a vignette for the data class and for each of the model classes. To see a list of all vignettes, use the command:
+<code>browseVignettes("openpopscr")</code>.
+
+To learn how to use the package, I recommend reading the ScrData and ScrModel vignettes first. The other vignettes are very similar to these vignettes, making it easier to use the other classes once the basics are familiar.
+
+The folder inst/examples/ in the [repository](https://github.com/r-glennie/openpopscr) contains code showing how to fit each type of model to simulated data.
+
