@@ -29,7 +29,7 @@ library(secr)
 
 ## Raw data 
 
-The [<code>secr</code> package](https://cran.r-project.org/package=secr) contains the functions <code>read.traps</code>, <code>make.capthist</code>, and <code>make.mask</code>. They can be used to convert raw data often collected in SCR surveys into a capthist object and mask object. These functions are available in the <code>openpopscr</code> package also. 
+The [<code>secr</code> package](https://cran.r-project.org/package=secr) contains the functions <code>read.traps</code>, <code>make.capthist</code>, and <code>make.mask</code>. They can be used to convert raw data collected in SCR surveys into a capthist object and mask object. These functions are available in the <code>openpopscr</code> package also. 
 
 On a side note, I call the mask object a mesh. The terms are interchangable. 
 
@@ -133,52 +133,66 @@ duration $1$.
 
 ## Covariates 
 
-The ScrData object can handle three kinds of covariates: detector-specific, temporal, or both. 
+The ScrData object can handle three kinds of covariates: detector-specific, temporal, or mesh. 
 
 Detector-specific covariates are called $j$ type covariates, because $j$ is typically the mathematical index used for detectors. 
-Suppose there is a variable $x$ that could affect how detectors operate. I create a imaginary variable here: 
+Suppose there is a variable $x$ that could affect how detectors operate. I create imaginary variables here: 
 
 ```{r x_cov}
-x <- factor(sample(c("bad", "good"), size = nrow(detectors), replace = TRUE))
+quality <- factor(sample(c("bad", "good"), size = nrow(detectors), replace = TRUE))
+weather <- runif(scrdat$n_occasions())
+habitat <- scrdat$covs()$x * 2 + scrdat$covs()$y * 0.5 - scrdat$covs()$x*scrdat$covs()$y*2
 ```
 
 This is a factor variable that labels each detector as a "good" or "bad" detector. 
 
-The covariate can be included when creating the ScrData object: 
+The covariate can be included after creating the ScrData object, specifying the covariate name, the vector of values, and the 
+type. 
 
-```{r cov_make_scrdata, eval = FALSE}
-scrdat <- ScrData$new(capthist, mesh, cov = list(x = x), cov_type = c("j"))
+```{r cov_make_scrdata}
+scrdat$add_covariate("quality", quality, "j")
+scrdat$add_covariate("weather", weather, "k")
+scrdat$add_covariate("habitat", habitat, "m")
 ```
 
-The <code>cov</code> argument must be a list with each covariate named. The <code>cov_type</code> argument specifies the type of each covariate; it must be ordered in the same way as the <code>cov</code> argument. 
-
-Alternatively, the covariate can be added to the ScrData object after it has been created using the <code>add_covariate</code> function:
-
-```{r add_cov}
-scrdat$add_covariate("x", x, "j")
-```
-
-The <code>add_covariate</code> function requires the covariate name, the covariate data frame itself, and the covariate type. 
-
-Temporal covariates are added in the same way, except the <code>cov_type</code> is "k", the index commonly used to denote occasion. 
+Temporal and mesh covariates are added in the same way, except the <code>cov_type</code> is "k" or "m". 
 
 Once covariates have been included, you can extract the covariates for any particular detector or time using the <code>covs</code> function. To list all covariates, just call the function with no arguments: 
 
-```{covs}
+```{r covs, eval = FALSE}
 scrdat$covs()
 ```
 
-Notice, that the covariate $t$ is automatically created; it is the index of each occasion. 
+Notice, that some covariates are automatically created, e.g., time 't', x coordinate 'x', y coordinate 'y'. 
 
-Covariates can be subset by detector or time: 
-```{r subsetcov}
-# get covariates for all detectors on occasion 2
-scrdat$covs(k = 2)
-# get covariates for detector 7 on all occasions 
-scrdat$covs(j = 7)
-# get covariates for detector 5 on occasion 3 
-scrdat$covs(j = 5, k = 3)
-# get covariates for detectors 1 to 10 on occasions 3 and 5
-scrdat$covs(j = 1:10, k = c(3, 5))
+Covariates can be subset by detector or time or mesh point:  
+
+- Get covariates for detector 1 on occasion 2 mesh point 1
+```{r subsetcov1}
+
+scrdat$covs(j = 1, k = 2, m = 1)
 ```
 
+- Get quality covariate for detector 7 on all occasions 
+```{r subsetcov2}
+
+scrdat$covs(j = 7, m = 1)$quality
+```
+
+- Get covariates for detectors 1 to 7 on occasions 3 and 5 for mesh points 1,2
+```{r subsetcov3}
+
+scrdat$covs(j = 1:10, k = c(3, 5), m = c(1, 2))
+```
+
+You can remove a covariate from the data object:
+```{r remove_cov}
+names(scrdat$covs())
+scrdat$remove_covariate("weather")
+names(scrdat$covs())
+```
+
+Mesh covariates can be plotted over the mesh: 
+```{r plot_mesh}
+scrdat$plot_mesh("habitat")
+```
