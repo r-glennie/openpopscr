@@ -66,19 +66,20 @@ arma::sp_mat CalcTrm(const arma::vec num_cells, const double sd, const double dx
       tpr(s, s) = -sum; 
     }
   }
-  return tpr.t();
+  return tpr;
 }
 
-arma::vec ExpG(const arma::vec v,
-               const arma::sp_mat a,
-               const double& t,
-               const int& krylov_dim = 30,
-               const double& tol = 1e-16) {
+arma::vec ExpG(const arma::vec& v_in,
+                  const arma::sp_mat& a,
+                  const double& t,
+                  const int& krylov_dim = 30,
+                  const double& tol = 1e-10) {
+  arma::rowvec v(v_in.t()); 
   double m = fmin(a.n_rows, krylov_dim);
   double anorm = arma::norm(a, "Inf");
   double mxrej = 10;
   double mx;
-  double btol = 1e-7;
+  double btol = 1.0e-7;
   double gamma = 0.9;
   double mb = m;
   int nstep = 0;
@@ -104,23 +105,23 @@ arma::vec ExpG(const arma::vec v,
   double phi1;
   double phi2;
   
-  arma::vec w = v;
+  arma::rowvec w = v;
   double hump = normv;
-  arma::mat vmat = arma::zeros<arma::mat>(a.n_rows, m + 1);
+  arma::mat vmat = arma::zeros<arma::mat>(m + 1, a.n_rows);
   arma::mat hmat = arma::zeros<arma::mat>(m + 2, m + 2);
   arma::mat fmat;
-  arma::vec p;
+  arma::rowvec p;
   while (t_now < t_out) {
     ++nstep;
     t_step = fmin(t_out - t_now, t_new);
     vmat.zeros();
     hmat.zeros();
-    vmat.col(0) = (1 / beta) * w;
+    vmat.row(0) = (1 / beta) * w;
     for (int j = 0; j < m; ++j) {
-      p = a * vmat.col(j);
+      p = vmat.row(j) * a;
       for (int i = 0; i <= j; ++i) {
-        hmat(i, j) = arma::dot(vmat.col(i), p);
-        p -= hmat(i, j) * vmat.col(i);
+        hmat(j, i) = arma::dot(vmat.row(i), p);
+        p -= vmat.row(i) * hmat(j, i);
       }
       s = norm(p);
       if (s < btol) {
@@ -129,12 +130,12 @@ arma::vec ExpG(const arma::vec v,
         t_step = t_out - t_now;
         break;
       }
-      hmat(j + 1, j) = s;
-      vmat.col(j + 1) = (1 / s) * p;
+      hmat(j, j + 1) = s;
+      vmat.row(j + 1) = (1 / s) * p;
     }
     if (k1 != 0) {
-      hmat(m + 1, m) = 1;
-      avnorm = arma::norm(a * vmat.col(m));
+      hmat(m, m + 1) = 1;
+      avnorm = arma::norm(vmat.row(m) * a);
     }
     ireject = 0;
     while (ireject <= mxrej) {
@@ -145,8 +146,8 @@ arma::vec ExpG(const arma::vec v,
         break;
       }
       else {
-        phi1 = fabs(beta * fmat(m, 0));
-        phi2 = fabs(beta * fmat(m + 1, 0) * avnorm);
+        phi1 = fabs(beta * fmat(0, m));
+        phi2 = fabs(beta * fmat(0, m + 1) * avnorm);
         if (phi1 > 10 * phi2) {
           err_loc = phi2;
           xm = 1 / m;
@@ -166,13 +167,13 @@ arma::vec ExpG(const arma::vec v,
         s = std::pow(10, std::floor(std::log10(t_step)) - 1);
         t_step = std::ceil(t_step / s) * s;
         if (ireject == mxrej) {
-          //std::cout << "error: requested tolerance too high for Krylov approximation" << std::endl;
+          std::cout << "error: requested tolerance too high for Krylov approximation" << std::endl;
         }
         ++ireject;
       }
     }
     mx = mb + fmax(0, k1 - 1);
-    w = vmat.cols(0, mx) * beta * fmat.col(0).rows(0, mx);
+    w = beta * fmat.row(0).cols(0, mx) * vmat.rows(0, mx);
     beta = arma::norm(w);
     hump = fmax(hump, beta);
     
@@ -186,7 +187,8 @@ arma::vec ExpG(const arma::vec v,
   }
   double err = s_error;
   hump = hump / normv;
-  return w;
+  arma::vec v_out(w.t()); 
+  return v_out;
 }
 
 struct MoveLlkCalculator : public Worker {
@@ -244,7 +246,7 @@ struct MoveLlkCalculator : public Worker {
   }
   
   void operator()(std::size_t begin, std::size_t end) { 
-    for (int i = 0; i < n; ++i) {
+    for (int i = begin; i < end; ++i) {
       double llk = 0;
       double sum_pr;
       arma::mat pr = pr0;
