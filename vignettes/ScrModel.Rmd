@@ -18,23 +18,11 @@ knitr::opts_chunk$set(
 )
 ```
 
-The ScrModel class is a [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
-
 In this vignette, I describe how spatial capture-recapture models can be used within an <code>R6</code> object of the <code>ScrModel</code> class. 
 
 ```{r load_pkg}
 library(openpopscr)
 library(secr)
-```
-
-```{r secretload, include = FALSE}
-data("scrmodel_example")
-mod <- scrmodel_example$mod
-mod_detage <- scrmodel_example$mod_detage
-stat <- scrmodel_example$stat
-trans <- scrmodel_example$trans
-scrdat <- scrmodel_example$scrdat
-scrtransdat <- scrmodel_example$scrtransdat
 ```
 
 ## Simulating data 
@@ -43,9 +31,9 @@ The <code>openpopscr</code> package uses the <code>ScrData</code> class to store
 
 To simulate a survey, I require true detection and density parameters, a detector layout, and a mesh.  
 
-```{r setuptruepar}
+```{r setuptruepar, cache = TRUE}
 # set true parameters 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 20)
+true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -66,7 +54,7 @@ not implement methods for traps that can detect only one individual per occasion
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr, eval = FALSE}
+```{r simulatescr, eval = FALSE, cache = TRUE}
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 15483)
 ```
 
@@ -100,33 +88,18 @@ start <- get_start_values(scrdat)
 start 
 ```
 
-Notice that you do not specify a formula for <code>D</code>. At present, the <code>openpopscr</code> 
-does not allow for density to change over space. 
+Notice that you do not specify a formula for <code>D</code>. You only need to specify this formula when density changes
+over space. 
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj, eval = FALSE}
-mod <- ScrModel$new(form, scrdat, start, num_cores = 4)
+```{r modelobj, eval = FALSE, cache = TRUE}
+mod <- ScrModel$new(form, scrdat, start)
 ```
-
-I have specified here for the model to use $4$ processor cores for any parallel
-processing. This makes model fitting and computations quicker. You can 
-use the package <code>Parallel</code> to find out how many processor cores
-you have available: 
-```{r cores}
-library(parallel)
-detectCores()
-```
-
-In my case, I have eight cores. In general, I would use at most one core
-less than what I had available, to leave one core free for me to use. In this
-case, I have left half of them free because I am using them for another purpose.
-You can set many models to use the same cores as long as only one is being
-used to do computations at a time. 
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel, eval = FALSE}
+```{r fitmodel, echo = FALSE, cache = TRUE}
 mod$fit()
 ```
 
@@ -190,7 +163,7 @@ AIC(mod)
 ## Covariates 
 
 The detection parameters can change with observed covariate values. Covariates
-can change by detector, by occasion, or both. At present, spatial or individual-level
+can change by detector, by occasion, or by mesh point. Individual-level
 covariates are not implemented in <code>openpopscr</code>. 
 
 As an example, suppose the simulated survey was conducted with two types of 
@@ -203,7 +176,7 @@ intercept.
 set.seed(58285)
 # Simulate, for each detector, an age class: old or new. In reality, this
 # covariate would be observed. 
-age <- as.factor(sample(c("old", "new"), size = scrdat$n_traps(), replace = T))
+age <- as.factor(sample(c("new", "old"), size = scrdat$n_traps(), replace = T))
 
 # Add the covariate to the ScrData 
 scrdat$add_covariate("age", age, "j")
@@ -213,24 +186,25 @@ When adding the covariate to the data, I specify the covariate is of type "j" be
 further information. 
 
 I can now fit the model with detector age included. 
-```{r detagemod, eval = FALSE}
+```{r detagemod}
 # copy formulae from previous model
 form_detage <- form
 # update formula for lambda0 to include age 
 form_detage[[1]]<- lambda0 ~ age
 ```
-```{r fitmoddetage, eval = FALSE}
+```{r fitmoddetage, echo = FALSE, cache = TRUE}
 # create new model object 
-mod_detage <- ScrModel$new(form_detage, scrdat, start, num_cores = 4)
+mod_detage <- ScrModel$new(form_detage, scrdat, start)
 # fit model
 mod_detage$fit()
+```
 ```{r analysemodetage}
 # look at results
 mod_detage
-# predict lambda0 for each detector
-mod_detage$get_par("lambda0", k = 1)
-# get lambda0 for detector 10 
-mod_detage$get_par("lambda0", k = 1, j = 10)
+# get lambda0 for an old detector 
+mod_detage$get_par("lambda0", k = 1, j = 1)
+# get lambda0 for a new detector
+mod_detage$get_par("lambda0", k = 1, j = 11)
 ```
 
 I see here that the $95\%$ confidence interval for age covers zero and so 
@@ -240,16 +214,67 @@ Covariates that change over time, type $k$, and detector-temporal covariates
 can be included in the same way. See ScrData vignette for more details on 
 loading covariates into the ScrData object. 
 
+Spatial covariates can be placed on density, but not on any other parameters.
+Here a simulate a true spatially-varying density surface with formula: \(D = 0.2x^2 + 0.3y - 0.05xy\)
+and try to recover this from fitting a model to simulated data. Notice that the "x" and "y"
+coordinates are scaled, meaning their mean is substracted and they are divided by their 
+standard deviation: this is for numerical stability, but also affects the interpretation 
+of the magnitude of the effects for x and y. 
+
+```{r spacecov, cache = TRUE}
+# simulate habitat covariate
+x <- scale(scrdat$covs()$x)
+y <- scale(scrdat$covs()$y)
+habitat <- 0.2 * x^2 +  0.3 * y - 0.05 * x * y
+# create true density surface 
+logD <- log(true_par$D) + habitat
+ihp <- exp(logD) / true_par$D
+# ihp argument allows for spatially varying density
+scrdat_D <- simulate_scr(true_par, n_occasions, detectors, mesh, ihp = ihp, seed = 18528)
+```
+
+Now that the data are simulated, I fit the model. Notice, I now specify a formula for parameter D and use the 
+built-in scaled x and y covariates. I will try two models, a misspeficied one and the true one:  
+
+```{r spacemod, echo = FALSE, cache = TRUE}
+form <- list(lambda0 ~ 1, 
+             sigma ~ 1, 
+             D ~ x*y)
+start <- get_start_values(scrdat_D)
+mod_D <- ScrModel$new(form, scrdat_D, start)
+mod_D$fit()
+form2 <- list(lambda0 ~ 1, 
+              sigma ~ 1, 
+              D ~ I(x^2) + y + x:y)
+mod_D2 <- ScrModel$new(form2, scrdat_D, start)
+mod_D2$fit()
+```
+```{r spacemod2}
+mod_D
+```
+
+Models can be compared by AIC: 
+```{r spaceaic}
+AIC(mod_D, mod_D2)
+```
+
+We can plot the estimated density surface: 
+```{r plotD}
+# get density surface at each mesh point 
+D <- mod_D2$get_par("D", m = 1:scrdat$n_meshpts()) * scrdat_D$cell_area()
+scrdat$plot_mesh(D)
+```
+
 ## Transience 
 
 Sometimes an individual's activity range within each occasion differs from
 their range when viewed across all occasions. There can be several reasons
-for this; two common reasons are that the individual only explores part of their
+for this; two reasons are that the individual only explores part of their
 entire range during each occasion, so the range within each occasion is only
 partial; or, it may be that an individual does explore their entire range
 during each occasion, but the range shifts over time. 
 
-You can investigate this by looking at how the encounter range statistic (see <code>RPSV</code> function in <code>secr</code> package for details) compares over occasions as opposed to within
+You can investigate this by looking at how the encounter range compares over occasions as opposed to within
 occasions: 
 ```{r rspv}
 # get encounter range statistic for occasion 1
@@ -267,7 +292,7 @@ In this case, the mean range within each occasion is `r round(mean(scrdat$encran
 I will now simulate some data where activity centres move. In particular, the 
 activity centre of each individual will move by Brownian motion with standard
 deviation $sd$. 
-```{r simmove, eval = FALSE}
+```{r simmove, cache = TRUE}
 # set truth 
 true_par <- list(D = 1000, lambda0 = 2, sigma = 10, sd = 20)
 
@@ -298,14 +323,14 @@ There is a difference between the two measures of encounter range, where
 range across occasions is greater than range within, indicative of transience. 
 
 Nevertheless, I will first fit a stationary SCR model to these data: 
-```{r statscr, eval = FALSE}
+```{r statscr, cache = TRUE}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1)
 start <- get_start_values(scrdat)
 ```
-```{r statscrmake, eval = FALSE}
+```{r statscrmake, cache = TRUE}
 # create model object 
-stat <- ScrModel$new(stat_form, scrtransdat, start, num_cores = 4)
+stat <- ScrModel$new(stat_form, scrtransdat, start)
 # fit model 
 stat$fit()
 ```
@@ -327,7 +352,7 @@ density underestimation and $\sigma$ to density overestimation.
 I now fit the transient model. The transient model class is called <code>ScrTransientModel</code>. We must also now specify a start value 
 for the movement parameter. 
 
-```{r fittransmod}
+```{r fittransmod, cache = TRUE}
 # specify formulas for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1, 
@@ -335,8 +360,8 @@ form <- list(lambda0 ~ 1,
 
 start <- get_start_values(scrtransdat, model = "ScrTransientModel")
 ```
-```{r transmodmake, eval = FALSE}
-trans <- ScrTransientModel$new(form, scrtransdat, start, num_cores = 4)
+```{r transmodmake, cache = TRUE}
+trans <- ScrTransientModel$new(form, scrtransdat, start)
 ```
 
 Notice that you must specify <code>model = "ScrTransientModel"</code> in 
@@ -355,7 +380,7 @@ mesh, so you may be required to reduce the resolution of the user supplied
 mesh in order to make computations with the rectangular mesh feasible. 
 
 I now fit the model as usual:
-```{r fittrans, eval = FALSE}
+```{r fittrans, cache = TRUE}
 # fit model 
 trans$fit()
 ```

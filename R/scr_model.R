@@ -26,27 +26,27 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
+#'   \item detectfn: either a character of "HHN" (hazard half-normal, default), "HN" (half-normal),
+#'         or an object of class DetectFn
 #'   \item print (default = TRUE): if TRUE then helpful output is printed
 #' }
 #' 
 #' Methods include: 
 #' \itemize{
 #'  \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
-#'   on occasion k (if j, k, then returns value(s) for all)
-#'  \item set_par(par): can change the parameter the model uses. Note, the model will simulate 
-#'    data using this parameter, but will only present inference based on the maximum likelihood
-#'    estimates. 
-#'  \item set_mle(mle, V, llk): set maximum likelihood point with parameters mle, 
-#'  covariance matrix V, and value llk
-#'  \item calc_D_llk(): computes the likelihood of the D parameter
-#'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead)
-#'  \item calc_pr_capture(): returns array where (i,k,m) is probability of capture record 
-#'  on occasion k for individual i given activity centre at mesh point m
+#'   on occasion k at mesh point m, similar to ScrData$covs() function
+#'  \item calc_D_llk(): computes the likelihood contribution from the point process model for D
+#'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead) and mesh
+#'  \item calc_encrate(transpose = FALSE): compute encounter rate for each mesh x trap x occasion, can be 
+#'        return transposed as occasion x mesh x trap
+#'  \item calc_pr_capture(): returns list of arrays, one per individual, with (m, s, k) entry being 
+#'        the probability of the capture record on occasion k given activity centre is at mesh point m and 
+#'        individual is in life state s
+#'  \item calc_Dpdet(): compute the integral int D(x)p(x) dx <- the overall intensity of detected individuals in the 
+#'        survey area 
 #'  \item calc_pdet(): compute probability of being detected at least once during the survey
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item fit: fit the model by obtaining the maximum likelihood estimates. Estimates of
-#'        density are obtained from parametric boostrap with nsim resamples. 
-#'  \item simulate(): simulate ScrData object from fitted model
+#'  \item fit: fit the model by obtaining the maximum likelihood estimates 
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to 
@@ -110,19 +110,6 @@ ScrModel <- R6Class("ScrModel",
       resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
       if (name == "D" & is.null(m)) return(mean(resp))
       return(resp)
-    }, 
-    
-    set_par = function(par) {
-      private$par_ <- par
-    },
-    
-    set_mle = function(mle, V, llk) {
-      private$mle_ <- mle
-      private$par_ <- mle
-      private$llk_ <- -llk
-      private$V_ <- V
-      cat("make results\n")
-      private$make_results()
     }, 
     
     calc_D_llk = function() {
@@ -205,15 +192,15 @@ ScrModel <- R6Class("ScrModel",
       newpar <- self$par() 
       newpar$D <- rep(0, length(savepar$D))
       newpar$D[1] <- log(1.0 / self$data()$area())
-      self$set_par(newpar)
+      private$set_par(newpar)
       pdet <- self$calc_Dpdet()  
-      self$set_par(savepar)
+      private$set_par(savepar)
       return(pdet)
     }, 
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) private$set_par(private$convert_vec2par(param));
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 
@@ -233,7 +220,7 @@ ScrModel <- R6Class("ScrModel",
     },
     
     fit = function(ini_par = NULL, nlm.args = NULL) {
-      if (!is.null(ini_par)) self$set_par(ini_par)
+      if (!is.null(ini_par)) private$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
       t0 <- Sys.time()
@@ -251,7 +238,7 @@ ScrModel <- R6Class("ScrModel",
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
-      self$set_par(mle)
+      private$set_par(mle)
       private$mle_ <- mle
       private$llk_ <- -mod$minimum
       if (private$print_) cat("Computing variance.......")
@@ -277,18 +264,6 @@ ScrModel <- R6Class("ScrModel",
         print(signif(private$results_, 4))
       }
       options(scipen = 0)
-    }, 
-    
-    simulate = function(seed = NULL) {
-      if (!is.null(seed)) set.seed(seed)
-      new_dat <- simulate_scr(self$par(), 
-                              self$data()$n_occasions(), 
-                              self$data()$traps(), 
-                              self$data()$mesh(), 
-                              self$data()$time(), 
-                              seed, 
-                              private$print_)
-      return(new_dat)
     }, 
     
     par = function() {return(private$par_)},
@@ -327,6 +302,10 @@ ScrModel <- R6Class("ScrModel",
     sig_level_ = 0.05, 
     print_  = NULL, 
     
+    set_par = function(par) {
+      private$par_ <- par
+    },
+    
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
       n_det_par <- private$detfn_$npars()
@@ -361,7 +340,6 @@ ScrModel <- R6Class("ScrModel",
       par <- private$convert_par2vec(private$mle_)
       sd <- sqrt(diag(private$V_))
       if (private$print_) cat("Computing confidence intervals.......")
-      cat("confint\n")
       ci <- private$calc_confint()
       if (private$print_) cat("done\n")
       results <- cbind(par, sd, ci$LCL, ci$UCL)

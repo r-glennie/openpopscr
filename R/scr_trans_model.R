@@ -30,15 +30,14 @@
 #'   \item print (default = TRUE): if TRUE then helpful output is printed
 #' }
 #' 
-#' Methods include: 
+#' Methods include all those in ScrModel with following re-defined: 
 #' \itemize{
 #'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead)
 #'  \item calc_D_llk(): computes the likelihood of the D parameter
+#'   \item calc_Dpdet(): compute the integral int D(x)p(x) dx <- the overall intensity of detected individuals in the 
+#'        survey area
 #'  \item calc_pdet(): compute probability of being detected at least once during the survey
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item fit: fit the model by obtaining the maximum likelihood estimates. Estimates of
-#'        density are obtained from parametric boostrap with nsim resamples. 
-#'  \item simulate(): simulate ScrData object from fitted model
 #' }
 #' 
 ScrTransientModel <- R6Class("ScrTransientModel",
@@ -142,7 +141,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) private$set_par(private$convert_vec2par(param));
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 
@@ -173,36 +172,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       #plot(self$par()$beta[-1])
       cat("llk:", llk, "\n")
       return(llk)
-    },
-    
-  simulate = function(seed = NULL) {
-    if (!is.null(seed)) set.seed(seed)
-    num.meshpts <- private$data_$n_meshpts()
-    mesh <- private$data_$mesh()
-    D <- do.call(private$link2response_$D, list(self$par()$D)) / 100
-    # simulate population
-    if (private$print_) cat("Simulating population.......")
-    pop <- sim.popn(D = D, core = mesh, Ndist = "poisson", buffertype = "convex")
-    if (private$print_) cat("done\n")
-    n_occasions <- private$data_$n_occasions()
-    dt <- diff(private$data_$time())
-    # generate capture histories
-    lambda0 <- self$get_par("lambda0", m = 1)
-    sigma <- self$get_par("sigma", j = 1, m = 1)
-    if (private$print_) cat("Simulating capture histories.......")
-    capture_history <- sim.capthist(private$data_$traps(), 
-                                    popn = pop, 
-                                    detectfn = "HHN", 
-                                    detectpar = list(lambda0 = lambda0, 
-                                                     sigma = sigma), 
-                                    noccasions = n_occasions,
-                                    renumber = FALSE)
-    if (private$print_) cat("done\n")
-    if (private$print_) cat("Creating ScrData object.......")
-    new_dat <- ScrData$new(capture_history, mesh, private$data_$time())
-    if (private$print_) cat("done\n")
-    return(new_dat)
-  }
+    }
   
 ),
                    
