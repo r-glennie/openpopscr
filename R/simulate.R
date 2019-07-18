@@ -1,9 +1,10 @@
 #' Simulate Spatial Capture-Recapture data
 #'
-#' @param true_par named vector of D, lambda0, sigma parameters and sd, if movement is desired 
+#' @param par named vector of D, lambda0, sigma parameters and sd, if movement is desired 
 #' @param n_occasions number of occasions to simulate 
 #' @param detectors detectors object made using SECR package make.traps 
 #' @param mesh mesh object made using SECR make.mask
+#' @param ihp relative density at each mesh point for inhomogeneous (so density at point = D*ihp)
 #' @param move if TRUE, then activity centres move by Brownian motion and par$sd must be specified
 #' @param time time of each occasions (e.g. 1 to 10, or 2002, 2003, 2004)
 #' @param seed if supplied, random number generator is given this seed
@@ -98,7 +99,7 @@ simulate_scr <- function(par, n_occasions, detectors, mesh, ihp = NULL, move = F
 
 #' Simulate SCR open population Cormack-Jolly-Seber survey
 #'
-#' @param true_par true parameters, named list of lambda0, sigma, phi
+#' @param par true parameters, named list of lambda0, sigma, phi
 #' @param N number of individuals 
 #' @param n_occasions total number of occasions in survey 
 #' @param detectors secr trap object
@@ -239,8 +240,10 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = F
 #' @param n_occasions total number of occasions in survey 
 #' @param detectors secr trap object
 #' @param mesh secr mesh object
+#' @param ihp relative density at each mesh point for inhomogeneous (so density at point = D*ihp)
 #' @param move if TRUE, activity centres move and par$sd must be specified 
 #' @param time vector with time units between occasions 
+#' @param primary index of which primary each occasion is allocated to 
 #' @param seed seed to set before simulating 
 #' @param print if TRUE, useful output is printed 
 #'
