@@ -46,7 +46,8 @@
 #'        survey area 
 #'  \item calc_pdet(): compute probability of being detected at least once during the survey
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item fit: fit the model by obtaining the maximum likelihood estimates 
+#'  \item fit(): fit the model by obtaining the maximum likelihood estimates
+#'  \item set_mle(par, V, llk): set par to maximum likelihood par with variance matrix V and value llk
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to
@@ -216,7 +217,7 @@ ScrModel <- R6Class("ScrModel",
       # compute log-likelihood
       llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
-      cat("llk:", llk, "\n")
+      if (private$print_) cat("llk:", llk, "\n")
       return(llk)
     },
     
@@ -235,26 +236,31 @@ ScrModel <- R6Class("ScrModel",
       code <- mod$code
       if (code > 2) warning("model failed to converge with nlm code ", code)
       if (private$print_ & code < 3) cat("Checking convergence.......converged", "\n")
+      if (private$print_) cat("Computing variances.......")
       mle <- mod$estimate
       names(mle) <- names(w_par)
-      mle <- private$convert_vec2par(mle)
-      #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
-      self$set_par(mle)
-      private$mle_ <- mle
-      private$llk_ <- -mod$minimum
-      if (private$print_) cat("Computing variance.......")
-      private$V_ <- solve(mod$hessian)
+      llk <- -mod$minimum
+      V <- solve(mod$hessian)
       if (private$print_) cat("done\n")
-      if (any(diag(private$V) <= 0)) {
+      self$set_mle(mle, V, llk)
+      return(invisible())
+    }, 
+    
+    set_mle = function(par, V, llk) {
+      mle <- private$convert_vec2par(par)
+      self$set_par(par)
+      private$mle_ <- par 
+      private$llk_ <- llk 
+      private$V_ <- V
+      if (any(diag(V) <= 0)) {
         cat("Variance estimates not reliable, do a bootstrap.")
         return(0)
       } else {
         sd <- sqrt(diag(private$V_))
-        names(sd) <- names(w_par)
+        names(sd) <- names(par)
         private$make_results()
       }
-      return(invisible())
-    }, 
+    },
     
     print = function() {
       options(scipen = 999)
