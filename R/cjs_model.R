@@ -30,28 +30,19 @@
 #'   \item print: (defualt TRUE) if TRUE then useful output is printed
 #' }
 #' 
-#' Methods include: 
+#' Methods include those supplied by ScrModel with the following overwritten: 
 #' \itemize{
 #'  \item get_par(name, j, k): returns value of parameter "name" for detector j 
 #'   on occasion k (if j, k omitted, then returns value(s) for all)
-#'  \item set_par(par): can change the parameter the model uses. Note, the model will simulate 
-#'    data using this parameter, but will only present inference based on the maximum likelihood
-#'    estimates. 
-#'  \item set_mle(mle, V, llk): sets model at maximum likelihood with parameters mle, 
-#'  covariance matrix V, and likelihood value llk 
+#'  \item set_par(par): can change the parameter the model uses as returned by par()
 #'  \item calc_initial_distribution(): computes initial distribution over life states (alive, dead)
 #'  \item calc_tpms(): returns list of transition probability matrix for each occasion 
 #'  \item calc_pr_capture(): returns array where (i,k,m) is probability of capture record 
 #'  on occasion k for individual i given activity centre at mesh point m
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
+#'  \item entry(): return occasion each individual is first detected 
 #'  \item fit: fit the model by obtaining the maximum likelihood estimates
-#'  \item simulate(): simulate ScrData object from fitted model
-#'  \item par(): return current parameter of the model 
-#'  \item mle(): return maximum likelihood estimates for the fitted model 
-#'  \item data(): return ScrData that the model is fit to 
 #'  \item estimates(): return estimates in a easy to extract list 
-#'  \item cov_matrix(): return variance-covariance matrix from fitted model (on working scale)
-#'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
 #' }
 #' 
 CjsModel <- R6Class("CjsModel", 
@@ -98,7 +89,7 @@ CjsModel <- R6Class("CjsModel",
       private$print_ = print
     },
     
-    get_par = function(name, j = NULL, k = NULL, m = NULL) {
+    get_par = function(name, j = NULL, k = NULL, m = 1) {
      if (name == "phi") j <- 1 
      if (name == "phi" & is.null(k)) {
        k <- 1:(private$data_$n_occasions() - 1) 
@@ -196,20 +187,6 @@ CjsModel <- R6Class("CjsModel",
       cat("llk:", llk, "\n")
       return(llk)
     },
-  
-  simulate = function(N = NULL, seed = NULL) {
-    if (!is.null(N)) N <- self$data()$n()
-    new_dat <- simulate_cjs_openscr(self$par(), 
-                                    N, 
-                                    self$data()$n_occasions(), 
-                                    self$data()$traps(), 
-                                    self$data()$mesh(), 
-                                    move = FALSE, 
-                                    time = self$data()$time(), 
-                                    seed = seed, 
-                                    print = private$print_)
-    return(new_dat)
-  }, 
   
   entry = function() {return(private$entry_)}, 
   

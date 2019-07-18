@@ -31,11 +31,10 @@
 #'   \item print: (defualt TRUE) if TRUE then useful output is printed
 #' }
 #' 
-#' Methods include: 
+#' Methods include those in CjsModel with the following overwritten: 
 #' \itemize{
 #'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead)
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
-#'  \item simulate(): simulate ScrData object from fitted model
 #' }
 #' 
 CjsTransientModel <- R6Class("CjsTransientModel", 
@@ -130,20 +129,6 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                              private$entry_)
       cat("llk:", llk, "\n")
       return(llk)
-    },
-    
-    simulate = function(N = NULL, seed = NULL) {
-      if (!is.null(N)) N <- self$data()$n()
-      new_dat <- simulate_cjs_openscr(self$par(), 
-                                      N, 
-                                      self$data()$n_occasions(), 
-                                      self$data()$traps(), 
-                                      self$data()$mesh(), 
-                                      move = TRUE, 
-                                      time = self$data()$time(), 
-                                      seed = seed, 
-                                      print = private$print_)
-      return(new_dat)
     }
 ),
                    

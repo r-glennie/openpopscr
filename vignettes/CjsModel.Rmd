@@ -11,6 +11,7 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE, 
   collapse = TRUE,
   fig.width = 7, 
   fig.height = 7, 
@@ -18,23 +19,15 @@ knitr::opts_chunk$set(
 )
 ```
 
-The CjsModel class is a [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
-
 In this vignette, I describe how Cormack-Jolly-Seber (CJS) spatial capture-recapture (SCR) models can be used within an <code>R6</code> object of the <code>CjsModel</code> class. I recommend you read
 the vignettes on the ScrData and ScrModel classes before reading this one. 
 
-```{r load_pkg}
+```{r load_pkg, eval = TRUE}
 library(openpopscr)
 library(secr)
 ```
-```{r secretload, include = FALSE}
+```{r secretload, eval = TRUE, include = FALSE}
 data("cjsmodel_example")
-mod <- cjsmodel_example$mod
-mod_surv <- cjsmodel_example$mod_surv
-stat <- cjsmodel_example$stat
-trans <- cjsmodel_example$trans
-scrdat <- cjsmodel_example$scrdat
-scrtransdat <- cjsmodel_example$scrtransdat
 ```
 ## Simulating data 
 
@@ -51,9 +44,9 @@ To simulate a survey, I require true detection and survival parameters, a detect
 
 ```{r setuptruepar}
 # set true parameters 
-true_par <- list(lambda0 = 2, sigma = 20, phi = 0.7)
+true_par <- list(lambda0 = 0.5, sigma = 20, phi = 0.7)
 
-# set number of individuals to track
+# set abundance 
 N <- 100
 
 # make detectors array 
@@ -63,7 +56,7 @@ detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 
 # set number of occasions to simulate
-n_occasions <- 10 
+n_occasions <- 5
 ```
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
@@ -76,7 +69,7 @@ You will notice the <code>simulate_cjs_openscr</code> function produces useful o
 
 In the simulated survey, `r scrdat$n()` unique individual were detected at least once. More summary information can be found by typing the name of the object into the console: 
 
-```{r look_at_data}
+```{r look_at_data, eval = TRUE}
 scrdat
 ```
 
@@ -108,13 +101,13 @@ start
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj, eval = FALSE}
-mod <- CjsModel$new(form, scrdat, start, num_cores = 4)
+```{r modelobj}
+mod <- CjsModel$new(form, scrdat, start)
 ```
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel, eval = FALSE}
+```{r fitmodel}
 mod$fit()
 ```
 
@@ -126,7 +119,7 @@ output by <code>optim</code> that tells you why it failed to converge.
 
 Once a model has been fit, you can type its name into the console and some
 summary results are printed: 
-```{r printres}
+```{r printres, eval = TRUE}
 mod
 ```
 
@@ -137,25 +130,25 @@ the exponential of these reported numbers to obtain the parameter values on the
 response scale. 
 
 Alternatively, you can use the <code>get_par</code> function: 
-```{r getpar}
-mod$get_par("lambda0", k = 1)
-mod$get_par("sigma", k = 1)
+```{r getpar, eval = TRUE}
+mod$get_par("lambda0", k = 1, j = 1)
+mod$get_par("sigma", k = 1, j = 1)
 mod$get_par("phi", k = 1)
 ```
 
-I specify $k = 1$ in the functions above for $\sigma, \lambda_0$ because by default
-<code>get_par</code> returns the value of these parameters for every occasion. This is
+I specify $k = 1, j = 1$ in the functions above for $\sigma, \lambda_0$ because by default
+<code>get_par</code> returns the value of these parameters for every occasion and detector. This is
 useful when they vary by occasion, but here they are constants, so I only want
 their value on a single occasion, here I chose the first occasion. 
 
 If you want to access the reported results, they are stored as a list which is
 returned by the function <code>estimates</code>:
-```{r getest}
+```{r getest, eval = TRUE}
 mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic}
+```{r getaic, eval = TRUE}
 AIC(mod)
 ```
 
@@ -179,13 +172,13 @@ form_surv <- form
 # update formula for lambda0 to include age 
 form_surv[[3]]<- phi ~ disturb 
 ```
-```{r survmake, eval = FALSE}
+```{r survmake}
 # create new model object 
-mod_surv <- CjsModel$new(form_surv, scrdat, start, num_cores = 4)
+mod_surv <- CjsModel$new(form_surv, scrdat, start)
 # fit model
 mod_surv$fit()
 ```
-```{r survanal}
+```{r survanal, eval = TRUE}
 # look at results
 mod_surv
 # predict phi for each occasion
@@ -198,13 +191,6 @@ loading covariates into the ScrData object and fitting models with covariates.
 
 ## Transience 
 
-Sometimes an individual's activity range within each occasion differs from
-their range when viewed across all occasions. There can be several reasons
-for this; two common reasons are that the individual only explores part of their
-entire range during each occasion, so the range within each occasion is only
-partial; or, it may be that an individual does explore their entire range
-during each occasion, but the range shifts over time. 
-
 For Cjs models, transience can play an important role. When individuals are transient,
 their activity can pass in and out of range of detection; individuals that permanently
 pass out of range of detection are best explained, by the CjsModel, as having died
@@ -213,9 +199,9 @@ apparent survival, not true survival. When transience is accounted for, one can
 more defendably state that they have estimated true survival. 
 
 You can simulate Cjs SCR surveys with transience: 
-```{r cjstrans, eval = FALSE}
+```{r cjstrans}
 # set truth 
-true_par <- list(lambda0 = 2, sigma = 20, phi = 0.7, sd = 20)
+true_par <- list(lambda0 = 1, sigma = 20, phi = 0.7, sd = 10)
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 # make mesh 
@@ -234,31 +220,19 @@ scrtransdat <- simulate_cjs_openscr(true_par,
                                     seed = 95811)
 ```
 
-
-For a given dataset, you can investigate whether transience may be a problem by
-looking how the encounter range statistic (see RPSV function in secr package for
-details) compares over occasions as opposed to within occasions:
-```{r stattrans}
-scrtransdat$encrange()
-mean(scrtransdat$encrange(each = TRUE), na.rm = TRUE)
-```
-
-There is some difference between the two measure of encounter range, where 
-range across occasions is greater than range within, indicative of transience. 
-
-Nevertheless, I will first fit a stationary CJSModel to these data: 
-```{r statscr, eval = FALSE}
+I will first fit a stationary CJSModel to these data: 
+```{r statscr}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1, phi ~ 1)
 start <- get_start_values(scrtransdat, model = "CjsModel")
 ```
-```{r statmake, eval = FALSE}
+```{r statmake}
 # create model object 
-stat <- CjsModel$new(stat_form, scrtransdat, start, num_cores = 4)
+stat <- CjsModel$new(stat_form, scrtransdat, start)
 # fit model 
 stat$fit()
 ```
-```{r statanal}
+```{r statanal, eval = TRUE}
 # look at results 
 stat
 # look at parameters on response scale 
@@ -268,9 +242,7 @@ stat$get_par("phi", k = 1)
 ```
 
 Given we know the truth, the estimates are a little off: $\lambda_0$ is far too 
-low, $\sigma$ is too high. The density parameter $D$ is acceptable, but this 
-may be because $\lambda_0$ and $\sigma$ are both wrong in opposite directions: one
-causes underestimation of density, the other overestimation. 
+low, $\sigma$ is too high, and $\phi$ is a litte low.   
 
 I now fit the transient model. The transient model class is called
 <code>CjsTransientModel</code>. We must also now specify a start value for the
@@ -286,15 +258,15 @@ form <- list(lambda0 ~ 1,
 start <- get_start_values(scrtransdat, model = "CjsTransientModel")
 ```
 ```{r fittedtransmake, eval = FALSE}
-trans <- CjsTransientModel$new(form, scrtransdat, start, num_cores = 4)
+trans <- CjsTransientModel$new(form, scrtransdat, start)
 ```
 
 I now fit the model as usual:
-```{r fittrans, eval = FALSE}
+```{r fittrans}
 # fit model 
 trans$fit()
 ```
-```{r transanal}
+```{r transanal, eval = TRUE}
 # look at results 
 trans
 # look at parameters on response scale 
@@ -308,6 +280,6 @@ The survival probability is marginally higher and the estimate of activity range
 reduced by accounting for transience. 
 
 The two models can be compared by AIC. The transient model is preferred. 
-```{r aic}
+```{r aic, eval = TRUE}
 AIC(stat, trans)
 ```
