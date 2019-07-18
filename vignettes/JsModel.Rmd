@@ -11,6 +11,7 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE, 
   collapse = TRUE,
   fig.width = 7, 
   fig.height = 7, 
@@ -18,36 +19,28 @@ knitr::opts_chunk$set(
 )
 ```
 
-The JsModel class is a [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
-
 In this vignette, I describe how Jolly-Seber (Cjs) spatial capture-recapture (SCR) models can be used within an <code>R6</code> object of the <code>JsModel</code> class. The JS model is formulated
 according to the Schwarz-Arnason parameterisation. I recommend you read
 the vignettes on the ScrData and ScrModel classes before reading this one. 
 
-```{r load_pkg}
+```{r load_pkg, eval = TRUE}
 library(openpopscr)
 library(secr)
 ```
-```{r secretload, include = FALSE}
+```{r secretload, eval = TRUE, include = FALSE}
 data("jsmodel_example")
-mod <- jsmodel_example$mod
-mod_seas <- jsmodel_example$mod_seas
-stat <- jsmodel_example$stat
-trans <- jsmodel_example$trans
-scrdat <- jsmodel_example$scrdat
-scrtransdat <- jsmodel_example$scrtransdat
 ```
 
 ## Simulating data 
 
-The <code>openpopscr</code> package uses the <code>ScrData</code> class to store data. See the vignette on the <code>ScrData</code> class to see how to create the data object from your own raw data. In this section, I simulate a Cjs SCR survey. The simulation function is useful when you want to try out a new method where you know what the correct parameter estimates are, you want to test how robust a method is to violations of its assumptions, or you want to see how data simulated from a model compare with real data.
+The <code>openpopscr</code> package uses the <code>ScrData</code> class to store data. See the vignette on the <code>ScrData</code> class to see how to create the data object from your own raw data. In this section, I simulate a JS SCR survey. The simulation function is useful when you want to try out a new method where you know what the correct parameter estimates are, you want to test how robust a method is to violations of its assumptions, or you want to see how data simulated from a model compare with real data.
 
 To simulate a survey, I require true detection, survival parameters, and recruitment parameters, a detector layout, and a mesh. The specified value of <code>beta</code> is the proportion of the 
 super-population (those ever to have lived) to be a live in the first occasion. 
 
 ```{r setuptruepar}
 # set true parameters 
-true_par <- list(lambda0 = 2, sigma = 20, phi = 0.8, beta = 0.2, D = 1000)
+true_par <- list(lambda0 = 0.2, sigma = 20, phi = 0.8, beta = 0.2, D = 1000)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -61,7 +54,7 @@ n_occasions <- 10
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr, eval = FALSE}
+```{r simulatescr}
 scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, seed = 52381)
 ```
 
@@ -69,7 +62,7 @@ You will notice the <code>simulate_js_scr</code> function produces useful output
 
 In the simulated survey, `r scrdat$n()` unique individual were detected at least once. More summary information can be found by typing the name of the object into the console: 
 
-```{r look_at_data}
+```{r look_at_data, eval = TRUE}
 scrdat
 ```
 
@@ -86,7 +79,7 @@ in complicated models, models with many parameters. The function
 <code>get_start_value</code> can be used to produce a reasonable guess for each
 parameter.
 
-```{r setupscrmod}
+```{r setupscrmod, eval = TRUE}
 
 # set each parameter to a be constant 
 form <- list(lambda0 ~ 1, 
@@ -103,13 +96,13 @@ start
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj, eval = FALSE}
-mod <- JsModel$new(form, scrdat, start, num_cores = 4)
+```{r modelobj}
+mod <- JsModel$new(form, scrdat, start)
 ```
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel, eval = FALSE}
+```{r fitmodel}
 mod$fit()
 ```
 
@@ -121,7 +114,7 @@ output by <code>optim</code> that tells you why it failed to converge.
 
 Once a model has been fit, you can type its name into the console and some
 summary results are printed: 
-```{r printres}
+```{r printres, eval = TRUE}
 mod
 ```
 
@@ -132,36 +125,36 @@ the exponential of these reported numbers to obtain the parameter values on the
 response scale. 
 
 Alternatively, you can use the <code>get_par</code> function: 
-```{r getpar}
-mod$get_par("lambda0", k = 1)
-mod$get_par("sigma", k = 1)
+```{r getpar, eval = TRUE}
+mod$get_par("lambda0", k = 1, j = 1)
+mod$get_par("sigma", k = 1, j = 1)
 mod$get_par("phi", k = 1)
 mod$get_par("beta", k = 1)
 mod$get_par("D")
 ```
 
-I specify $k = 1$ in the functions abovebecause by default
-<code>get_par</code> returns the value of these parameters for every occasion. This is
+I specify $k = 1, j = 1$ in the functions above because by default
+<code>get_par</code> returns the value of these parameters for every occasion/detector. This is
 useful when they vary by occasion, but here they are constants, so I only want
 their value on a single occasion. 
 
 If you want to access the reported results, they are stored as a list which is
 returned by the function <code>estimates</code>:
-```{r getest}
+```{r getest, eval = TRUE}
 mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic}
+```{r getaic, eval = TRUE}
 AIC(mod)
 ```
 
 ## Covariates 
 
 The parameters can change with observed covariate values. Covariates
-can change by detector, by occasion, or both. At present, spatial or individual-level
+can change by detector, by occasion, or by mesh point. At present, individual-level
 covariates are not implemented in <code>openpopscr</code>. By default, the
-covariate $t$ is created to allow for parameters to depend on occasion. 
+covariates $x, y, t$ are created to allow for parameters to depend on occasion or space. 
 
 As an example, one can fit a model where recruitment depends on time: 
 ```{r seasvar}
@@ -169,7 +162,7 @@ As an example, one can fit a model where recruitment depends on time:
 set.seed(385638)
 season <- as.factor(sample(c("wet", "dry"), size = scrdat$n_occasions(), replace = TRUE))
 ```
-```{r survt, eval = FALSE}
+```{r survt}
 # add covariate 
 scrdat$add_covariate("season", season, "k")
 # copy formulae from previous model
@@ -177,11 +170,11 @@ form_seas <- form
 # update formula for lambda0 to include age 
 form_seas[[4]]<- beta ~ season
 # create new model object 
-mod_seas <- JsModel$new(form_seas, scrdat, start, num_cores = 4)
+mod_seas <- JsModel$new(form_seas, scrdat, start)
 # fit model
 mod_seas$fit()
 ```
-```{r survtsee}
+```{r survtsee, eval = TRUE}
 # look at results
 mod_seas
 # predict beta for each season
@@ -189,28 +182,23 @@ cbind(season, mod_seas$get_par("beta"))
 ```
 
 Covariates that change over time, by detector, and by detector-time can be
-included in the same way. See ScrData and ScrModel vignettes for more details on
+included in the same way. You can also include spatial covariates on the density parameter $D$. 
+See ScrData and ScrModel vignettes for more details on
 loading covariates into the ScrData object and fitting models with covariates.
 
 ## Transience 
 
-Sometimes an individual's activity range within each occasion differs from
-their range when viewed across all occasions. There can be several reasons
-for this; two common reasons are that the individual only explores part of their
-entire range during each occasion, so the range within each occasion is only
-partial; or, it may be that an individual does explore their entire range
-during each occasion, but the range shifts over time. 
-
 For JS models, transience can play an important role. When individuals are transient,
 their activity can pass in and out of range of detection; individuals that permanently
 pass out of range of detection are best explained, by the JSModel, as having died
-and so survival probability is underestimated. Furthermore, transience can cause 
-overestimation of detection probability and substantial underestmation of density. 
+and so survival probability is underestimated. For individuals entering the survey
+area, they are best explained by increased recruitment. Furthermore, transience can cause 
+overestimation of detection probability and substantial underestmation of density within occasion. 
 
 You can simulate Js SCR surveys with transience: 
-```{r cjstrans, eval = FALSE}
+```{r jstrans}
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 10, phi = 0.8, beta = 0.2, sd = 20)
+true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.2, sd = 20)
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 # make mesh 
@@ -221,29 +209,17 @@ n_occasions <- 10
 scrtransdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, move = TRUE, seed = 34583)
 ```
 
-
-For a given dataset, you can investigate whether transience may be a problem by
-looking how the encounter range statistic (see RPSV function in secr package for
-details) compares over occasions as opposed to within occasions:
-```{r stattrans}
-scrtransdat$encrange()
-mean(scrtransdat$encrange(each = TRUE))
-```
-
-There is some difference between the two measure of encounter range, where 
-range across occasions is greater than range within, indicative of transience. 
-
-Nevertheless, I will first fit a stationary JSModel to these data: 
-```{r statscr, eval = FALSE}
+I will first fit a stationary JSModel to these data: 
+```{r statscr}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1, phi ~ 1, beta ~ 1)
 start <- get_start_values(scrtransdat, model = "JsModel")
 # create model object 
-stat <- JsModel$new(stat_form, scrtransdat, start, num_cores = 4)
+stat <- JsModel$new(stat_form, scrtransdat, start)
 # fit model 
 stat$fit()
 ```
-```{r statscrsee}
+```{r statscrsee, eval = TRUE}
 # look at results 
 stat
 # look at parameters on response scale 
@@ -258,7 +234,7 @@ I now fit the transient model. The transient model class is called
 <code>JsTransientModel</code>. We must also now specify a start value for the
 movement parameter.
 
-```{r fittransmod, eval = FALSE}
+```{r fittransmod}
 # specify formulas for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1,
@@ -268,16 +244,16 @@ form <- list(lambda0 ~ 1,
 
 start <- get_start_values(scrtransdat, model = "JsTransientModel")
 
-trans <- JsTransientModel$new(form, scrtransdat, start, num_cores = 4)
+trans <- JsTransientModel$new(form, scrtransdat, start)
 
 ```
 
 I now fit the model as usual:
-```{r fittrans, eval = FALSE}
+```{r fittrans}
 # fit model 
 trans$fit()
 ```
-```{r fittransee}
+```{r fittransee, eval = TRUE}
 # look at results 
 trans
 # look at parameters on response scale 
@@ -288,4 +264,10 @@ trans$get_par("phi", k = 1)
 trans$get_par("beta", k = 1)
 trans$get_par("D")
 ```
+
+The transient model is preferred by AIC: 
+```{r transaic, eval = TRUE}
+AIC(stat, trans)
+```
+
 

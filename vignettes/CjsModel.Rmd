@@ -155,7 +155,7 @@ AIC(mod)
 ## Covariates 
 
 The detection parameters can change with observed covariate values. Covariates
-can change by detector, by occasion, or both. At present, spatial or individual-level
+can change by detector or by occasion. At present, individual-level
 covariates are not implemented in <code>openpopscr</code>. By default, the
 covariate $t$ is created to allow for parameters to depend on occasion. 
 
