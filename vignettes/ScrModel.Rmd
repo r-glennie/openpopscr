@@ -11,18 +11,23 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE, 
   collapse = TRUE,
   fig.width = 7, 
   fig.height = 7, 
   comment = "#>"
 )
+
 ```
 
 In this vignette, I describe how spatial capture-recapture models can be used within an <code>R6</code> object of the <code>ScrModel</code> class. 
 
-```{r load_pkg}
+```{r load_pkg, eval = TRUE}
 library(openpopscr)
 library(secr)
+```
+```{r secretload, include = FALSE, eval = TRUE}
+data("scrmodel_example")
 ```
 
 ## Simulating data 
@@ -31,7 +36,7 @@ The <code>openpopscr</code> package uses the <code>ScrData</code> class to store
 
 To simulate a survey, I require true detection and density parameters, a detector layout, and a mesh.  
 
-```{r setuptruepar, cache = TRUE}
+```{r setuptruepar}
 # set true parameters 
 true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20)
 
@@ -54,7 +59,7 @@ not implement methods for traps that can detect only one individual per occasion
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr, cache = TRUE}
+```{r simulatescr}
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 15483)
 ```
 
@@ -62,7 +67,7 @@ You will notice the <code>simulate_scr</code> function produces useful output to
 
 In the simulated survey, `r scrdat$n()` unique individual were detected at least once. More summary information can be found by typing the name of the object into the console: 
 
-```{r look_at_data}
+```{r look_at_data, eval = TRUE}
 scrdat
 ```
 
@@ -83,7 +88,8 @@ form <- list(lambda0 ~ 1,
 
 # get some starting values based on data 
 start <- get_start_values(scrdat)
-
+```
+```{r checkstart, eval = TRUE}
 # check starting values are reasonable, they seem ok 
 start 
 ```
@@ -93,13 +99,13 @@ over space.
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj, cache = TRUE}
+```{r modelobj}
 mod <- ScrModel$new(form, scrdat, start)
 ```
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel, results = "hide", cache = TRUE}
+```{r fitmodel}
 mod$fit()
 ```
 
@@ -108,7 +114,7 @@ whether convergence has been reached and if it has not it reports the code
 output by <code>optim</code> that tells you why it failed to converge. 
 
 The current value of the parameters is stored inside the model object: 
-```{r par}
+```{r par, eval = TRUE}
 mod$par()
 ```
 
@@ -127,7 +133,7 @@ continue where it left off.
 
 Once a model has been fit, you can type its name into the console and some
 summary results are printed: 
-```{r printres}
+```{r printres, eval = TRUE}
 mod
 ```
 
@@ -138,7 +144,7 @@ the exponential of these reported numbers to obtain the parameter values on the
 response scale. 
 
 Alternatively, you can use the <code>get_par</code> function: 
-```{r getpar}
+```{r getpar, eval = TRUE}
 mod$get_par("lambda0", k = 1, j = 1)
 mod$get_par("sigma", k = 1, j = 1)
 mod$get_par("D")
@@ -151,12 +157,12 @@ their value on a single occasion for a single detector.
 
 If you want to access the reported results, they are stored as a list which is
 returned by the function <code>estimates</code>:
-```{r getest}
+```{r getest, eval = TRUE}
 mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic}
+```{r getaic, eval = TRUE}
 AIC(mod)
 ```
 
@@ -192,13 +198,13 @@ form_detage <- form
 # update formula for lambda0 to include age 
 form_detage[[1]]<- lambda0 ~ age
 ```
-```{r fitmoddetage, results = "hide", cache = TRUE}
+```{r fitmoddetage}
 # create new model object 
 mod_detage <- ScrModel$new(form_detage, scrdat, start)
 # fit model
 mod_detage$fit()
 ```
-```{r analysemodetage}
+```{r analysemodetage, eval = TRUE}
 # look at results
 mod_detage
 # get lambda0 for an old detector 
@@ -249,17 +255,17 @@ form2 <- list(lambda0 ~ 1,
 mod_D2 <- ScrModel$new(form2, scrdat_D, start)
 mod_D2$fit()
 ```
-```{r spacemod2}
+```{r spacemod2, eval = TRUE}
 mod_D
 ```
 
 Models can be compared by AIC: 
-```{r spaceaic}
+```{r spaceaic, eval = TRUE}
 AIC(mod_D, mod_D2)
 ```
 
 We can plot the estimated density surface: 
-```{r plotD}
+```{r plotD, eval = TRUE}
 # get density surface at each mesh point 
 D <- mod_D2$get_par("D", m = 1:scrdat$n_meshpts()) * scrdat_D$cell_area()
 scrdat$plot_mesh(D)
@@ -276,7 +282,7 @@ during each occasion, but the range shifts over time.
 
 You can investigate this by looking at how the encounter range compares over occasions as opposed to within
 occasions: 
-```{r rspv}
+```{r rspv, eval = TRUE}
 # get encounter range statistic for occasion 1
 scrdat$encrange(k = 1)
 # get encounter range for each occasion
@@ -292,7 +298,7 @@ In this case, the mean range within each occasion is `r round(mean(scrdat$encran
 I will now simulate some data where activity centres move. In particular, the 
 activity centre of each individual will move by Brownian motion with standard
 deviation $sd$. 
-```{r simmove, cache = TRUE}
+```{r simmove}
 # set truth 
 true_par <- list(D = 1000, lambda0 = 2, sigma = 10, sd = 20)
 
@@ -314,7 +320,7 @@ function and the specified true value of sd as  `r true_par$sd`.
 
 I now imagine these data were collected in a survey and I want to investigate whether
 transience may be an issue using the encounter range statistic: 
-```{r stattrans}
+```{r stattrans, eval = TRUE}
 scrtransdat$encrange()
 mean(scrtransdat$encrange(each = TRUE))
 ```
@@ -323,7 +329,7 @@ There is a difference between the two measures of encounter range, where
 range across occasions is greater than range within, indicative of transience. 
 
 Nevertheless, I will first fit a stationary SCR model to these data: 
-```{r statscr, cache = TRUE}
+```{r statscr}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1)
 start <- get_start_values(scrtransdat)
@@ -334,7 +340,7 @@ stat <- ScrModel$new(stat_form, scrtransdat, start)
 # fit model 
 stat$fit()
 ```
-```{r analysestat}
+```{r analysestat, eval = TRUE}
 # look at results 
 stat
 # look at parameters on response scale 
@@ -352,7 +358,7 @@ density underestimation and $\sigma$ to density overestimation.
 I now fit the transient model. The transient model class is called <code>ScrTransientModel</code>. We must also now specify a start value 
 for the movement parameter. 
 
-```{r fittransmod, cache = TRUE}
+```{r fittransmod}
 # specify formulas for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1, 
@@ -360,7 +366,7 @@ form <- list(lambda0 ~ 1,
 
 start <- get_start_values(scrtransdat, model = "ScrTransientModel")
 ```
-```{r transmodmake, cache = TRUE}
+```{r transmodmake}
 trans <- ScrTransientModel$new(form, scrtransdat, start)
 ```
 
@@ -380,11 +386,11 @@ mesh, so you may be required to reduce the resolution of the user supplied
 mesh in order to make computations with the rectangular mesh feasible. 
 
 I now fit the model as usual:
-```{r fittrans, results = "hide", cache = TRUE}
+```{r fittrans}
 # fit model 
 trans$fit()
 ```
-```{r analysetrans}
+```{r analysetrans, eval = TRUE}
 # look at results 
 trans
 # look at parameters on response scale 
@@ -400,6 +406,6 @@ been overestimated in the stationary model compared to the transient. Fitting
 the transience model has provided improved inference on activity. 
 
 AIC supports the use of the transience model: 
-```{r aic}
+```{r aic, eval = TRUE}
 AIC(stat, trans)
 ```
