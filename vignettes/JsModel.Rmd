@@ -21,7 +21,7 @@ knitr::opts_chunk$set(
 
 In this vignette, I describe how Jolly-Seber (Cjs) spatial capture-recapture (SCR) models can be used within an <code>R6</code> object of the <code>JsModel</code> class. The JS model is formulated
 according to the Schwarz-Arnason parameterisation. I recommend you read
-the vignettes on the ScrData and ScrModel classes before reading this one. 
+the vignettes on the ScrData and ScrModel classes before reading this one. The folder inst/examples/ in the [repository](https://github.com/r-glennie/openpopscr) contains example code.
 
 ```{r load_pkg, eval = TRUE}
 library(openpopscr)

@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 ```
 
-In this vignette, I describe how spatial capture-recapture models can be used within an <code>R6</code> object of the <code>ScrModel</code> class. 
+In this vignette, I describe how spatial capture-recapture models can be used within an <code>R6</code> object of the <code>ScrModel</code> class. The folder inst/examples/ in the [repository](https://github.com/r-glennie/openpopscr) contains example code.  
 
 ```{r load_pkg, eval = TRUE}
 library(openpopscr)

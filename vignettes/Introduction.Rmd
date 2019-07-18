@@ -71,5 +71,5 @@ There is a vignette for the data class and for each of the model classes. To see
 
 To learn how to use the package, I recommend reading the ScrData and ScrModel vignettes first. The other vignettes are very similar to these vignettes, making it easier to use the other classes once the basics are familiar.
 
-The folder inst/examples/ in the [repository](https://github.com/r-glennie/openpopscr) contains code showing how to fit each type of model to simulated data.
+The folder inst/examples/ in the [repository](https://github.com/r-glennie/openpopscr) contains code showing how to fit each type of model. 
 
