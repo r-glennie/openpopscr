@@ -1,12 +1,13 @@
 # SCR example 
 library(openpopscr)
 library(secr)
+RcppParallel::setThreadOptions(numThreads = 3)
 
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 20, sd = 10)
+true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, sd = 10)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -24,8 +25,7 @@ scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, move = TRUE, seed
 
 stat <- ScrModel$new(list(lambda0 ~ 1, sigma ~ 1), 
                      scrdat, 
-                     list(lambda0 = 2, sigma = 20, D = 1000), 
-                     num_cores = 4)
+                     list(lambda0 = 0.5, sigma = 20, D = 1000))
 
 stat$fit()
 
@@ -44,7 +44,7 @@ start <- list(lambda0 = 2,
               sd = 10, 
               D = 1000)
 
-obj <- ScrTransientModel$new(form, scrdat, start, num_cores = 4)
+obj <- ScrTransientModel$new(form, scrdat, start)
 
 # compute initial likelihood 
 obj$calc_llk()

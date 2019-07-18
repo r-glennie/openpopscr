@@ -54,7 +54,7 @@ not implement methods for traps that can detect only one individual per occasion
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr, eval = FALSE, cache = TRUE}
+```{r simulatescr, cache = TRUE}
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 15483)
 ```
 
@@ -93,13 +93,13 @@ over space.
 
 Before fitting the model, I create the model object: 
 
-```{r modelobj, eval = FALSE, cache = TRUE}
+```{r modelobj, cache = TRUE}
 mod <- ScrModel$new(form, scrdat, start)
 ```
 
 Once the model object has been created, you can fit the model using the fit
 function:
-```{r fitmodel, echo = FALSE, cache = TRUE}
+```{r fitmodel, results = "hide", cache = TRUE}
 mod$fit()
 ```
 
@@ -192,7 +192,7 @@ form_detage <- form
 # update formula for lambda0 to include age 
 form_detage[[1]]<- lambda0 ~ age
 ```
-```{r fitmoddetage, echo = FALSE, cache = TRUE}
+```{r fitmoddetage, results = "hide", cache = TRUE}
 # create new model object 
 mod_detage <- ScrModel$new(form_detage, scrdat, start)
 # fit model
@@ -236,7 +236,7 @@ scrdat_D <- simulate_scr(true_par, n_occasions, detectors, mesh, ihp = ihp, seed
 Now that the data are simulated, I fit the model. Notice, I now specify a formula for parameter D and use the 
 built-in scaled x and y covariates. I will try two models, a misspeficied one and the true one:  
 
-```{r spacemod, echo = FALSE, cache = TRUE}
+```{r spacemod, results = "hide", cache = TRUE}
 form <- list(lambda0 ~ 1, 
              sigma ~ 1, 
              D ~ x*y)
@@ -326,9 +326,9 @@ Nevertheless, I will first fit a stationary SCR model to these data:
 ```{r statscr, cache = TRUE}
 # set formulae and start values 
 stat_form <- list(lambda0 ~ 1, sigma ~ 1)
-start <- get_start_values(scrdat)
+start <- get_start_values(scrtransdat)
 ```
-```{r statscrmake, cache = TRUE}
+```{r statscrmake, results = "hide", cache = TRUE}
 # create model object 
 stat <- ScrModel$new(stat_form, scrtransdat, start)
 # fit model 
@@ -380,7 +380,7 @@ mesh, so you may be required to reduce the resolution of the user supplied
 mesh in order to make computations with the rectangular mesh feasible. 
 
 I now fit the model as usual:
-```{r fittrans, cache = TRUE}
+```{r fittrans, results = "hide", cache = TRUE}
 # fit model 
 trans$fit()
 ```
