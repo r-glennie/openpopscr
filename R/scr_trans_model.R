@@ -141,7 +141,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) private$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 

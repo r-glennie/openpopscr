@@ -192,15 +192,15 @@ ScrModel <- R6Class("ScrModel",
       newpar <- self$par() 
       newpar$D <- rep(0, length(savepar$D))
       newpar$D[1] <- log(1.0 / self$data()$area())
-      private$set_par(newpar)
+      self$set_par(newpar)
       pdet <- self$calc_Dpdet()  
-      private$set_par(savepar)
+      self$set_par(savepar)
       return(pdet)
     }, 
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) private$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 
@@ -220,7 +220,7 @@ ScrModel <- R6Class("ScrModel",
     },
     
     fit = function(ini_par = NULL, nlm.args = NULL) {
-      if (!is.null(ini_par)) private$set_par(ini_par)
+      if (!is.null(ini_par)) self$set_par(ini_par)
       par <- self$par()
       w_par <- private$convert_par2vec(par)
       t0 <- Sys.time()
@@ -238,7 +238,7 @@ ScrModel <- R6Class("ScrModel",
       names(mle) <- names(w_par)
       mle <- private$convert_vec2par(mle)
       #mle <- lapply(mle, function(x) {y <- x; names(y) <- NULL; return(y)})
-      private$set_par(mle)
+      self$set_par(mle)
       private$mle_ <- mle
       private$llk_ <- -mod$minimum
       if (private$print_) cat("Computing variance.......")
@@ -271,6 +271,10 @@ ScrModel <- R6Class("ScrModel",
     data = function() {return(private$data_)}, 
     detectfn = function() {return(private$detfn_)}, 
     
+    set_par = function(par) {
+      private$par_ <- par
+    },
+    
     estimates = function() {
       ests <- NULL
       if (is.null(private$mle_)) {
@@ -301,10 +305,6 @@ ScrModel <- R6Class("ScrModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
     print_  = NULL, 
-    
-    set_par = function(par) {
-      private$par_ <- par
-    },
     
     make_par = function() {
       samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
