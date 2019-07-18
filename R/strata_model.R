@@ -38,6 +38,8 @@
 #' \itemize{
 #'  \item get_par(...): calls get_par for each model object using arguments ... and
 #'  returns list of results 
+#'  \item get_object(i): return model object for stratum i or if i is NULL, return list of all 
+#'  model objects
 #'  \item calc_llk(): compute joint log-likelihood at current parameter values 
 #'  \item fit: fit the model by obtaining the maximum likelihood estimates 
 #'  \item par(): return current parameter of the model 
@@ -54,7 +56,6 @@ StrataModel <- R6Class("StrataModel",
     initialize = function(data, model, shared_form, private_form, start, print = TRUE, args = NULL) {
       private$data_ <- data
 			private$n_strata_ <- length(data)
-			args <- c(args, print = print)
 			if (print) cat("Creating model objects for each stratum.........\n")
 			private$objs_ <- private$forms_ <- vector(mode = "list", length = private$n_strata_)
 			private$model_ <- model
@@ -64,7 +65,8 @@ StrataModel <- R6Class("StrataModel",
 			 private$forms_[[s]] <- c(shared_form, private_form[[s]]) 
 			 private$objs_[[s]] <- do.call(create_obj$new, c(list(form = private$forms_[[s]], 
 			                                 data = data[[s]], 
-			                                 start = start), 
+			                                 start = start, 
+			                                 print = FALSE), 
 			                            args))
 			}
 			if (print) cat("Creating parameters for each model.......")
@@ -90,10 +92,9 @@ StrataModel <- R6Class("StrataModel",
       if (!is.null(param)) {private$par_ <- param; private$split_par()}
       llk <- 0 
       for (i in 1:private$n_strata_) {
-        ipar <- private$ipar_[[i]]
-        nms <- names(ipar)
-        llk <- llk + private$objs_[[i]]$calc_llk(ipar, nms)
+        llk <- llk + private$objs_[[i]]$calc_llk(private$ipar_[[i]], names(private$ipar_[[i]]))
       }
+      if (private$print_) cat("llk:", llk, "\n")
       return(llk)
     }, 
     
@@ -112,36 +113,34 @@ StrataModel <- R6Class("StrataModel",
     },
     
     mle_llk = function() {
-      res <- sapply(self$get_object(), FUN = AIC)
+      res <- sapply(self$get_object(), FUN = logLik)
       return(sum(res))
     }, 
   
-    fit = function() {
+    fit = function(nlm.args = NULL) {
       par <- self$par()
       if (private$print_) cat("Fitting model..........\n")
       t0 <- Sys.time()
-      mod <- suppressWarnings(optim(par, 
-                                    private$calc_negllk,
-                                    names = names(par),
-                                    hessian = TRUE))
+      if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
+      args <- c(list(private$calc_negllk, par, names = names(par), hessian = TRUE), nlm.args)
+      mod <- do.call(nlm, args)
       t1 <- Sys.time()
       difft <- t1 - t0
       if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
-      mle <- mod$par
+      mle <- mod$estimate
       names(mle) <- names(par)
-      code <- mod$convergence 
-      if (code > 0) warning("model failed to converge with optim code ", code, "\n")
-      if (private$print_ & code == 0) cat("Checking convergence.......converged", code, "\n")
+      code <- mod$code 
+      if (code > 2) warning("model failed to converge with nlm code ", code, "\n")
+      if (private$print_ & code < 3) cat("Checking convergence.......converged\n")
       private$V_ <- solve(mod$hessian)
-      private$llk_ <- -mod$value
+      private$llk_ <- -mod$minimum
       private$mle_ <- mle
       private$par_ <- mle
-      cat("split pars\n")
+      if (private$print_) cat("Computing results.......")
       private$split_par()
-      cat("calc V\n")
       private$split_V()
-      cat("set mle\n")
       private$set_mles()
+      cat("done\n")
     }, 
     
     is_shared = function(w) {
@@ -209,32 +208,14 @@ StrataModel <- R6Class("StrataModel",
 		
 		set_mles = function() {
 		  for (s in 1:private$n_strata_) {
-		    cat("ipar\n")
-		    ipar <- private$convert_vec2par(private$ipar_[[s]])
-		    cat("setmle spec\n")
-		    private$objs_[[s]]$set_mle(ipar, private$iV_[[s]], private$llk_)
+		    llk <- private$objs_[[s]]$calc_llk(private$ipar_[[s]], names(private$ipar_[[s]]))
+		    private$objs_[[s]]$set_mle(private$ipar_[[s]], private$iV_[[s]], llk)
 		  }
 		  return(invisible())
 		}, 
 		
 		convert_par2vec = function(par) {
 		  return(unlist(par))
-		},
-		
-		convert_vec2par = function(vec) {
-		  par <- NULL
-		  names <- names(vec)
-		  par$lambda0 <- vec[grep("lambda0", names)]
-		  names(par$lambda0) <- gsub("lambda0.", "", names(par$lambda0))
-		  par$sigma <- vec[grep("sigma", names)]
-		  names(par$sigma) <- gsub("sigma.", "", names(par$sigma))
-		  par$phi <- vec[grep("phi", names)]
-		  names(par$phi) <- gsub("phi.", "", names(par$phi))
-		  par$beta <- vec[grep("beta", names)]
-		  names(par$beta) <- gsub("beta.", "", names(par$beta))
-		  par$D <- vec[grep("D", names)]
-		  names(par$D) <- gsub("D.", "", names(par$D))
-		  return(par)
 		}
   )                 
 )

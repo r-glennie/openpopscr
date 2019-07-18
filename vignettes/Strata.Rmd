@@ -11,6 +11,7 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE, 
   collapse = TRUE,
   fig.width = 7, 
   fig.height = 7, 
@@ -18,22 +19,18 @@ knitr::opts_chunk$set(
 )
 ```
 
-The StrataModel class is an [<code>R6</code> class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html). <code>R6 classes</code> are used to create objects. Objects can have properties and functions. These objects are convenient because they can be stored and used as a single <code>R</code> object, but contain within them all the information and methods related to them. 
-
 In this vignette, I describe how other types of model classes (ScrModel, CjsModel, JsTransientModel) can be 
-fit to multiple strata using the StataModel class.
+fit to multiple strata using the StrataModel class. This is one way to include individual-level effects that
+are factor variables when these variables are known for all detected individuals (e.g. sex). Each group of individuals is called a stratum. Strata could also be created for different sites or species. The 
+difference between a stratified analysis and analysing these groups separetely is that the stratified 
+model can share some parameters across strata.  
 
-```{r load_pkg}
+```{r load_pkg, eval = TRUE}
 library(openpopscr)
 library(secr)
 ```
-```{r secretload, include = FALSE}
+```{r secretload, eval = TRUE, include = FALSE}
 data("stratamodel_example")
-obj <- stratamodel_example$obj
-scrdat1 <- stratamodel_example$scrdat1
-scrdat2 <- stratamodel_example$scrdat2
-scrdat3 <- stratamodel_example$scrdat3
-scrdat <- stratamodel_example$scrdat
 ```
 ## Simulate data
 
@@ -47,7 +44,7 @@ I create a <code>ScrData</code> object for each stratum seperately and then
 store these in a list. I use the same detector array setup and mesh in each stratum, but
 these could differ. 
 
-```{r simdata, eval = FALSE}
+```{r simdata}
 true_par <- list(s1 = list(D = 1000, lambda0 = 2, sigma = 20), 
                  s2= list(D = 500, lambda0 = 2, sigma = 20), 
                  s3 = list(D = 1000, lambda0 = 2, sigma = 10))
@@ -69,7 +66,7 @@ scrdat3 <- simulate_scr(true_par[[3]], n_occasions, detectors, mesh, seed = 4352
 scrdat <- list(s1 = scrdat1, s2 = scrdat2, s3 = scrdat3)
 ```
 
-```{r seedata}
+```{r seedata, eval = TRUE}
 scrdat1
 scrdat2
 scrdat3
@@ -88,7 +85,7 @@ model you wish to fit to each stratum. Here, I fit the <code>ScrModel</code>.
 You can also specify any other model class available within the <code>openpopscr</code>
 package. 
 
-```{r createobj, eval = FALSE}
+```{r createobj}
 shared_form <- list(lambda0 ~ 1)
 
 private_form <- list(s1 = list(sigma ~ 1),
@@ -101,14 +98,14 @@ start <- list(lambda0 = 2, sigma = 20, D = 1000)
 obj <- StrataModel$new(scrdat, "ScrModel", shared_form, private_form, start)
 ```
 
-```{r fitmodel, eval = FALSE}
+```{r fitmodel}
 obj$fit()
 ```
 
 Once fit, the object's name can be typed into the terminal to return 
 the results for each stratum. 
 
-```{r results}
+```{r results, eval = TRUE}
 obj
 ```
 
@@ -116,19 +113,36 @@ Furthermore, the <code>get_object</code> function can be used to extract
 the model object that corresponds to each stratum. You can then use the
 functions that model object has to extract estimates or other quantities. 
 
-```{r getllk}
-# e.g. get likelihood value at maximum for stratum 1 model 
-obj$get_object(1)$mle_llk()
+```{r getllk, eval = TRUE}
+obj$get_object(1)$estimates()
 ```
 
 You can extract parameters for each stratum using the <code>get_par</code>
 function:
 
-```{r object}
+```{r objectm, eval = TRUE}
 # should be the same for all strata
 obj$get_par("lambda0", k = 1)
 # differ between strata (in simulation strata 1 & 2 have same, 3 differs)
 obj$get_par("sigma", k = 1)
 # density by stratum
 obj$get_par("D")
+```
+
+To compare, let's fit a model where all parameters are shared. This is equivalent to just a single ScrModel. Notice we must create empty lists to specify that no parameters are shared. 
+
+```{r createobj2}
+shared_form2 <- list(lambda0 ~ 1, sigma ~ 1)
+
+private_form2 <- list(s1 = list(), s2 = list(), s3 = list())
+
+obj2 <- StrataModel$new(scrdat, "ScrModel", shared_form2, private_form2, start)
+
+obj2$fit()
+```
+
+The stratified model is preferred: 
+
+```{r compare, eval = TRUE}
+AIC(obj, obj2)
 ```
