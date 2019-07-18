@@ -165,11 +165,14 @@ struct PrCaptureCalculator : public Worker {
 //' @param J total number of occasions 
 //' @param K total number of traps ever used  
 //' @param M total number of mesh points
-//' @param capvec a pointer to the capthist array 
-//' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
+//' @param capthist capthist array 
+//' @param enc0 encounter rate array, see calc_pr_capture() in JsModel
 //' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
-//' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
+//' @param num_states 1 = SCR model, 2 = CJS model, 3 = JS model 
 //' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
+//' @param n_prim number of primary occasions 
+//' @param S number of secondary occasions per primary occasion 
+//' @param entry occasion each individual entered survey 
 //'
 //' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 //' 

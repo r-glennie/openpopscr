@@ -106,6 +106,7 @@ struct LlkCalculator : public Worker {
 //' @param pr_capture output of calc_pr_capture() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
 //' @param num_states 2 = CJS model, 3 = JS model 
+//' @param entry vector of entry occasions per individual 
 //'
 //' @return log-likelihood value 
 //' 
@@ -129,6 +130,7 @@ double C_calc_llk(const int n, const int J, const int M,
 //' @param pr0 initial distribution over life states
 //' @param pr_captures list of empty capture histories, see calc_pdet() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
+//' @param num_states number of life states 
 //'
 //' @return pdet = probability seen at some time on the survey 
 //' 

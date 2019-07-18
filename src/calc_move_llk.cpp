@@ -167,7 +167,7 @@ arma::vec ExpG(const arma::vec& v_in,
         s = std::pow(10, std::floor(std::log10(t_step)) - 1);
         t_step = std::ceil(t_step / s) * s;
         if (ireject == mxrej) {
-          std::cout << "error: requested tolerance too high for Krylov approximation" << std::endl;
+          //std::cout << "error: requested tolerance too high for Krylov approximation" << std::endl;
         }
         ++ireject;
       }
@@ -278,11 +278,16 @@ struct MoveLlkCalculator : public Worker {
 //'
 //' @param n number of individuals 
 //' @param J total number of occasions 
-//' @param M total number of mesh points
 //' @param pr0 initial distribution over life states
 //' @param pr_capture output of calc_pr_capture() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
+//' @param num_cells number of cells in x,y,total 
+//' @param inside 0 if meshpt outside survey region, 1 otherwise 
+//' @param dx mesh spacing 
+//' @param dt time between occasions 
+//' @param sd movement parameter for each occasion 
 //' @param num_states 2 = CJS model, 3 = JS model 
+//' @param entry time each individual entered survey 
 //'
 //' @return log-likelihood value 
 //' 
@@ -311,6 +316,12 @@ double C_calc_move_llk(const int n, const int J,
 //' @param pr0 initial distribution over life states
 //' @param pr_captures list of empty capture histories, see calc_pdet() in JsModel
 //' @param tpms output of calc_tpms() in JsModel
+//' @param num_cells number of cells in x,y,total 
+//' @param inside 0 if meshpt outside survey region, 1 otherwise 
+//' @param dx mesh spacing 
+//' @param dt time between occasions 
+//' @param sd movement parameter for each occasion 
+//' @param num_states 2 = CJS model, 3 = JS model 
 //'
 //' @return pdet = probability seen at some time on the survey 
 //' 
