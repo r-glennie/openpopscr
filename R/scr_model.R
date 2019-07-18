@@ -248,8 +248,8 @@ ScrModel <- R6Class("ScrModel",
     
     set_mle = function(par, V, llk) {
       mle <- private$convert_vec2par(par)
-      self$set_par(par)
-      private$mle_ <- par 
+      self$set_par(mle)
+      private$mle_ <- mle 
       private$llk_ <- llk 
       private$V_ <- V
       if (any(diag(V) <= 0)) {
