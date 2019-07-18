@@ -49,7 +49,8 @@
 #'  \item fit: fit the model by obtaining the maximum likelihood estimates 
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
-#'  \item data(): return ScrData that the model is fit to 
+#'  \item data(): return ScrData that the model is fit to
+#'  \item set_par(): overwrite parameter stored, current value returned by $par() 
 #'  \item estimates(): return estimates in a easy to extract list 
 #'  \item cov_matrix(): return variance-covariance matrix from fitted model (on working scale)
 #'  \item mle_llk(): return log-likelihood value of maximum likelihood estimates 
