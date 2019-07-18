@@ -1,15 +1,14 @@
 ## CJS Robust Design example 
 library(openpopscr)
-library(secr)
-RcppParallel::setThreadOptions(numThreads = 7)
+RcppParallel::setThreadOptions(numThreads = 3)
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(lambda0 = 2, sigma = 30, phi = 0.7)
+true_par <- list(lambda0 = 0.1, sigma = 30, phi = 0.7)
 
 # make detectors array 
-detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "multi")
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 
 # make mesh 
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
@@ -21,40 +20,39 @@ n_occasions <- 10
 primary <- c(rep(1, 3), rep(2, 3), rep(3, 2), rep(4, 2))
 
 # set number of individuals tracked
-N <- 800
+N <- 200
 
 # simulate ScrData 
-scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, primary = primary)
-
+scrdat <- simulate_cjs_openscr(true_par, 
+                               N, 
+                               n_occasions, 
+                               detectors, 
+                               mesh, 
+                               primary = primary, 
+                               seed = 19482)
 
 # fit model ---------------------------------------------------------------
 
+# formulae, where phi depends on primary occasion
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
             phi ~ primary)
 
+# get starting values 
 start <- get_start_values(scrdat, model = "CjsModel")
 
+# create model object 
 oo <- CjsModel$new(par, scrdat, start)
 
-oo$par()
-
+# compute initial log-likelihood
 oo$calc_llk()
 
+# fit model
 oo$fit()
 
+# see results 
 oo
 
-oo$get_par("lambda0", k = 1)
-oo$get_par("sigma", k = 1)
+oo$get_par("lambda0", k = 1, j = 1)
+oo$get_par("sigma", k = 1, j = 1)
 oo$get_par("phi", k = 1)
-
-
-# test openCR 
-
-spltcap <- split(scrdat$capthist(), as.factor(primary), byoccasion = TRUE)
-
-fit.nsp <- openCR.fit(spltcap, type = "CJS")
-
-fit.sp <- openCR.fit(spltcap, type = "CJSsecr", mask = scrdat$mesh(), trace = TRUE)
-fit.sp

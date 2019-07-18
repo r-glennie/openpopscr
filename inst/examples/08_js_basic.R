@@ -1,47 +1,47 @@
-## JS Robust Design example 
+#### Jolly-Seber example 
 library(openpopscr)
-library(secr)
-RcppParallel::setThreadOptions(numThreads = 7)
+RcppParallel::setThreadOptions(numThreads = 3)
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 1, sigma = 40, phi = 0.7, beta = 0.6)
+true_par <- list(D = 1000, lambda0 = 1, sigma = 30, phi = 0.5, beta = 0.3)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "proximity")
 
 # make mesh 
-mesh <- make.mask(detectors, buffer = 200, nx = 64, ny = 64, type = "trapbuffer")
+mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 
-# set number of total occasions to simulate
-n_occasions <- 10
-
-# set primary periods 
-primary <- c(rep(1, 3), rep(2, 3), rep(3, 2), rep(4, 2))
+# set number of occasions to simulate
+n_occasions <- 5
 
 # simulate ScrData 
-scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, primary = primary)
+scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh)
+
 
 
 # fit model ---------------------------------------------------------------
 
+# create formulae 
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
-            phi ~ 1, 
-            beta ~ primary)
+            beta ~ 1, 
+            phi ~ 1)
 
+# get start values 
 start <- get_start_values(scrdat, model = "JsModel")
 
-
+# create model object 
 oo <- JsModel$new(par, scrdat, start)
 
-oo$par()
-
+# compute initial likelihood 
 oo$calc_llk()
 
+# fit model 
 oo$fit()
 
+# see results 
 oo
 
 oo$get_par("lambda0", k = 1)
@@ -49,3 +49,4 @@ oo$get_par("sigma", k = 1)
 oo$get_par("phi", k = 1)
 oo$get_par("beta", k = 1)
 oo$get_par("D")
+

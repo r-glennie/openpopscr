@@ -1,8 +1,6 @@
-# SCR example 
+# SCR transient model example 
 library(openpopscr)
-library(secr)
 RcppParallel::setThreadOptions(numThreads = 3)
-
 
 # simulate data -----------------------------------------------------------
 
@@ -26,12 +24,8 @@ scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, move = TRUE, seed
 stat <- ScrModel$new(list(lambda0 ~ 1, sigma ~ 1), 
                      scrdat, 
                      list(lambda0 = 0.5, sigma = 20, D = 1000))
-
 stat$fit()
-
-stat$get_par("lambda0", k = 1)
-stat$get_par("sigma", k = 1)
-stat$get_par("D")
+stat
 
 # transient fit ----------------------------------------------------------
 
@@ -39,10 +33,12 @@ form <- list(lambda0 ~ 1,
              sigma  ~ 1, 
              sd ~ 1)
 
-start <- list(lambda0 = 2, 
-              sigma = 20,
-              sd = 10, 
-              D = 1000)
+# get automatic start values 
+start <- get_start_values(scrdat, model = "ScrTransientModel")
+# update start values using stationary model fit 
+start$lambda0 <- exp(stat$par()$lambda0[[1]])
+start$sigma <- exp(stat$par()$sigma[[1]])
+start$D <- exp(stat$par()$D[[1]])
 
 obj <- ScrTransientModel$new(form, scrdat, start)
 
@@ -55,11 +51,5 @@ obj$fit()
 # see model results 
 obj
 
-# get parameters on natural scale 
-obj$get_par("lambda0", k = 1)
-obj$get_par("sigma", k = 1)
-obj$get_par("sd", k = 1)
-obj$get_par("D")
-
-
-
+# compare stationary and transience models 
+AIC(stat, obj)

@@ -1,6 +1,6 @@
-## Jolly-Seber example 
+#### Cormack-Jolly-Seber transient example 
 library(openpopscr)
-library(secr)
+RcppParallel::setThreadOptions(numThreads = 3)
 
 # simulate data -----------------------------------------------------------
 
@@ -26,25 +26,25 @@ scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, move =
 
 # fit model ---------------------------------------------------------------
 
+# formulae 
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
             phi ~ 1, 
             sd ~ 1)
 
-start <- list(lambda0 = 2, 
-              sigma = 20, 
-              phi = 0.5, 
-              sd = 2)
+# get starting values 
+start <- get_start_values(scrdat, model = "CjsTransientModel")
 
+# create model object 
+obj <- CjsTransientModel$new(par, scrdat, start)
 
-obj <- CjsTransientModel$new(par, scrdat, start, num_cores = 4)
-
-obj$par()
-
+# compute initial likelihood
 obj$calc_llk()
 
+# fit model 
 obj$fit()
 
+# see results 
 obj
 
 obj$get_par("lambda0", k = 1)

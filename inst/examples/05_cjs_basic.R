@@ -1,50 +1,47 @@
-## Jolly-Seber example 
+#### Cormack-Jolly-Seber example 
 library(openpopscr)
-library(secr)
-RcppParallel::setThreadOptions(numThreads = 7)
+RcppParallel::setThreadOptions(numThreads = 3)
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(lambda0 = 1, sigma = 400, phi = 0.7)
+true_par <- list(lambda0 = 0.2, sigma = 30, phi = 0.7)
 
-# make transects 
-starts <- seq(100, 1000, 200)
-transect_list <- vector(mode = "list", length = 5)
-for (i in 1:5) {
-  transect_list[[i]] <- data.frame(x = starts[i], y = seq(0, 1000, 200))
-}
-detectors <- make.transect(transect_list)
+# make detectors array 
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 
 # make mesh 
-mesh <- make.mask(detectors, buffer = 500, nx = 64, ny = 64, type = "trapbuffer")
+mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 
 # set number of occasions to simulate
-n_occasions <- 10
+n_occasions <- 5
 
 # set number of individuals tracked
-N <- 200
+N <- 250
 
 # simulate ScrData 
 scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, seed = 12952)
 
 # fit model ---------------------------------------------------------------
 
+# set formulae
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
             phi ~ 1)
 
+# get starting values 
 start <- get_start_values(scrdat, model = "CjsModel")
 
-
+# create model object 
 oo <- CjsModel$new(par, scrdat, start)
 
-oo$par()
-
+# compute likelihood at starting values 
 oo$calc_llk()
 
+# fit model 
 oo$fit()
 
+# see results 
 oo
 
 oo$get_par("lambda0", k = 1)
