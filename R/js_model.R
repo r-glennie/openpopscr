@@ -495,7 +495,6 @@ JsModel <- R6Class("JsModel",
       Dkmat <- NULL
       Dk <- private$Dk_
       if (!is.null(Dk)) {
-        varlog <- 1 + log(private$var_$Dkvar / Dk^2)
         Dk_C <- exp(qnorm(lev) * sqrt(private$var_$Dkvar))
         Dk_lcl <- Dk / Dk_C
         Dk_ucl <- Dk * Dk_C
