@@ -169,7 +169,7 @@ disturb <- runif(scrdat$n_occasions() - 1)
 scrdat$add_covariate("disturb", disturb, "k")
 # copy formulae from previous model
 form_surv <- form
-# update formula for lambda0 to include age 
+# update formula for phi to include age 
 form_surv[[3]]<- phi ~ disturb 
 ```
 ```{r survmake}
@@ -188,6 +188,36 @@ cbind(disturb, mod_surv$get_par("phi"))
 Covariates that change over time, by detector, and by detector-time can be
 included in the same way. See ScrData and ScrModel vignettes for more details on
 loading covariates into the ScrData object and fitting models with covariates.
+
+## Time and Robust Design
+
+There are two further arguments you can give when creating a ScrData object: 
+time and primary. 
+
+The time option requires a vector that contains the start time of 
+each occasion. The time unit is the user's choice. For example, if occasions
+occur in Weeks 1, 3, 4 of a particular month, this could be specified in a time
+vector as <code>c(0, 3, 4)</code> (in weeks) or <code>c(0, 14, 21)</code> (in days). 
+```{r timescrdata}
+scrdat <- ScrData$new(capthist, mesh, time = time)
+```
+Once time is specified, the survival estimates will be the estimated probability
+of survival in one time unit, so it will depend on what time unit you used. 
+
+The primary argument relates to robust design surveys. In a robust design, 
+there are both primary and secondary occasions for sampling.
+Secondary occasions take place close together in time and it is assumed the population 
+is closed between them. Population change occurs between primary occasions. 
+The survival parameter between primary occasions is of interest. 
+
+For <code>ScrData</code>, you supply a single capthist object (combined across all primary occasions)
+and then specify in the <code>primary</code> argument which primary each secondary occasion belongs to. 
+For example, suppose a survey has 3 primary occasions with 2, 4, 4 secondary occasions respectively. The
+ capthist object would then have 10 occasions in it and the primary vector would be <code>c(1,1,2,2,2,2,3,3,3,3)</code>
+```{r robustdesign}
+scrdat <- ScrData$new(capthist, mesh, primary = primary)
+```
+An example of a robust design analysis is included inst/examples/cjs_robust_example.R
 
 ## Transience 
 
@@ -249,7 +279,7 @@ I now fit the transient model. The transient model class is called
 movement parameter.
 
 ```{r fittransmod}
-# specify formulas for parameters 
+# specify formulae for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1,
              phi ~ 1,
