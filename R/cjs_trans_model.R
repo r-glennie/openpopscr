@@ -28,7 +28,7 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item print: (defualt TRUE) if TRUE then useful output is printed
+#'   \item print: (default TRUE) if TRUE then useful output is printed
 #' }
 #' 
 #' Methods include those in CjsModel with the following overwritten: 

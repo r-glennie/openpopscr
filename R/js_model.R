@@ -27,7 +27,7 @@
 #'   \item form: a named list of formulae for each parameter (~1 for constant)
 #'   \item scr_data: a ScrData object 
 #'   \item start: a named list of starting values 
-#'   \item print (defualt = TRUE): if TRUE then helpful output is printed to the screen
+#'   \item print (default = TRUE): if TRUE then helpful output is printed to the screen
 #' }
 #' 
 #' Methods include: 

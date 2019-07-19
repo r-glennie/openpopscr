@@ -30,7 +30,7 @@
 #'     shared across strata (~1 for constant)
 #'   \item private_form: a named list of formula for each parameter that is private
 #'   to each stratum, one per stratum
-#'   \item print: (defualt TRUE) if TRUE then useful output is printed
+#'   \item print: (default TRUE) if TRUE then useful output is printed
 #'   \item args : list of other arguments to passed to $new for model object 
 #' }
 #' 
