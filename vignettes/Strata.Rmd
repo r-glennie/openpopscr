@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In this vignette, I describe how other types of model classes (ScrModel, CjsModel, JsTransientModel) can be 
+In this vignette, I describe how other types of model classes (ScrModel, CjsModel, JsTransientModel, etc.) can be 
 fit to multiple strata using the StrataModel class. This is one way to include individual-level effects that
 are factor variables when these variables are known for all detected individuals (e.g. sex). Each group of individuals is called a stratum. Strata could also be created for different sites or species. The 
 difference between a stratified analysis and analysing these groups separetely is that the stratified 
@@ -102,7 +102,7 @@ obj <- StrataModel$new(scrdat, "ScrModel", shared_form, private_form, start)
 obj$fit()
 ```
 
-Once fit, the object's name can be typed into the terminal to return 
+Once fitted, the object's name can be typed into the terminal to return 
 the results for each stratum. 
 
 ```{r results, eval = TRUE}

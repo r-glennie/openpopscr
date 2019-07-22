@@ -48,7 +48,7 @@ str(captures)
 str(traps)
 ```
 
-The <code>read.traps</code> function will take a data frame with x, y coordinates for each detector and create
+The <code>read.traps</code> function takes a data frame with x, y coordinates for each detector and creates
  the traps object. The detector type here is "proximity" because DNA hair traps only record whether the stoat 
  was detected or not by the trap, not how many times it was detected (that would be a "count" type detector). Also, with proximity detectors it is possible for a single individual to be
  detected on more than one trap during a single occasion; if this is not the case,
@@ -69,6 +69,8 @@ This data does not have a custom mesh, so I create one using <code>make.mask</co
 ```{r make_mask}
 mesh <- make.mask(detectors)
 ```
+
+If you do not know how to construct a mesh using the make.mask function, please read the [help file](https://www.otago.ac.nz/density/pdfs/secr-habitatmasks.pdf) from the secr package website. Similarly, a [help file](https://www.otago.ac.nz/density/pdfs/secr-datainput.pdf) on how to input the capture and trap data may also be useful. 
 
 ## A simple ScrData object 
 
@@ -108,7 +110,7 @@ dist <- scrdat$distances()
 head(dist[1,])
 ```
 
-One thing to note is the <code>area</code> function, it returns the area in square kilometres, not hectares, the standard unit of area for the <code>secr</code> package. 
+One thing to note is the <code>area</code> function, it returns the area in square kilometres, not hectares. Hectares is the standard unit of area for the <code>secr</code> package. 
 
 ## Time 
 

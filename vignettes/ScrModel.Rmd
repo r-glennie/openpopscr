@@ -82,7 +82,7 @@ be used to produce a reasonable guess for each parameter.
 
 ```{r setupscrmod}
 
-# set each parameter to a be constant 
+# set each parameter to be a constant 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1)
 
@@ -131,7 +131,7 @@ continue where it left off.
 
 # Reading model output 
 
-Once a model has been fit, you can type its name into the console and some
+Once a model has been fitted, you can type its name into the console and some
 summary results are printed: 
 ```{r printres, eval = TRUE}
 mod
@@ -188,7 +188,7 @@ age <- as.factor(sample(c("new", "old"), size = scrdat$n_traps(), replace = T))
 scrdat$add_covariate("age", age, "j")
 ```
 
-When adding the covariate to the data, I specify the covariate is of type "j" because it is a detector-level covariate. See the vignette on ScrData class for
+When adding the covariate to the data, I specify the covariate is of type "j" because it is a detector-level covariate. See the vignette on the ScrData class for
 further information. 
 
 I can now fit the model with detector age included. 
@@ -371,7 +371,7 @@ trans <- ScrTransientModel$new(form, scrtransdat, start)
 ```
 
 Notice that you must specify <code>model = "ScrTransientModel"</code> in 
-the <code>get_start_values</code> so that a start value for the movement
+the <code>get_start_values</code> function so that a start value for the movement
 parameter is supplied. This function assumes by default that you are fitting
 a ScrModel. 
 
