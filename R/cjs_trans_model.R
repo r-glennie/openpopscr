@@ -47,7 +47,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       private$dx_ <- attr(newmesh, "spacing")
       private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
       cov_list <- data$get_cov_list() 
-      private$data_ <- ScrData$new(data$capthist(), newmesh, data$time(), cov_list$cov, cov_list$cov_type)
+      private$data_ <- ScrData$new(data$capthist(), newmesh, data$time(), cov_list$cov, cov_list$cov_type, data$primary())
       box <- attributes(newmesh)$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
@@ -57,7 +57,10 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       if (print) cat("done\n")
 			index <- 1:data$n()
 			if (print) cat("Computing entry occasions for each individual.......")
-			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) + 1 
+			private$entry_ <- apply(data$capthist(), 1, function(x) {min(index[rowSums(x) > 0])}) - 1
+			if (private$data_$n_primary() > 1) {
+			  private$entry_ <- private$data_$primary()[private$entry_ + 1] - 1 
+			}
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
       private$form_ <- form 
@@ -95,7 +98,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
       pr0[, 1] <- pr0[, 1] * private$inside_ 
-      pr0 <- pr0 / n_mesh
+      pr0 <- pr0 / sum(private$inside_)
       return(pr0)
     },
     
