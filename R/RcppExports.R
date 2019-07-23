@@ -23,6 +23,7 @@ C_calc_D <- function(D, J, pr0, tpms) {
 #' @param pr_capture output of calc_pr_capture() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
 #' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry vector of entry occasions per individual 
 #'
 #' @return log-likelihood value 
 #' 
@@ -36,6 +37,7 @@ C_calc_llk <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
 #' @param pr0 initial distribution over life states
 #' @param pr_captures list of empty capture histories, see calc_pdet() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
+#' @param num_states number of life states 
 #'
 #' @return pdet = probability seen at some time on the survey 
 #' 
@@ -47,11 +49,16 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms, num_states) {
 #'
 #' @param n number of individuals 
 #' @param J total number of occasions 
-#' @param M total number of mesh points
 #' @param pr0 initial distribution over life states
 #' @param pr_capture output of calc_pr_capture() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
+#' @param num_cells number of cells in x,y,total 
+#' @param inside 0 if meshpt outside survey region, 1 otherwise 
+#' @param dx mesh spacing 
+#' @param dt time between occasions 
+#' @param sd movement parameter for each occasion 
 #' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry time each individual entered survey 
 #'
 #' @return log-likelihood value 
 #' 
@@ -65,6 +72,12 @@ C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, 
 #' @param pr0 initial distribution over life states
 #' @param pr_captures list of empty capture histories, see calc_pdet() in JsModel
 #' @param tpms output of calc_tpms() in JsModel
+#' @param num_cells number of cells in x,y,total 
+#' @param inside 0 if meshpt outside survey region, 1 otherwise 
+#' @param dx mesh spacing 
+#' @param dt time between occasions 
+#' @param sd movement parameter for each occasion 
+#' @param num_states 2 = CJS model, 3 = JS model 
 #'
 #' @return pdet = probability seen at some time on the survey 
 #' 
@@ -78,11 +91,14 @@ C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, d
 #' @param J total number of occasions 
 #' @param K total number of traps ever used  
 #' @param M total number of mesh points
-#' @param capvec a pointer to the capthist array 
-#' @param enc_rate a pointer to the encounter rate array, see calc_pr_capture() in JsModel
+#' @param capthist capthist array 
+#' @param enc0 encounter rate array, see calc_pr_capture() in JsModel
 #' @param usage matrix with J x K where (j,k) entry is usage of trap k in occasion j
-#' @param num_states: 1 = SCR model, 2 = CJS model, 3 = JS model 
+#' @param num_states 1 = SCR model, 2 = CJS model, 3 = JS model 
 #' @param detector_type 1 = count, 2 = proximity/binary, 3 = multi-catch, 4 = transect 
+#' @param n_prim number of primary occasions 
+#' @param S number of secondary occasions per primary occasion 
+#' @param entry occasion each individual entered survey 
 #'
 #' @return  Array with (i,j,m) entry the probability of capture record for individual i in occasion j given activity centre at mesh point m  
 #' 
