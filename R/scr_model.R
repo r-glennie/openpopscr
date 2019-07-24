@@ -82,7 +82,6 @@ ScrModel <- R6Class("ScrModel",
         if (all(!find)) stop("Parameters in formulae incorrect.")
         private$form_[[i]]<- form[find][[1]]
       }
-      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
       names(private$form_) <- c(private$detfn_$pars(), "D")
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("exp"))
@@ -103,15 +102,18 @@ ScrModel <- R6Class("ScrModel",
       } else {
         m <- 1 
       }
-      covs <- private$data_$covs(j = j, k = k, m = m)
-      i_par <- which(names(private$form_) == name) 
-      if (length(i_par) == 0) stop("No parameters with that name.")
-      X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
-      theta <- private$par_[[i_par]]
-      l_par <- which(names(private$link2response_) == name)
-      resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
-      if (name == "D" & is.null(m)) return(mean(resp))
-      return(resp)
+      if (is.null(j)) j <- 1:private$data_$n_traps() 
+      if (is.null(k)) k <- 1:private$data_$n_occasions() 
+      if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
+      if (!identical(private$par_, private$last_par_)) private$compute_par() 
+      ipar <- match(name, names(private$computed_par_))
+      if (name != "D") {
+        return(private$computed_par_[[ipar]][k, j])
+      } else if (!is.null(m)) {
+        return(private$computed_par_[[ipar]][m])
+      } else {
+        return(mean(private$computed_par_[[ipar]]))
+      }
     }, 
     
     calc_D_llk = function() {
@@ -133,19 +135,21 @@ ScrModel <- R6Class("ScrModel",
     
     calc_encrate = function(transpose = FALSE) {
       dist <- private$data_$distances()
-      if (transpose) dist <- t(dist)
       n_occasions <- private$data_$n_occasions("all")
-      if(transpose) enc_rate <- array(0, dim = c(nrow(dist), ncol(dist), n_occasions)) 
-      if(!transpose) enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
       n_det_par <- self$detectfn()$npars()
       det_par <- vector(mode = "list", length = n_det_par)
       for (k in 1:n_occasions) {
         for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1))
-        if(transpose) enc_rate[,,k] <- self$detectfn()$h(dist, det_par)
-        if(!transpose) enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
+        enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
       }
       # add epsilon to stop log(0.0)
       enc_rate <- enc_rate + 1e-16
+      if (transpose) {
+        temp <- enc_rate
+        enc_rate <- array(0, dim = c(ncol(dist), nrow(dist), n_occasions)) 
+        for (k in 1:n_occasions) enc_rate[,,k] <- t(temp[k,,])
+      }
      return(enc_rate) 
     }, 
     
@@ -252,14 +256,10 @@ ScrModel <- R6Class("ScrModel",
       private$mle_ <- mle 
       private$llk_ <- llk 
       private$V_ <- V
-      if (any(diag(V) <= 0)) {
-        cat("Variance estimates not reliable, do a bootstrap.")
-        return(0)
-      } else {
-        sd <- sqrt(diag(private$V_))
-        names(sd) <- names(par)
-        private$make_results()
-      }
+      if (any(diag(V) <= 0)) warning("Variance estimates not reliable, do a bootstrap.")
+      sd <- sqrt(diag(private$V_))
+      names(sd) <- names(par)
+      private$make_results()
     },
     
     print = function() {
@@ -303,6 +303,9 @@ ScrModel <- R6Class("ScrModel",
     detfn_ = NULL, 
     form_ = NULL, 
     par_ = NULL, 
+    last_par_ = NULL,
+    computed_par_ = NULL, 
+    X_ = NULL, 
     link2response_ = NULL, 
     response2link_ = NULL, 
     mle_ = NULL,
@@ -311,20 +314,47 @@ ScrModel <- R6Class("ScrModel",
     V_ = NULL, 
     llk_ = NULL, 
     sig_level_ = 0.05, 
-    print_  = NULL, 
+    print_  = NULL,
     
     make_par = function() {
-      samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
+      samp_cov <- private$data_$covs(m = 1)
       n_det_par <- private$detfn_$npars()
       private$par_ <- vector(mode = "list", length = n_det_par + 1)
       n_par <- numeric(n_det_par + 1)
-      for (par in 1:(n_det_par + 1)) {
-        X <- model.matrix(private$form_[[par]], data = samp_cov)
-        n_par[par] <- ncol(X)
+      trapocc <- expand.grid(list(occ = 1:private$data_$n_occasions(), 
+                             trap = 1:private$data_$n_traps()))
+      covs <- private$data_$get_cov_list()$cov_type
+      tempdat <- NULL
+      for (i in 1:length(covs)) {
+        if (covs[i] %in% c("j", "k")) {
+          if (covs[i] == "k") k <- 1 
+          if (covs[i] == "j") k <- 2 
+          tempdat[[names(samp_cov)[i]]] <- samp_cov[[i]][trapocc[,k]]
+        }
+      }
+      tempdat <- as.data.frame(tempdat)
+      tempnms <- names(tempdat)
+      tempdat <- cbind(tempdat, 1)
+      for (par in 1:(n_det_par)) {
+        parname <- as.character(private$form_[[par]][[2]])
+        names(tempdat) <- c(tempnms, parname)
+        private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat)
+        names(private$X_)[[par]] <- parname
+        n_par[par] <- ncol(private$X_[[par]])
         par_vec <- rep(0, n_par[par])
-        names(par_vec) <- colnames(X)
+        names(par_vec) <- colnames(private$X_[[par]])
         private$par_[[par]] <- par_vec
       }
+      samp_cov <- private$data_$covs(j = 1, k = 1)
+      tempdat <- as.data.frame(samp_cov)
+      tempnms <- names(tempdat)
+      tempdat <- cbind(tempdat, 1)
+      names(tempdat) <- c(tempnms, "D")
+      private$X_[[n_det_par + 1]] <- openpopscrgam(private$form_[[n_det_par + 1]], data = tempdat)
+      n_par[n_det_par + 1] <- ncol(private$X_[[n_det_par + 1]])
+      par_vec <- rep(0, n_par[n_det_par + 1])
+      names(par_vec) <- colnames(private$X_[[n_det_par + 1]])
+      private$par_[[n_det_par + 1]] <- par_vec
       names(private$par_) <- names(private$form_)
       return(invisible())
     }, 
@@ -339,6 +369,25 @@ ScrModel <- R6Class("ScrModel",
       names(private$par_) <- c(names, "D")
       private$par_$D[1] <- do.call(private$response2link_$D, 
                                 list(start$D / private$data_$n_meshpts()))
+      private$compute_par()
+      return(invisible())
+    }, 
+    
+    compute_par = function() {
+      private$last_par_ <- private$par_ 
+      n_det_par <- private$detfn_$npars()
+      private$computed_par_ <- vector(mode = "list", length = n_det_par + 1)
+      for (par in 1:(n_det_par)) {
+        private$computed_par_[[par]] <- matrix(do.call(private$link2response_[[par]],
+                                                       list(private$X_[[par]] %*% private$par_[[par]])), 
+                                               nr = private$data_$n_occasions(), 
+                                               nc = private$data_$n_traps())
+      }
+      private$computed_par_[[n_det_par+1]] <- matrix(do.call(private$link2response_[[n_det_par+1]],
+                                                     list(private$X_[[n_det_par+1]] %*% private$par_[[n_det_par+1]])), 
+                                             nr = private$data_$n_meshpts(), 
+                                             nc = 1)
+      names(private$computed_par_) <- names(private$form_)
       return(invisible())
     }, 
     
