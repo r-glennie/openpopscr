@@ -326,10 +326,16 @@ ScrModel <- R6Class("ScrModel",
       covs <- private$data_$get_cov_list()$cov_type
       tempdat <- NULL
       for (i in 1:length(covs)) {
-        if (covs[i] %in% c("j", "k")) {
+        if (covs[i] %in% c("j", "k", "jk")) {
           if (covs[i] == "k") k <- 1 
           if (covs[i] == "j") k <- 2 
-          tempdat[[names(samp_cov)[i]]] <- samp_cov[[i]][trapocc[,k]]
+          if (covs[i] == "jk") k <- 0 
+          if (k > 0) {
+            tempdat[[names(samp_cov)[i]]] <- samp_cov[[i]][trapocc[,k]]
+          } else {
+            tempdat[[names(samp_cov)[i]]] <- as.vector(samp_cov[[i]])
+          }
+          
         }
       }
       tempdat <- as.data.frame(tempdat)

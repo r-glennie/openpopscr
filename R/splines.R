@@ -52,13 +52,11 @@ openpopscrgam <- function (formula,
     if (split$pfok == 0) 
       stop("You've got no model....")
     m <- 0
-  }
-  else m <- length(split$smooth.spec)
+  } else m <- length(split$smooth.spec)
   # compute parametric model frame 
   mf <- model.frame(split$pf, data, drop.unused.levels = FALSE)
   # drop intercept, if needed 
-  if (drop.intercept) 
-    attr(pterms, "intercept") <- 1
+  if (drop.intercept) attr(pterms, "intercept") <- 1
   # get parametric design matrix 
   X <- model.matrix(pterms, mf)
   if (drop.intercept) {
@@ -82,16 +80,14 @@ openpopscrgam <- function (formula,
                          null.space.penalty = select, sparse.cons = sparse.cons, 
                          diagonal.penalty = diagonal.penalty, apply.by = apply.by, 
                          modCon = modCon)
+      # count how many smooth components 
+      for (j in 1:length(sml)) {
+        newm <- newm + 1
+        sm[[newm]] <- sml[[j]]
+      }
     }
-    # count how many smooth components 
-    for (j in 1:length(sml)) {
-      newm <- newm + 1
-      sm[[newm]] <- sml[[j]]
-    }
-  }
-  # add nonparametric to design matrix
-  m <- newm
-  if (m > 0) {
+    # add nonparametric to design matrix
+    m <- newm
     for (i in 1:m) {
       X <- cbind2(X, sm[[i]]$X)
     }

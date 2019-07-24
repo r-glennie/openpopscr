@@ -201,7 +201,7 @@ ScrData <- R6Class("ScrData",
                j = private$cov_[[c]][j0], 
                k = private$cov_[[c]][k0], 
                m = private$cov_[[c]][m0], 
-               jk = private$cov_[[c]][j0, k0], 
+               jk = private$cov_[[c]][k0, j0], 
                private$cov_[[c]])
       })
       names(dat) <- names(private$cov_)
