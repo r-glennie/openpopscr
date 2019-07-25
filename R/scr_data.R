@@ -33,8 +33,6 @@
 #'   \item mesh: mask object from secr package
 #'   \item time: optional vector of numeric time each occasion took place at 
 #'     (used for irregularly spaced occasions). Default is vector 1:n_occasions.
-#'   \item cov: a list of covariates (for detector, occasion, or mesh)
-#'   \item cov_type: type of covariate (j = detector cov, k = occasion cov, jk = detector:occasion, m = mesh covariate)
 #'   \item primary: vector with index for each occasion in capthist that pools occasions into primary occasions 
 #'        
 #' }
@@ -74,9 +72,8 @@ ScrData <- R6Class("ScrData",
     initialize = function(capthist, 
                           mesh, 
                           time = NULL, 
-                          cov = NULL, 
-                          cov_type = NULL, 
                           primary = NULL) {
+      private$check_input(capthist, mesh, time, primary) 
       private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
                                        count = 1, 
                                        proximity = 2, 
@@ -120,13 +117,12 @@ ScrData <- R6Class("ScrData",
       } else {
         private$time_ <- time
       }
-      private$cov_ <- cov 
       private$cov_$t <- as.factor((1:self$n_occasions("all") - 1))
-      private$cov_type_ <- c(cov_type, "k")     
+      private$cov_type_ <- c("k")     
       private$cov_$primary <- as.factor((private$primary_ - 1))
       private$cov_type_ <- c(private$cov_type_, "k")   
-      private$cov_$x <- scale(private$mesh_[,1]) 
-      private$cov_$y <- scale(private$mesh_[,2])
+      private$cov_$x <- scale(private$mesh_[,1])[,1]
+      private$cov_$y <- scale(private$mesh_[,2])[,1]
       private$cov_type_ <- c(private$cov_type_, "m")
       private$cov_type_ <- c(private$cov_type_, "m")
       if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
@@ -201,7 +197,8 @@ ScrData <- R6Class("ScrData",
                j = private$cov_[[c]][j0], 
                k = private$cov_[[c]][k0], 
                m = private$cov_[[c]][m0], 
-               jk = private$cov_[[c]][k0, j0], 
+               kj = private$cov_[[c]][k0, j0],
+               km = private$cov_[[c]][k0, m0], 
                private$cov_[[c]])
       })
       names(dat) <- names(private$cov_)
@@ -272,8 +269,6 @@ ScrData <- R6Class("ScrData",
     area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
     cell_area = function() {return(attributes(private$mesh_)$area * 0.01)}, 
     distances = function(){return(private$distances_)},
-    dist2locs = function(){return(private$dist2locs_)}, 
-    orientation = function(){return(private$orientation_)}, 
     
     calc_distances = function() {
       private$distances_ <- t(apply(self$traps(), 1, private$dist_to_row))
@@ -282,7 +277,15 @@ ScrData <- R6Class("ScrData",
     add_covariate = function(cov_name, cov, cov_type) {
       names <- names(private$cov_)
       ncov <- length(private$cov_)
+      if (!is.character(cov_name)) stop("Covariate name must be a character string.")
       if (cov_name %in% names) stop("Covariate with that name already exists.")
+      if (!(cov_type %in% c("j", "k", "kj", "km", "m"))) stop("Invalid covariate type.")
+      if (!is.factor(cov) & !is.numeric(cov)) stop("Invalid covariate, must be factor or numeric.")
+      if (cov_type == "j") if (!is.vector(cov) || length(cov) != self$n_traps()) stop("Invalid covariate.")
+      if (cov_type == "k") if (!is.vector(cov) || length(cov) != self$n_occasions()) stop("Invalid covariate.")
+      if (cov_type == "kj") if (!is.matrix(cov) || nrow(cov) != self$n_occasions() || ncol(cov) != self$n_traps()) stop("Invalid covariate.")
+      if (cov_type == "km") if (!is.matrix(cov) || nrow(cov) != self$n_occasions() || ncol(cov) != self$n_meshpts()) stop("Invalid covariate.")
+      if (cov_type == "m") if (!is.vector(cov) || length(cov) != self$n_meshpts()) stop("Invalid covariate.")
       private$cov_[[ncov + 1]] <- cov 
       names(private$cov_) <- c(names, cov_name)
       private$cov_type_ <- c(private$cov_type_, cov_type)
@@ -317,14 +320,27 @@ ScrData <- R6Class("ScrData",
         sqrt(sum((r2 - r)^2))
       }
       apply(private$mesh_, 1, dist)
+    }, 
+    
+    check_input = function(capthist, mesh, time, primary) {
+      if (!("capthist" %in% class(capthist))) stop("Invalid capture history object.")
+      if (!("mask" %in% class(mesh))) stop("Invalid mesh object.")
+      if (!is.null(time)) {
+        if (length(time) != dim(capthist)[2]) stop("Length of time vector not equal to number of occasions.")
+        if (!is.numeric(time) | !is.vector(time)) stop("Time is not a numeric vector.")
+        if (max(abs(sort(time) - time)) > 1e-10) stop("Time must be an increasing vector of numbers.")
+      }
+      if (!is.null(primary)) {
+        if (!is.numeric(primary) | !is.vector(primary)) stop("Primary is not a numeric vector.")
+        if (length(primary) != dim(capthist)[2]) stop("Length of primary vector not equal to number of occasions.")
+        if (max(abs(round(primary,0) - primary)) > 1e-10) stop("Primary must be integer labels.")
+        if (max(abs(sort(primary) - primary)) > 1e-10) stop("Primary must be an increasing vector of numbers.")
+        nprim <- max(primary)
+        testprim <- sort(unique(primary))
+        if (length(testprim) != nprim) stop("Primary must contain integers 1:maximum primary.")
+        if (max(abs(testprim - 1:nprim)) > 0.5) stop("Primary must contain integers 1:maximum primary.")
+      }
+      return(0)
     }
   )
 )
-
-
-
-
-
-
-
-
