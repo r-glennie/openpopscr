@@ -46,10 +46,10 @@
 #'  \item plot_mesh(cov, nbreaks = 10, ...): if cov not NULL then plots covariate value over mesh, nbreaks 
 #'        is number of breaks in covariate value plotted, ... is passed to geom_point calls
 #'  \item detector_type(): return detector type index (1 = count, 2 = proximity, 
-#'        3 = multi, 4 = transect, 5 = transectX, 6 = polygon, 7 = polygonX)
+#'        3 = multi/single)
 #'  \item get_cov_list(): return list of covariates
 #'  \item covs(j, k, m): return covariate values at detector j 
-#'        on occasion k at mesh point m, if any of j,k,m are NULL then returns for all values 
+#'        on occasion k at mesh point m, if any of j,k are NULL then returns for all values; if m is NULL returns spatial mean 
 #'  \item n(): return number of individuals seen over the entire survey
 #'  \item n_occasions(): return number of primary occasions in the survey, n_occasions("all") returns #'        total number of secondary occasions, n_occasions(i) returns number of secondary occasions #'        in primary occasion i 
 #'  \item n_traps(): return number of traps used at some time in the survey
@@ -74,6 +74,7 @@ ScrData <- R6Class("ScrData",
                           time = NULL, 
                           primary = NULL) {
       private$check_input(capthist, mesh, time, primary) 
+      ## detectors
       private$detector_type_ <- switch(attr(traps(capthist), "detector")[1], 
                                        count = 1, 
                                        proximity = 2, 
@@ -117,6 +118,7 @@ ScrData <- R6Class("ScrData",
       } else {
         private$time_ <- time
       }
+      ## add built-in covariates
       private$cov_$t <- as.factor((1:self$n_occasions("all") - 1))
       private$cov_type_ <- c("k")     
       private$cov_$primary <- as.factor((private$primary_ - 1))
@@ -126,8 +128,11 @@ ScrData <- R6Class("ScrData",
       private$cov_type_ <- c(private$cov_type_, "m")
       private$cov_type_ <- c(private$cov_type_, "m")
       if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
+      ## compute distance trap-to-mesh
       self$calc_distances()
     },
+    
+    #### OUTPUT FUNCTIONS 
     
     print = function(i = ".") {
        plot(self$mesh())
@@ -174,7 +179,9 @@ ScrData <- R6Class("ScrData",
       plt <- plt + theme_bw()
       return(plt)
     }, 
-       
+
+    #### ACCESSORS 
+      
     capthist = function(i = ".") {
       if (i == ".") return(private$capthist_)
       return(private$capthists_[[i]])
@@ -231,6 +238,12 @@ ScrData <- R6Class("ScrData",
     n_primary = function() {return(private$n_primary_)}, 
     n_secondary = function() {return(as.numeric(table(self$primary())))}, 
     primary = function() {return(private$primary_)},
+    area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
+    cell_area = function() {return(attributes(private$mesh_)$area * 0.01)}, 
+    distances = function(){return(private$distances_)},
+    
+    #### SUMMARY STATISTICS 
+    
     encrate = function(each = FALSE) {
       ndet <- as.numeric(summary(self$capthist())[[4]][6,1:self$n_occasions("all")])
       nind <- as.numeric(summary(self$capthist())[[4]][1,1:self$n_occasions("all")])
@@ -266,10 +279,8 @@ ScrData <- R6Class("ScrData",
     unique = function() {
       return(as.numeric(summary(self$capthist())[[4]][2,1:self$n_occasions("all")]))
     },
-    area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
-    cell_area = function() {return(attributes(private$mesh_)$area * 0.01)}, 
-    distances = function(){return(private$distances_)},
     
+    #### FUNCTIONS 
     calc_distances = function() {
       private$distances_ <- t(apply(self$traps(), 1, private$dist_to_row))
     }, 
@@ -303,18 +314,21 @@ ScrData <- R6Class("ScrData",
   ), 
   
   private = list(
-    capthist_ = NULL, 
-    capthists_ = NULL, 
-    mesh_ = NULL,
-    time_ = NULL,
-    cov_ = NULL, 
-    cov_type_ = NULL, 
-    distances_ = NULL,
-    detector_type_ = NULL, 
-    primary_ = NULL, 
-    n_primary_ = NULL, 
-    n_occasions_ = NULL, 
+    capthist_ = NULL, # capture history object 
+    capthists_ = NULL, # list of capthists split into primary occasions 
+    mesh_ = NULL, # mesh object 
+    time_ = NULL, # vector of occasion start times 
+    cov_ = NULL, # list of covariates 
+    cov_type_ = NULL, # type of each covariate in cov_ list 
+    distances_ = NULL, # matrix of distances from trap to mesh 
+    detector_type_ = NULL, # type of detectors as integer (see initialize)
+    primary_ = NULL, # vector of indices for each occasion indexing what primary it belongs to
+    n_primary_ = NULL, # number of primary occasions
+    n_occasions_ = NULL, # number of occasions
     
+    #### FUNCTIONS
+    
+    # used to compute distances from trap-to-mesh 
     dist_to_row = function(r) {
       dist <- function(r2) {
         sqrt(sum((r2 - r)^2))
@@ -322,6 +336,7 @@ ScrData <- R6Class("ScrData",
       apply(private$mesh_, 1, dist)
     }, 
     
+    # check input into intialize 
     check_input = function(capthist, mesh, time, primary) {
       if (!("capthist" %in% class(capthist))) stop("Invalid capture history object.")
       if (!("mask" %in% class(mesh))) stop("Invalid mesh object.")
