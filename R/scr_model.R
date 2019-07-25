@@ -61,29 +61,16 @@ ScrModel <- R6Class("ScrModel",
   public = list(
     
     initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+      private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
       if (print) cat("Reading formulae.......")
-      private$form_ <- form 
-      par_names <- sapply(form, function(f){f[[2]]})
-      if (!("D" %in% par_names)) {
-        private$form_ <- c(private$form_, list(D ~ 1))
-        par_names <- c(par_names, "D") 
-      }
-      # detection function 
-      if (is.null(detectfn)) {
-        private$detfn_ <- DetFn$new()
-      } else if (class(detectfn)[1] == "character") {
-        private$detfn_ <- DetFn$new(fn = detectfn)
-      } else {
-        private$detfn_ <- detectfn 
-      }
-      for (i in 1:private$detfn_$npars()) {
-        find <- par_names == private$detfn_$par(i)
-        if (all(!find)) stop("Parameters in formulae incorrect.")
-        private$form_[[i]]<- form[find][[1]]
-      }
+      private$read_formula(form, detectfn)
+      # add parameters other than detection 
+      private$par_type_[private$detfn_$npars() + 1] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "D")
+      # make parameter list
       private$make_par() 
+      # set link functions and inverse link functions
       private$link2response_ <- c(private$detfn_$link2response(), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "D")
       private$response2link_ <- c(private$detfn_$response2link(), list("log"))
@@ -96,23 +83,26 @@ ScrModel <- R6Class("ScrModel",
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL) {
-      if (name == "D") {
-        j <- 1 
-        k <- 1 
-      } else {
-        m <- 1 
-      }
+      if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
+      ipar <- match(name, names(private$computed_par_))
+      type <- private$par_type_[ipar]
       if (is.null(j)) j <- 1:private$data_$n_traps() 
       if (is.null(k)) k <- 1:private$data_$n_occasions() 
-      if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
       if (!identical(private$par_, private$last_par_)) private$compute_par() 
-      ipar <- match(name, names(private$computed_par_))
-      if (name != "D") {
+      if (type == "jk") {
+        m <- 1 
         return(private$computed_par_[[ipar]][k, j])
-      } else if (!is.null(m)) {
-        return(private$computed_par_[[ipar]][m])
-      } else {
-        return(mean(private$computed_par_[[ipar]]))
+      } else if (type == "km") {
+        j <- 1
+        return(private$computed_par_[[ipar]][k, m])
+      } else if (type == "m") {
+        j <- 1 
+        k <- 1
+        mnew <- m 
+        if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts() 
+        res <- private$computed_par_[[ipar]][mnew]
+        if (is.null(m)) return(mean(res))
+        return(res)
       }
     }, 
     
@@ -305,6 +295,7 @@ ScrModel <- R6Class("ScrModel",
     par_ = NULL, 
     last_par_ = NULL,
     computed_par_ = NULL, 
+    par_type_ = NULL, 
     X_ = NULL, 
     link2response_ = NULL, 
     response2link_ = NULL, 
@@ -316,51 +307,76 @@ ScrModel <- R6Class("ScrModel",
     sig_level_ = 0.05, 
     print_  = NULL,
     
+    read_formula = function(form, detectfn) {
+      private$form_ <- form 
+      par_names <- sapply(form, function(f){f[[2]]})
+      private$par_type_ <- rep("", length(par_names))
+      # detection function 
+      if (is.null(detectfn)) {
+        private$detfn_ <- DetFn$new()
+      } else if (class(detectfn)[1] == "character") {
+        private$detfn_ <- DetFn$new(fn = detectfn)
+      } else {
+        private$detfn_ <- detectfn 
+      }
+      for (i in 1:private$detfn_$npars()) {
+        find <- par_names == private$detfn_$par(i)
+        if (all(!find)) stop("Parameters in formulae incorrect.")
+        private$form_[[i]]<- form[find][[1]]
+        private$par_type_[i] <- "jk"
+      }
+      return(invisible())
+    }, 
+    
     make_par = function() {
-      samp_cov <- private$data_$covs(m = 1)
-      n_det_par <- private$detfn_$npars()
-      private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par + 1)
+      samp_cov_jk <- private$data_$covs(m = 1)
+      samp_cov_km <- private$data_$covs(j = 1)
+      samp_cov_m <- private$data_$covs(j = 1, k = 1)
+      npar <- length(private$par_type_)
+      private$par_ <- vector(mode = "list", length = npar)
       trapocc <- expand.grid(list(occ = 1:private$data_$n_occasions(), 
                              trap = 1:private$data_$n_traps()))
-      covs <- private$data_$get_cov_list()$cov_type
-      tempdat <- NULL
+      occm <- expand.grid(list(occ = 1:private$data_$n_occasions(), 
+                               mesh = 1:private$data_$n_meshpts()))
+      covslst <- private$data_$get_cov_list()
+      covs <- covslst$cov_type
+      tempdatjk <- tempdatkm <- tempdatm <- NULL
+      covnms <- names(covslst$cov)
       for (i in 1:length(covs)) {
-        if (covs[i] %in% c("j", "k", "jk")) {
-          if (covs[i] == "k") k <- 1 
-          if (covs[i] == "j") k <- 2 
-          if (covs[i] == "jk") k <- 0 
-          if (k > 0) {
-            tempdat[[names(samp_cov)[i]]] <- samp_cov[[i]][trapocc[,k]]
-          } else {
-            tempdat[[names(samp_cov)[i]]] <- as.vector(samp_cov[[i]])
-          }
-          
+        k <- switch(covs[i], "k" = 1, "j" = 2, "m" = 3, 
+                    "kj" = 4, "km" = 5)
+        if (k == 1) {
+          tempdatjk[[covnms[i]]] <- samp_cov_jk[[i]][trapocc[,k]]
+          tempdatkm[[covnms[i]]] <- samp_cov_km[[i]][occm[,k]]
+        } else if (k == 2) {
+          tempdatjk[[covnms[i]]] <- samp_cov_jk[[i]][trapocc[,k]]
+        } else if (k == 3) {
+          tempdatkm[[covnms[i]]] <- samp_cov_km[[i]][occm[,k - 1]]
+          tempdatm[[covnms[i]]] <- as.vector(samp_cov_m[[i]])
+        } else if (k == 4) {
+          tempdatjk[[covnms[i]]] <- as.vector(samp_cov_jk[[i]])
+        } else if (k == 5) {
+          tempdatkm[[covnms[i]]] <- as.vector(samp_cov_km[[i]])
         }
       }
-      tempdat <- as.data.frame(tempdat)
-      tempnms <- names(tempdat)
-      tempdat <- cbind(tempdat, 1)
-      for (par in 1:(n_det_par)) {
+      tempdatjk <- as.data.frame(tempdatjk)
+      tempdatkm <- as.data.frame(tempdatkm)
+      tempdatm <- as.data.frame(tempdatm)
+      tempnms <- list(names(tempdatjk), names(tempdatkm), names(tempdatm))
+      tempdatjk <- cbind(tempdatjk, 1)
+      tempdatkm <- cbind(tempdatkm, 1)
+      tempdatm <- cbind(tempdatm, 1)
+      tempdat <- list(tempdatjk, tempdatkm, tempdatm)
+      for (par in 1:npar) {
+        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3)
         parname <- as.character(private$form_[[par]][[2]])
-        names(tempdat) <- c(tempnms, parname)
-        private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat)
+        names(tempdat[[k]]) <- c(tempnms[[k]], parname)
+        private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat[[k]])
         names(private$X_)[[par]] <- parname
-        n_par[par] <- ncol(private$X_[[par]])
-        par_vec <- rep(0, n_par[par])
+        par_vec <- rep(0, ncol(private$X_[[par]]))
         names(par_vec) <- colnames(private$X_[[par]])
         private$par_[[par]] <- par_vec
       }
-      samp_cov <- private$data_$covs(j = 1, k = 1)
-      tempdat <- as.data.frame(samp_cov)
-      tempnms <- names(tempdat)
-      tempdat <- cbind(tempdat, 1)
-      names(tempdat) <- c(tempnms, "D")
-      private$X_[[n_det_par + 1]] <- openpopscrgam(private$form_[[n_det_par + 1]], data = tempdat)
-      n_par[n_det_par + 1] <- ncol(private$X_[[n_det_par + 1]])
-      par_vec <- rep(0, n_par[n_det_par + 1])
-      names(par_vec) <- colnames(private$X_[[n_det_par + 1]])
-      private$par_[[n_det_par + 1]] <- par_vec
       names(private$par_) <- names(private$form_)
       return(invisible())
     }, 
@@ -375,24 +391,27 @@ ScrModel <- R6Class("ScrModel",
       names(private$par_) <- c(names, "D")
       private$par_$D[1] <- do.call(private$response2link_$D, 
                                 list(start$D / private$data_$n_meshpts()))
+      # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())
     }, 
     
     compute_par = function() {
-      private$last_par_ <- private$par_ 
-      n_det_par <- private$detfn_$npars()
-      private$computed_par_ <- vector(mode = "list", length = n_det_par + 1)
-      for (par in 1:(n_det_par)) {
+      private$last_par_ <- private$par_
+      npar <- length(private$par_type_)
+      private$computed_par_ <- vector(mode = "list", length = npar)
+      for (par in 1:npar) {
+        nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions(),
+                     "km" = private$data_$n_occasions(), 
+                     "m" = private$data_$n_meshpts())
+        nc <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
+                     "km" = private$data_$n_meshpts(), 
+                     "m" = 1)
         private$computed_par_[[par]] <- matrix(do.call(private$link2response_[[par]],
                                                        list(private$X_[[par]] %*% private$par_[[par]])), 
-                                               nr = private$data_$n_occasions(), 
-                                               nc = private$data_$n_traps())
+                                               nr = nr, 
+                                               nc = nc)
       }
-      private$computed_par_[[n_det_par+1]] <- matrix(do.call(private$link2response_[[n_det_par+1]],
-                                                     list(private$X_[[n_det_par+1]] %*% private$par_[[n_det_par+1]])), 
-                                             nr = private$data_$n_meshpts(), 
-                                             nc = 1)
       names(private$computed_par_) <- names(private$form_)
       return(invisible())
     }, 
@@ -445,6 +464,17 @@ ScrModel <- R6Class("ScrModel",
       }
       names(par) <- parnames 
       return(par)
+    }, 
+    
+    check_input = function(form, data, start, detectfn, print) {
+      if (!is.list(form) | any(sapply(form, FUN = class) != "formula")) stop("Invalid list of formulae.")
+      if (!("ScrData" %in% class(data))) stop("Must supply a ScrData object for data.")
+      if (!is.list(start)) stop("start must be a list of starting values for each parameter.")
+      if (!is.null(detectfn)) {
+        if (!("DetectFn" %in% class(detectfn))) stop("detectfn must be a DetectFn object.")
+      } 
+      if (!is.logical(print)) stop("print must be TRUE or FALSE.")
+      return(0)
     }
   )
 )
