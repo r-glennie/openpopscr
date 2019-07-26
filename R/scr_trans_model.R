@@ -51,7 +51,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$dx_ <- attr(newmesh, "spacing")
       private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
       cov_list <- data$get_cov_list() 
-      private$data_ <- data 
+      private$data_ <- data$clone()
       private$data_$replace_mesh(newmesh)
       box <- attributes(newmesh)$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
