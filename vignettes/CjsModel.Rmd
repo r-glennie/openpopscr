@@ -61,7 +61,7 @@ n_occasions <- 5
 
 To simulate the data, I set a random seed so that the results will be the same every time the code is run. This is so that you, the reader, can re-run the code and produce the same output as me. In practice, you may not want to set the seed if you want the output from the simulation to change randomly. 
 
-```{r simulatescr, eval = FALSE}
+```{r simulatescr}
 scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, seed = 19539)
 ```
 
@@ -164,7 +164,7 @@ anthropogenic distriburance (measured by some continuous covariate):
 ```{r survt}
 # simulate a disturbance covariate (% deforestation for example)
 set.seed(385638)
-disturb <- runif(scrdat$n_occasions() - 1) 
+disturb <- runif(scrdat$n_occasions()) 
 # add covariate 
 scrdat$add_covariate("disturb", disturb, "k")
 # copy formulae from previous model
@@ -182,7 +182,7 @@ mod_surv$fit()
 # look at results
 mod_surv
 # predict phi for each occasion
-cbind(disturb, mod_surv$get_par("phi"))
+mod_surv$get_par("phi")
 ```
 
 Covariates that change over time, by detector, and by detector-time can be
@@ -198,7 +198,7 @@ The time option requires a vector that contains the start time of
 each occasion. The time unit is the user's choice. For example, if occasions
 occur in Weeks 1, 3, 4 of a particular month, this could be specified in a time
 vector as <code>c(0, 3, 4)</code> (in weeks) or <code>c(0, 14, 21)</code> (in days). 
-```{r timescrdata}
+```{r timescrdata, eval = FALSE}
 scrdat <- ScrData$new(capthist, mesh, time = time)
 ```
 Once time is specified, the survival estimates will be the estimated probability
@@ -214,7 +214,7 @@ For <code>ScrData</code>, you supply a single capthist object (combined across a
 and then specify in the <code>primary</code> argument which primary each secondary occasion belongs to. 
 For example, suppose a survey has 3 primary occasions with 2, 4, 4 secondary occasions respectively. The
  capthist object would then have 10 occasions in it and the primary vector would be <code>c(1,1,2,2,2,2,3,3,3,3)</code>
-```{r robustdesign}
+```{r robustdesign, eval = FALSE}
 scrdat <- ScrData$new(capthist, mesh, primary = primary)
 ```
 An example of a robust design analysis is included inst/examples/cjs_robust_example.R
@@ -256,7 +256,7 @@ I will first fit a stationary CJSModel to these data:
 stat_form <- list(lambda0 ~ 1, sigma ~ 1, phi ~ 1)
 start <- get_start_values(scrtransdat, model = "CjsModel")
 ```
-```{r statmake}
+```{r statmake, include=FALSE}
 # create model object 
 stat <- CjsModel$new(stat_form, scrtransdat, start)
 # fit model 
@@ -266,8 +266,8 @@ stat$fit()
 # look at results 
 stat
 # look at parameters on response scale 
-stat$get_par("lambda0", k = 1)
-stat$get_par("sigma", k = 1)
+stat$get_par("lambda0", k = 1, j = 1)
+stat$get_par("sigma", k = 1, j = 1)
 stat$get_par("phi", k = 1)
 ```
 
@@ -287,7 +287,7 @@ form <- list(lambda0 ~ 1,
 
 start <- get_start_values(scrtransdat, model = "CjsTransientModel")
 ```
-```{r fittedtransmake, eval = FALSE}
+```{r fittedtransmake}
 trans <- CjsTransientModel$new(form, scrtransdat, start)
 ```
 
@@ -300,8 +300,8 @@ trans$fit()
 # look at results 
 trans
 # look at parameters on response scale 
-trans$get_par("lambda0", k = 1)
-trans$get_par("sigma", k = 1)
+trans$get_par("lambda0", k = 1, j = 1)
+trans$get_par("sigma", k = 1, j = 1)
 trans$get_par("sd", k = 1)
 trans$get_par("phi", k = 1)
 ```
