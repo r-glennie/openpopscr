@@ -1,4 +1,4 @@
-#### Simple script to simulate SCR data 
+#### Simple script to simulate SCR data with covariates
 
 ## Set base parameters 
 D <- 1000
