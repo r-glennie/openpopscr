@@ -162,8 +162,8 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       n_det_par <- private$detfn_$npars()
       names <- private$detfn_$pars()
       for (i in 1:n_det_par) {
-        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
-                                        list(start[[i]]))
+        private$par_[[names[i]]][1] <- do.call(private$response2link_[[names[i]]], 
+                                               list(start[[names[i]]]))
       }
       names(private$par_) <- c(names, "sd", "D")
       private$par_$sd[1] <-do.call(private$response2link_$sd, 
