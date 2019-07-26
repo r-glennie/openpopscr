@@ -87,7 +87,7 @@ ScrModel <- R6Class("ScrModel",
       ipar <- match(name, names(private$computed_par_))
       type <- private$par_type_[ipar]
       if (is.null(j)) j <- 1:private$data_$n_traps() 
-      if (is.null(k)) k <- 1:private$data_$n_occasions() 
+      if (is.null(k)) k <- 1:private$data_$n_occasions("all") 
       if (!identical(private$par_, private$last_par_)) private$compute_par() 
       if (type == "jk") {
         m <- 1 
@@ -339,9 +339,9 @@ ScrModel <- R6Class("ScrModel",
       samp_cov_m <- private$data_$covs(j = 1, k = 1)
       npar <- length(private$par_type_)
       private$par_ <- vector(mode = "list", length = npar)
-      trapocc <- expand.grid(list(occ = 1:private$data_$n_occasions(), 
+      trapocc <- expand.grid(list(occ = 1:private$data_$n_occasions("all"), 
                              trap = 1:private$data_$n_traps()))
-      occm <- expand.grid(list(occ = 1:private$data_$n_occasions(), 
+      occm <- expand.grid(list(occ = 1:private$data_$n_occasions("all"), 
                                mesh = 1:private$data_$n_meshpts()))
       covslst <- private$data_$get_cov_list()
       covs <- covslst$cov_type
@@ -406,8 +406,8 @@ ScrModel <- R6Class("ScrModel",
       npar <- length(private$par_type_)
       private$computed_par_ <- vector(mode = "list", length = npar)
       for (par in 1:npar) {
-        nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions(),
-                     "km" = private$data_$n_occasions(), 
+        nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
+                     "km" = private$data_$n_occasions("all"), 
                      "m" = private$data_$n_meshpts())
         nc <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                      "km" = private$data_$n_meshpts(), 
