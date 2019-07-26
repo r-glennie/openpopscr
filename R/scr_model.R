@@ -94,7 +94,12 @@ ScrModel <- R6Class("ScrModel",
         return(private$computed_par_[[ipar]][k, j])
       } else if (type == "km") {
         j <- 1
-        return(private$computed_par_[[ipar]][k, m])
+        mnew <- m 
+        if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts()
+        res <- private$computed_par_[[ipar]][k, mnew]
+        if (is.null(m) & length(k) > 1) return(rowMeans(res))
+        if (is.null(m) & length(k) == 1) return(mean(res))
+        return(res)
       } else if (type == "m") {
         j <- 1 
         k <- 1
@@ -385,8 +390,8 @@ ScrModel <- R6Class("ScrModel",
       n_det_par <- private$detfn_$npars()
       names <- private$detfn_$pars()
       for (i in 1:n_det_par) {
-        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
-                                        list(start[[i]]))
+        private$par_[[names[i]]][1] <- do.call(private$response2link_[[names[i]]], 
+                                        list(start[[names[i]]]))
       }
       names(private$par_) <- c(names, "D")
       private$par_$D[1] <- do.call(private$response2link_$D, 
