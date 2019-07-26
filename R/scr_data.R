@@ -281,6 +281,12 @@ ScrData <- R6Class("ScrData",
     },
     
     #### FUNCTIONS 
+    replace_mesh = function(newmesh) {
+      if (!("mask" %in% class(newmesh))) stop("Invalid mesh object.")
+      private$mesh_ <- newmesh 
+      self$calc_distances()
+    }, 
+    
     calc_distances = function() {
       private$distances_ <- t(apply(self$traps(), 1, private$dist_to_row))
     }, 

@@ -455,10 +455,10 @@ ScrModel <- R6Class("ScrModel",
       par <- NULL
       n_occasions <- private$data_$n_occasions()
       names <- names(vec)
-      n_det_par <- self$detectfn()$npars()
-      parnames <- c(self$detectfn()$pars(), "D")
-      par <- vector(mode = "list", length = n_det_par)
-      for (i in 1:(n_det_par + 1)) {
+      npar <- length(private$par_)
+      parnames <- names(private$par_)
+      par <- vector(mode = "list", length = npar)
+      for (i in 1:npar) {
         par[[i]] <- vec[grep(parnames[i], names)]
         names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
       }
