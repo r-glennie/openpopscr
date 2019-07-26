@@ -4,9 +4,8 @@ library(openpopscr)
 RcppParallel::setThreadOptions(numThreads = 3)
 
 # simulate data -----------------------------------------------------------
-
 # set truth 
-true_par <- list(D = 1000, lambda0 = 2, sigma = 20)
+true_par <- list(D = 1000, lambda0 = 0.2, sigma = 20)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -24,7 +23,8 @@ scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh)
 
 # create formulae 
 form <- list(lambda0 ~ 1, 
-             sigma  ~ 1)
+             sigma  ~ 1,
+             D ~ 1)
 
 # get starting values for numerical optimiser  
 start <- get_start_values(scrdat)
