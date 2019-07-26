@@ -158,6 +158,9 @@ scrdat$add_covariate("habitat", habitat, "m")
 ```
 
 Temporal and mesh covariates are added in the same way, except the <code>cov_type</code> is "k" or "m". 
+You can also include covariates that vary by detector and time ("kj") or space and time ("km"). For "kj" covariates, 
+you should supply a matrix with a row for each occasion and a column for each detector. For "km" covariates, you supply
+a matrix with a row for each occasion and a column for each mesh point. 
 
 Once covariates have been included, you can extract the covariates for any particular detector or time using the <code>covs</code> function. To list all covariates, just call the function with no arguments: 
 

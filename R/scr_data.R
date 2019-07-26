@@ -62,6 +62,7 @@
 #'  \item unique: return number of unique captures per occasion 
 #'  \item area(): return total area of the mesh 
 #'  \item cell_area(): return area of a single grid cell on mesh
+#'  \item replace_mesh(newmesh): replace stored mesh with newmesh
 #'  \item distances(): return matrix with (i,j)th entry the distance from trap i to mesh point j
 #'  \item add_covariate(covariate_name, covariate_vector/matrix, covariate_type): add covariate to object
 #'  \item remove_covariate(covariate_name): remove covariate from data object
