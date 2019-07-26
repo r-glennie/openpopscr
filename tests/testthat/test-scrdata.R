@@ -29,21 +29,21 @@ test_that("ScrData checks input", {
 ) 
 
 test_that("ScrData recognises detector types", {
-  traps(ch) <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "count")
+  attributes(ch)$traps <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "count")
   expect_equal(ScrData$new(ch, mesh)$detector_type(), 1)
-  traps(ch) <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "proximity")
+  attributes(ch)$traps <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "proximity")
   expect_equal(ScrData$new(ch, mesh)$detector_type(), 2)
-  traps(ch) <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "multi")
+  attributes(ch)$traps <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "multi")
   expect_equal(ScrData$new(ch, mesh)$detector_type(), 3)
-  traps(ch) <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "single")
+  attributes(ch)$traps <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "single")
   suppressWarnings(expect_equal(ScrData$new(ch, mesh)$detector_type(), 3))
   expect_warning(ScrData$new(ch, mesh)$detector_type(), "Single-catch detectors treated as multi-catch detectors.")
 }
 )
           
 test_that("ScrData retains trap usage", {
-  usage(detectors) <- matrix(1:45, nr = 9, nc = 5)
-  traps(ch) <- detectors
+  attributes(detectors)$usage <- matrix(1:45, nr = 9, nc = 5)
+  attributes(ch)$traps <- detectors
   expect_equal(usage(ScrData$new(ch, mesh)$traps()), usage(detectors))
 }
 )         
