@@ -1,7 +1,7 @@
 #### Basic SCR example
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 # set truth 

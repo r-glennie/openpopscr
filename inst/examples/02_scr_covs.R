@@ -1,6 +1,6 @@
 #### SCR with covariates on detection example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 ## simulation functions in openpopscr cannot simulate with covariate effects
@@ -46,8 +46,8 @@ scrdat$add_covariate("temp2", temp2, "k")
 # openpopscr fit ----------------------------------------------------------
 # have encounter rate depend on detector type and temporal covariate 2 
 # have encounter range depend on vegetative cover around detector and temporal covariate 1
-form <- list(lambda0 ~ type + temp2, 
-             sigma  ~ cover + temp)
+form <- list(lambda0 ~ detcov, 
+             sigma  ~ 1)
 
 start <- get_start_values(scrdat)
 
