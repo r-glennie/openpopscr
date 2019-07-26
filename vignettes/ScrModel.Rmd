@@ -84,7 +84,8 @@ be used to produce a reasonable guess for each parameter.
 
 # set each parameter to be a constant 
 form <- list(lambda0 ~ 1, 
-             sigma  ~ 1)
+             sigma  ~ 1, 
+             D ~ 1)
 
 # get some starting values based on data 
 start <- get_start_values(scrdat)
@@ -93,9 +94,6 @@ start <- get_start_values(scrdat)
 # check starting values are reasonable, they seem ok 
 start 
 ```
-
-Notice that you do not specify a formula for <code>D</code>. You only need to specify this formula when density changes
-over space. 
 
 Before fitting the model, I create the model object: 
 
@@ -246,13 +244,13 @@ built-in scaled x and y covariates. I will try two models, a misspeficied one an
 form <- list(lambda0 ~ 1, 
              sigma ~ 1, 
              D ~ x*y)
-start <- get_start_values(scrdat_D)
-mod_D <- ScrModel$new(form, scrdat_D, start)
+start_D <- get_start_values(scrdat_D)
+mod_D <- ScrModel$new(form, scrdat_D, start_D)
 mod_D$fit()
 form2 <- list(lambda0 ~ 1, 
               sigma ~ 1, 
               D ~ I(x^2) + y + x:y)
-mod_D2 <- ScrModel$new(form2, scrdat_D, start)
+mod_D2 <- ScrModel$new(form2, scrdat_D, start_D)
 mod_D2$fit()
 ```
 ```{r spacemod2, eval = TRUE}
@@ -331,12 +329,12 @@ range across occasions is greater than range within, indicative of transience.
 Nevertheless, I will first fit a stationary SCR model to these data: 
 ```{r statscr}
 # set formulae and start values 
-stat_form <- list(lambda0 ~ 1, sigma ~ 1)
-start <- get_start_values(scrtransdat)
+stat_form <- list(lambda0 ~ 1, sigma ~ 1, D ~ 1)
+start_trans <- get_start_values(scrtransdat)
 ```
 ```{r statscrmake, results = "hide", cache = TRUE}
 # create model object 
-stat <- ScrModel$new(stat_form, scrtransdat, start)
+stat <- ScrModel$new(stat_form, scrtransdat, start_trans)
 # fit model 
 stat$fit()
 ```
@@ -344,8 +342,8 @@ stat$fit()
 # look at results 
 stat
 # look at parameters on response scale 
-stat$get_par("lambda0", k = 1)
-stat$get_par("sigma", k = 1)
+stat$get_par("lambda0", k = 1, j = 1)
+stat$get_par("sigma", k = 1, j = 1)
 stat$get_par("D")
 ```
 
@@ -362,12 +360,13 @@ for the movement parameter.
 # specify formulas for parameters 
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1, 
-             sd ~ 1)
+             sd ~ 1, 
+             D ~ 1)
 
-start <- get_start_values(scrtransdat, model = "ScrTransientModel")
+start_trans <- get_start_values(scrtransdat, model = "ScrTransientModel")
 ```
 ```{r transmodmake}
-trans <- ScrTransientModel$new(form, scrtransdat, start)
+trans <- ScrTransientModel$new(form, scrtransdat, start_trans)
 ```
 
 Notice that you must specify <code>model = "ScrTransientModel"</code> in 
@@ -394,8 +393,8 @@ trans$fit()
 # look at results 
 trans
 # look at parameters on response scale 
-trans$get_par("lambda0", k = 1)
-trans$get_par("sigma", k = 1)
+trans$get_par("lambda0", k = 1, j = 1)
+trans$get_par("sigma", k = 1, j = 1)
 trans$get_par("sd", k = 1)
 trans$get_par("D")
 ```
