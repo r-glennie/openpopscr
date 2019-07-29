@@ -37,6 +37,8 @@
 #'  \item set_par(par): can change the parameter the model uses as returned by par()
 #'  \item calc_initial_distribution(): computes initial distribution over life states (alive, dead)
 #'  \item calc_tpms(): returns list of transition probability matrix for each occasion 
+#'  \item calc_initial_pdet(): returns probability of being detected somewhere on first occasion seen
+#'        for each individual 
 #'  \item calc_pr_capture(): returns array where (i,k,m) is probability of capture record 
 #'  on occasion k for individual i given activity centre at mesh point m
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
@@ -50,6 +52,7 @@ CjsModel <- R6Class("CjsModel",
   public = list(
     
     initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+      private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
 			index <- 1:data$n_occasions("all")
 			if (print) cat("Computing entry occasions for each individual.......")
@@ -59,24 +62,11 @@ CjsModel <- R6Class("CjsModel",
 		  }
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
-      private$form_ <- form 
-      par_names <- sapply(form, function(f){f[[2]]})
-      # detection function 
-      if (is.null(detectfn)) {
-        private$detfn_ <- DetFn$new()
-      } else if (class(detectfn)[1] == "character") {
-        private$detfn_ <- DetFn$new(fn = detectfn)
-      } else {
-        private$detfn_ <- detectfn 
-      }
-      for (i in 1:private$detfn_$npars()) {
-        find <- par_names == private$detfn_$par(i)
-        if (all(!find)) stop("Parameters in formulae incorrect.")
-        private$form_[[i]]<- form[find][[1]]
-      }
-      private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "phi"][[1]]
-      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
-      names(private$form_) <- c(private$detfn_$pars(), "phi")
+		  private$read_formula(form, detectfn)
+		  # add parameters other than detection 
+		  private$par_type_[private$detfn_$npars() + 1] <- "km"
+		  names(private$form_) <- c(private$detfn_$pars(), "phi")
+      # make parameter list 
       private$make_par() 
       private$link2response_ <- c(private$detfn_$link2response(), list("plogis"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi")
@@ -89,32 +79,23 @@ CjsModel <- R6Class("CjsModel",
       private$print_ = print
     },
     
-    get_par = function(name, j = NULL, k = NULL, m = 1) {
-     if (name == "phi") j <- 1 
-     if (name == "phi" & is.null(k)) {
-       k <- 1:(private$data_$n_occasions() - 1) 
-       n_primary <- private$data_$n_primary() 
-       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
-     }
-     covs <- private$data_$covs(j = j, k = k, m = m)
-     i_par <- which(names(private$form_) == name) 
-     if (length(i_par) == 0) stop("No parameter with that name.")
-     X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
-     if (name %in% c("phi") & "t" %in% all.vars(private$form_[[i_par]])) {
-       X <- X[,colnames(X) != paste("t1", sep ="")] 
-     }
-     if (name %in% c("phi") & "primary" %in% all.vars(private$form_[[i_par]])) {
-       X <- X[,colnames(X) != paste("primary1", sep ="")] 
-     }
-     theta <- private$par_[[i_par]]
-     l_par <- which(names(private$link2response_) == name)
-     resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
-     return(resp)
-    }, 
-    
     calc_D_llk = function() {warning("No D parameter in CJS model.")}, 
     calc_pdet = function() {warning("No pdet parameter in CJS model.")}, 
   
+    calc_initial_pdet = function() {
+      enc_rate <- self$calc_encrate() 
+      trap_usage <- usage(private$data_$traps())
+      pr_empty <- list()
+      for (j in 1:private$data_$n_occasions()) {
+        pr_empty[[j]] <- 1 - mean(exp(-t(trap_usage[, j]) %*% enc_rate[j,,]))
+      }
+      inipdet <- rep(0, private$data_$n())
+      for (i in 1:private$data_$n()) {
+        inipdet[i] <- pr_empty[[private$entry_[i] + 1]]
+      }
+      return(inipdet)
+    },
+    
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
       pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
@@ -184,7 +165,10 @@ CjsModel <- R6Class("CjsModel",
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 2, private$entry_)
-      cat("llk:", llk, "\n")
+      # compute probability of initial detection
+      inipdet <- self$calc_initial_pdet() 
+      llk <- llk - sum(log(inipdet))
+      if(private$print_) cat("llk:", llk, "\n")
       return(llk)
     },
   
@@ -204,60 +188,18 @@ CjsModel <- R6Class("CjsModel",
   private = list(
 		entry_ = NULL,
     
-    make_par = function() {
-      samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_det_par <- private$detfn_$npars()
-      private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par)
-      for (par in 1:(n_det_par + 1)) {
-        X <- model.matrix(private$form_[[par]], data = samp_cov)
-        n_par[par] <- ncol(X)
-        if (par %in% c(n_det_par + 1) & "t" %in% all.vars(private$form_[[par]])) {
-          n_par[par] <- ncol(X) - 1
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
-        } else if (par %in% c(n_det_par + 1) & "primary" %in% all.vars(private$form_[[par]])) {
-          n_par[par] <- ncol(X) - 1
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
-        }  else {
-          n_par[par] <- ncol(X)
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)
-        }
-        private$par_[[par]] <- par_vec
-      }
-      names(private$par_) <- names(private$form_)
-      return(invisible())
-    }, 
-    
     initialise_par = function(start) {
       n_det_par <- private$detfn_$npars()
       names <- private$detfn_$pars()
       for (i in 1:n_det_par) {
-        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
-                                        list(start[[i]]))
+        private$par_[[names[i]]][1] <- do.call(private$response2link_[[names[i]]], 
+                                        list(start[[names[i]]]))
       }
       private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
+      # compute initial parameters for each jkm
+      private$compute_par()
       return(invisible())
-    }, 
-    
-  convert_vec2par = function(vec) {
-      par <- NULL
-      n_occasions <- private$data_$n_occasions()
-      names <- names(vec)
-      n_det_par <- self$detectfn()$npars()
-      parnames <- self$detectfn()$pars()
-      par <- vector(mode = "list", length = n_det_par)
-      for (i in 1:n_det_par) {
-        par[[i]] <- vec[grep(parnames[i], names)]
-        names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
-      }
-      names(par) <- parnames 
-      par$phi <- vec[grep("phi", names)]
-      names(par$phi) <- gsub("phi.", "", names(par$phi))
-      return(par)
     }
   )                 
 )
