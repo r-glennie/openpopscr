@@ -41,6 +41,7 @@ get_start_values <- function(obj, model = "ScrModel") {
     auto$beta <- sum(range_seen[1,]==1)/ncol(range_seen)
   }
   if (model %in% c("CjsModel", "CjsTransientModel")) auto$D <- NULL
+  if (any(sapply(auto, is.na))) stop("autoini produces NA, set starting values manually.")
   return(auto)
 }
 
