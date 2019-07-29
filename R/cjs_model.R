@@ -82,7 +82,7 @@ CjsModel <- R6Class("CjsModel",
     calc_D_llk = function() {warning("No D parameter in CJS model.")}, 
     calc_pdet = function() {warning("No pdet parameter in CJS model.")}, 
   
-    calc_initial_pdet = function() {
+    calc_initial_pdet0 = function() {
       enc_rate <- self$calc_encrate() 
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
@@ -95,6 +95,14 @@ CjsModel <- R6Class("CjsModel",
       }
       return(inipdet)
     },
+    
+    calc_initial_pdet = function(pr_capture) {
+      inipdet <- rep(0, private$data_$n())
+      for (i in 1:private$data_$n()) {
+        inipdet[i] <- mean(pr_capture[[i]][,1,private$entry_[i] + 1])
+      }
+      return(inipdet)
+    }, 
     
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
@@ -166,7 +174,7 @@ CjsModel <- R6Class("CjsModel",
       n_meshpts <- private$data_$n_meshpts() 
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 2, private$entry_)
       # compute probability of initial detection
-      inipdet <- self$calc_initial_pdet() 
+      inipdet <- self$calc_initial_pdet(pr_capture) 
       llk <- llk - sum(log(inipdet))
       if(private$print_) cat("llk:", llk, "\n")
       return(llk)
