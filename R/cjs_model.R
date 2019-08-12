@@ -82,20 +82,6 @@ CjsModel <- R6Class("CjsModel",
     calc_D_llk = function() {warning("No D parameter in CJS model.")}, 
     calc_pdet = function() {warning("No pdet parameter in CJS model.")}, 
   
-    calc_initial_pdet0 = function() {
-      enc_rate <- self$calc_encrate() 
-      trap_usage <- usage(private$data_$traps())
-      pr_empty <- list()
-      for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- 1 - mean(exp(-t(trap_usage[, j]) %*% enc_rate[j,,]))
-      }
-      inipdet <- rep(0, private$data_$n())
-      for (i in 1:private$data_$n()) {
-        inipdet[i] <- pr_empty[[private$entry_[i] + 1]]
-      }
-      return(inipdet)
-    },
-    
     calc_initial_pdet = function(pr_capture) {
       inipdet <- rep(0, private$data_$n())
       for (i in 1:private$data_$n()) {
