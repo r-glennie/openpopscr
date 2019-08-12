@@ -175,7 +175,7 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = F
     trapn <- traplist
     nocc <- 1 
     nsess <- n_occasions
-    cat("done\n")
+    if (print) cat("done\n")
   } 
   if (print) cat("Simulating capture histories......")
   if (move) {
@@ -325,7 +325,7 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, ihp = NULL, m
     trapn <- traplist
     nocc <- 1 
     nsess <- n_occasions
-    cat("done\n")
+    if (print) cat("done\n")
   } 
   if (print) cat("Simulating capture histories......")
   if (move) {
