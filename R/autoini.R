@@ -21,8 +21,12 @@ get_start_values <- function(obj, model = "ScrModel") {
   pdot <- mean(1 - exp(-auto$lambda0 * encrate * obj$n_occasions()))
   auto$D <- obj$n() / (obj$area() * pdot)
   if (model %in% c("ScrTransientModel", "CjsTransientModel", "JsTransientModel")) {
-    auto$sd <- sqrt(obj$encrange()^2 - mean(obj$encrange(each = TRUE))^2)
-    if (auto$sd < 0) auto$sd <- 1e-10
+    auto$sd <- obj$encrange()^2 - mean(obj$encrange(each = TRUE))^2
+    if (auto$sd < 0) {
+      auto$sd <- 1e-10
+    } else {
+      auto$sd <- sqrt(auto$sd)
+    }
   } 
   if (model %in% c("CjsModel", "CjsTransientModel", "JsModel", "JsTransientModel")) {
     range_seen <- sapply(1:obj$n(), FUN = function(i) {
