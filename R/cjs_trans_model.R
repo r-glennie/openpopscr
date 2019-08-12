@@ -120,7 +120,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                              2, 
                              private$entry_)
       # compute probability of initial detection
-      inipdet <- self$calc_initial_pdet() 
+      inipdet <- self$calc_initial_pdet(pr_capture) 
       llk <- llk - sum(log(inipdet))
       if(private$print_) cat("llk:", llk, "\n")
       return(llk)
