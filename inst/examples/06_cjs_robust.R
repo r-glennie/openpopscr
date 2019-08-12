@@ -1,6 +1,6 @@
 ## CJS Robust Design example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 
@@ -36,7 +36,7 @@ scrdat <- simulate_cjs_openscr(true_par,
 # formulae, where phi depends on primary occasion
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
-            phi ~ primary)
+            phi ~ 1)
 
 # get starting values 
 start <- get_start_values(scrdat, model = "CjsModel")

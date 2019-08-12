@@ -1,6 +1,6 @@
 #### Cormack-Jolly-Seber example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 
@@ -20,7 +20,7 @@ n_occasions <- 5
 N <- 250
 
 # simulate ScrData 
-scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, seed = 12952)
+scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, seed = 19295)
 
 # fit model ---------------------------------------------------------------
 
@@ -44,6 +44,6 @@ oo$fit()
 # see results 
 oo
 
-oo$get_par("lambda0", k = 1)
-oo$get_par("sigma", k = 1)
+oo$get_par("lambda0", k = 1, j = 1)
+oo$get_par("sigma", k = 1, j = 1)
 oo$get_par("phi", k = 1)

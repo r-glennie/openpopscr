@@ -1,6 +1,6 @@
 #### Cormack-Jolly-Seber transient example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 
@@ -20,7 +20,7 @@ n_occasions <- 5
 N <- 100
 
 # simulate ScrData 
-scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, move = TRUE)
+scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, move = TRUE, seed = 58348)
 
 
 
@@ -47,7 +47,7 @@ obj$fit()
 # see results 
 obj
 
-obj$get_par("lambda0", k = 1)
-obj$get_par("sigma", k = 1)
+obj$get_par("lambda0", k = 1, j = 1)
+obj$get_par("sigma", k = 1, j = 1)
 obj$get_par("phi", k = 1)
 obj$get_par("sd", k = 1)
