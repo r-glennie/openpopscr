@@ -64,35 +64,21 @@ JsModel <- R6Class("JsModel",
   public = list(
     
     initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+      private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
       if (print) cat("Reading formulae.......")
-      private$form_ <- form 
-      par_names <- sapply(form, function(f){f[[2]]})
-      if (!("D" %in% par_names)) {
-        private$form_ <- c(private$form_, list(D ~ 1))
-        par_names <- c(par_names, "D") 
-      }
-      # detection function 
-      if (is.null(detectfn)) {
-        private$detfn_ <- DetFn$new()
-      } else if (class(detectfn)[1] == "character") {
-        private$detfn_ <- DetFn$new(fn = detectfn)
-      } else {
-        private$detfn_ <- detectfn 
-      }
-      for (i in 1:private$detfn_$npars()) {
-        find <- par_names == private$detfn_$par(i)
-        if (all(!find)) stop("Parameters in formulae incorrect.")
-        private$form_[[i]]<- form[find][[1]]
-      }
-      private$form_[[private$detfn_$npars() + 1]] <- form[par_names == "phi"][[1]]
-      private$form_[[private$detfn_$npars() + 2]] <- form[par_names == "beta"][[1]]
-      private$form_ <- lapply(private$form_, function(f) {delete.response(terms(f))})
+      order <- c("phi", "beta", "D")
+      private$read_formula(form, detectfn, order)
+      # add parameters other than detection 
+      private$par_type_[private$detfn_$npars() + 1] <- "km"
+      private$par_type_[private$detfn_$npars() + 2] <- "k1m"
+      private$par_type_[private$detfn_$npars() + 3] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
+      # make parameter list 
       private$make_par() 
-      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("exp"), list("exp"))
+      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("mlogit"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi", "beta", "D")
-      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("log"), list("log"))
+      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("invmlogit"), list("log"))
       names(private$response2link_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
@@ -100,53 +86,6 @@ JsModel <- R6Class("JsModel",
       if (print) cat("done\n")
       private$print_ = print 
     },
-    
-    get_par = function(name, j = NULL, k = NULL, m = NULL) {
-      if (name == "phi" | name == "beta") j <- 1 
-      if (name == "D") {
-        j <- 1 
-        k <- 1 
-      } else {
-        m <- 1 
-      }
-      n_primary <- private$data_$n_primary() 
-     if (name == "beta") {
-       j <- 1 
-       k_save <- k
-       k <- 2:(private$data_$n_occasions()) 
-       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
-     } 
-     if (name == "phi" & is.null(k)) {
-       j <- 1 
-       k <- 1:(private$data_$n_occasions() - 1) 
-       n_primary <- private$data_$n_primary() 
-       if (n_primary > 1) k <- match(2:n_primary, private$data_$primary())
-     }
-     covs <- private$data_$covs(j = j, k = k, m = m)
-     i_par <- which(names(private$form_) == name) 
-     if (length(i_par) == 0) stop("No parameter with that name.")
-     X <- model.matrix(private$form_[[i_par]], data = as.data.frame(covs)) 
-     if (name %in% c("phi", "beta") & "t" %in% all.vars(private$form_[[i_par]])) {
-       X <- X[,colnames(X) != paste("t1", sep ="")] 
-     }
-     if (name %in% c("phi", "beta") & "primary" %in% all.vars(private$form_[[i_par]])) {
-       X <- X[,colnames(X) != paste("primary1", sep ="")] 
-     }
-     theta <- private$par_[[i_par]]
-     l_par <- which(names(private$link2response_) == name)
-     resp <- do.call(private$link2response_[[l_par]], list(X %*% theta))
-     if (name == "beta") {
-       resp <- c(1, resp)
-       # if (!("t" %in% all.vars(private$form_[[i_par]]))) {
-       #   dt <- diff(private$data_$time())
-       #   resp[-1] <- resp[-1] * dt / sum(dt)
-       # } 
-       resp <- resp / sum(resp)
-       if(!is.null(k_save)) resp <- resp[k_save]
-     }
-     if (name == "D" & is.null(m)) return(mean(resp))
-     return(resp)
-    }, 
     
     set_par = function(par) {
       private$par_ <- par
@@ -329,7 +268,7 @@ JsModel <- R6Class("JsModel",
     if (is.null(private$mle_)) stop("Fit model using $fit method.")
     sds <- sqrt(diag(private$V_))
     return(private$infer_D(nsims, extract_samples = 2))
-  } 
+  }
   
 ),
                    
@@ -338,46 +277,21 @@ JsModel <- R6Class("JsModel",
     var_ = NULL, 
     confint_ = NULL, 
     
-    make_par = function() {
-      samp_cov <- private$data_$covs(j = 1, k = 1, m = 1)
-      n_det_par <- private$detfn_$npars()
-      private$par_ <- vector(mode = "list", length = n_det_par + 1)
-      n_par <- numeric(n_det_par + 3)
-      for (par in 1:(n_det_par + 3)) {
-        X <- model.matrix(private$form_[[par]], data = samp_cov)
-        n_par[par] <- ncol(X)
-        if (par %in% c(n_det_par+1, n_det_par+2) & "t" %in% all.vars(private$form_[[par]])) {
-          n_par[par] <- ncol(X) - 1
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)[colnames(X) != paste("t", private$data_$n_occasions() - 1, sep ="")]
-        } else if (par %in% c(n_det_par+1, n_det_par+2) & "primary" %in% all.vars(private$form_[[par]])) {
-          n_par[par] <- ncol(X) - 1
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)[colnames(X) != paste("primary", private$data_$n_occasions() - 1, sep ="")]
-        }  else {
-          n_par[par] <- ncol(X)
-          par_vec <- rep(0, n_par[par])
-          names(par_vec) <- colnames(X)
-        }
-        private$par_[[par]] <- par_vec
-      }
-      names(private$par_) <- names(private$form_)
-      return(invisible())
-    }, 
-    
     initialise_par = function(start) {
       n_det_par <- private$detfn_$npars()
       names <- private$detfn_$pars()
       for (i in 1:n_det_par) {
-        private$par_[[i]][1] <- do.call(private$response2link_[[i]], 
-                                        list(start[[i]]))
+        private$par_[[names[i]]][1] <- do.call(private$response2link_[[names[i]]], 
+                                               list(start[[names[i]]]))
       }
       private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                      list(start$phi))
       private$par_$beta[1] <- do.call(private$response2link_$beta,
-                                      list(c(1 / start$beta - 1)/self$data()$n_occasions()))
+                                      list(c(start$beta, rep((1 - start$beta) / (self$data()$n_occasions() - 1), self$data()$n_occasions() - 1))))[1]
       private$par_$D[1] <- do.call(private$response2link_$D, 
                                 list(start$D / private$data_$n_meshpts()))
+      # compute initial parameters for each jkm
+      private$compute_par()
       return(invisible())
     }, 
     
