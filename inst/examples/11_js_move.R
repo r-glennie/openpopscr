@@ -1,6 +1,6 @@
 ## Jolly-Seber example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 
@@ -26,7 +26,8 @@ par <- list(lambda0 ~ 1,
             sigma ~ 1, 
             beta ~ 1, 
             phi ~ 1, 
-            sd ~ 1)
+            sd ~ 1, 
+            D ~ 1)
 
 # get starting values 
 start <- get_start_values(scrdat, model = "JsTransientModel")
@@ -43,8 +44,8 @@ oo$fit()
 # see results 
 oo
 
-oo$get_par("lambda0", k = 1)
-oo$get_par("sigma", k = 1)
+oo$get_par("lambda0", k = 1, j = 1)
+oo$get_par("sigma", k = 1, j = 1)
 oo$get_par("phi", k = 1)
 oo$get_par("beta", k = 1)
 oo$get_par("sd", k = 1)
