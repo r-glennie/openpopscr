@@ -398,27 +398,6 @@ JsModel <- R6Class("JsModel",
        pr0 <- c(1 - a0, a0, 0)
        private$Dk_ <- C_calc_D(self$get_par("D"), self$data()$n_occasions(), pr0, tpms)
        return(invisible())
-    },
-
-    convert_vec2par = function(vec) {
-      par <- NULL
-      n_occasions <- private$data_$n_occasions()
-      names <- names(vec)
-      n_det_par <- self$detectfn()$npars()
-      parnames <- self$detectfn()$pars()
-      par <- vector(mode = "list", length = n_det_par)
-      for (i in 1:n_det_par) {
-        par[[i]] <- vec[grep(parnames[i], names)]
-        names(par[[i]]) <- gsub(paste0(parnames[i],"."), "", names(par[[i]]))
-      }
-      names(par) <- parnames 
-      par$phi <- vec[grep("phi", names)]
-      names(par$phi) <- gsub("phi.", "", names(par$phi))
-      par$beta <- vec[grep("beta", names)]
-      names(par$beta) <- gsub("beta.", "", names(par$beta))
-      par$D <- vec[grep("D", names)]
-      names(par$D) <- gsub("D.", "", names(par$D))
-      return(par)
     }
   )                 
 )
