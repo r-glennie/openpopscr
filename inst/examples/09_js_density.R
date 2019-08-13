@@ -5,7 +5,7 @@ RcppParallel::setThreadOptions(numThreads = 3)
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.3, sd = 10)
+true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.3)
 
 # make detectors array 
 detectors <- secr::make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -23,7 +23,7 @@ ihp <- exp(logD) / true_par$D
 n_occasions <- 10
 
 # simulate ScrData 
-scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, ihp = ihp, move = TRUE)
+scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, ihp = ihp)
 
 # openpopscr fit ----------------------------------------------------------
 
