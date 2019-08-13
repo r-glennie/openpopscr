@@ -61,7 +61,8 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$num_cells_[3] <- nrow(newmesh) / private$num_cells_[2]
       if (print) cat("done\n")
       if (print) cat("Reading formulae.......")
-      private$read_formula(form, detectfn)
+      order <- c("sd", "D")
+      private$read_formula(form, detectfn, order)
       private$par_type_[private$detfn_$npars() + 1] <- "km"
       private$par_type_[private$detfn_$npars() + 2] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "sd", "D")
