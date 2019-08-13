@@ -65,7 +65,8 @@ CjsTransientModel <- R6Class("CjsTransientModel",
 			}
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
-			private$read_formula(form, detectfn)
+			order <- c("phi", "sd")
+			private$read_formula(form, detectfn, order)
 			# add parameters other than detection 
 			private$par_type_[private$detfn_$npars() + 1] <- "km"
 			private$par_type_[private$detfn_$npars() + 2] <- "km"

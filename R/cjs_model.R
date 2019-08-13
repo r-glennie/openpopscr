@@ -62,7 +62,8 @@ CjsModel <- R6Class("CjsModel",
 		  }
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
-		  private$read_formula(form, detectfn)
+		  order <- c("phi")
+		  private$read_formula(form, detectfn, order)
 		  # add parameters other than detection 
 		  private$par_type_[private$detfn_$npars() + 1] <- "km"
 		  names(private$form_) <- c(private$detfn_$pars(), "phi")
