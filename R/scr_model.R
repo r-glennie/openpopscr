@@ -92,7 +92,7 @@ ScrModel <- R6Class("ScrModel",
       if (type == "jk") {
         m <- 1 
         return(private$computed_par_[[ipar]][k, j])
-      } else if (type == "km") {
+      } else if (type == "km" | type == "k1m") {
         j <- 1
         mnew <- m 
         if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts()
@@ -312,7 +312,7 @@ ScrModel <- R6Class("ScrModel",
     sig_level_ = 0.05, 
     print_  = NULL,
     
-    read_formula = function(form, detectfn) {
+    read_formula = function(form, detectfn, order = NULL) {
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       private$par_type_ <- rep("", length(par_names))
@@ -329,6 +329,10 @@ ScrModel <- R6Class("ScrModel",
         if (all(!find)) stop("Parameters in formulae incorrect.")
         private$form_[[i]]<- form[find][[1]]
         private$par_type_[i] <- "jk"
+      }
+      if (!is.null(order)) {
+        ord <- c(private$detfn_$pars(), order)
+        for (i in 1:length(private$form_)) private$form_[[i]] <- form[par_names == ord[i]][[1]]
       }
       return(invisible())
     }, 
@@ -367,13 +371,14 @@ ScrModel <- R6Class("ScrModel",
       tempdatjk <- as.data.frame(tempdatjk)
       tempdatkm <- as.data.frame(tempdatkm)
       tempdatm <- as.data.frame(tempdatm)
-      tempnms <- list(names(tempdatjk), names(tempdatkm), names(tempdatm))
+      tempnms <- list(names(tempdatjk), names(tempdatkm), names(tempdatm), names(tempdatkm))
       tempdatjk <- cbind(tempdatjk, 1)
       tempdatkm <- cbind(tempdatkm, 1)
       tempdatm <- cbind(tempdatm, 1)
-      tempdat <- list(tempdatjk, tempdatkm, tempdatm)
+      tempdatk1m <- tempdatkm[-(1:private$data_$n_meshpts()),]
+      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m)
       for (par in 1:npar) {
-        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3)
+        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4)
         parname <- as.character(private$form_[[par]][[2]])
         names(tempdat[[k]]) <- c(tempnms[[k]], parname)
         private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat[[k]])
@@ -408,14 +413,16 @@ ScrModel <- R6Class("ScrModel",
       for (par in 1:npar) {
         nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
                      "km" = private$data_$n_occasions("all"), 
-                     "m" = private$data_$n_meshpts())
+                     "m" = private$data_$n_meshpts(),
+                      "k1m" = private$data_$n_occasions("all") - 1)
         nc <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                      "km" = private$data_$n_meshpts(), 
-                     "m" = 1)
-        private$computed_par_[[par]] <- matrix(do.call(private$link2response_[[par]],
-                                                       list(private$X_[[par]] %*% private$par_[[par]])), 
-                                               nr = nr, 
-                                               nc = nc)
+                     "m" = 1,
+                     "k1m" = private$data_$n_meshpts())
+        private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
+                                                list(matrix(private$X_[[par]] %*% private$par_[[par]], 
+                                                     nr = nr, 
+                                                     nc = nc)))
       }
       names(private$computed_par_) <- names(private$form_)
       return(invisible())
