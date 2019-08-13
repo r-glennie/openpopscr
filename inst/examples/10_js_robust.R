@@ -29,7 +29,8 @@ scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, primary = 
 par <- list(lambda0 ~ 1, 
             sigma ~ 1, 
             phi ~ 1, 
-            beta ~ primary)
+            beta ~ 1,
+            D ~ 1)
 
 # get start values
 start <- get_start_values(scrdat, model = "JsModel")
