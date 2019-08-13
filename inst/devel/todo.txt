@@ -1,7 +1,0 @@
-### DEVELOPMENT TODO 
-
-- predict functions for parameters/states/activity centres 
-- arbitrary alive states
-- fixing parameters 
-- observed states or state groups 
-
