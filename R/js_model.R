@@ -50,7 +50,6 @@
 #'  \item calc_llk(): compute log-likelihood at current parameter values 
 #'  \item fit(): fit the model by obtaining the maximum likelihood estimates. Estimates of
 #'        density are obtained from parametric boostrap with nsim resamples. 
-#'  \item simulate(): simulate ScrData object from fitted model
 #'  \item par(): return current parameter of the model 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to 
@@ -243,31 +242,6 @@ JsModel <- R6Class("JsModel",
       cat("--------------------------------------------------------------------------------")
     }
     options(scipen = 0)
-  }, 
-  
-  simulate = function(seed = NULL) {
-    if (!is.null(seed)) set.seed(seed)
-    new_dat <- simulate_js_openscr(self$par(), 
-                                   self$data()$n_occasions(), 
-                                   self$data()$traps(), 
-                                   self$data()$mesh(), 
-                                   move = FALSE, 
-                                   time = self$data()$time(), 
-                                   seed = seed, 
-                                   print = private$print_)
-    return(new_dat)
-  }, 
-  
-  sample_D = function(nsims = 99) {
-    if (is.null(private$mle_)) stop("Fit model using $fit method.")
-    sds <- sqrt(diag(private$V_))
-    return(private$infer_D(nsims, extract_samples = 1))
-  }, 
-  
-  sample_R = function(nsims = 99) {
-    if (is.null(private$mle_)) stop("Fit model using $fit method.")
-    sds <- sqrt(diag(private$V_))
-    return(private$infer_D(nsims, extract_samples = 2))
   }
   
 ),
