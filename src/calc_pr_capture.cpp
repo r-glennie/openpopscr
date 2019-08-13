@@ -36,25 +36,28 @@ using namespace RcppParallel;
 struct PrCaptureCalculator : public Worker {
   
   // input 
-  const int J; 
-  const int K; 
-  const int M;
-  const int alive_col; 
-  const arma::cube& capthist;
-  const arma::cube& enc0;
-  const arma::mat& usage;
-  const int num_states;
-  const int detector_type;
-  const int n_prim; 
-  const arma::vec& S; 
-  const arma::vec& entry; 
-  arma::mat total_enc;
+  const int J; // number of occasions 
+  const int K; // number of traps 
+  const int M; // number of mesh points 
+  const int alive_col; // column that contains alive state 
+  const arma::cube& capthist; // capthist history records: individuals x occasion x trap 
+  const arma::cube& enc0; // encounter rate: occasion x mesh point x trap
+  const arma::mat& usage; // usage of traps: trap x occasion 
+  const int num_states; // number of hidden states in life history model 
+  const int detector_type; // type of detector, see initialize in ScrData  
+  const int n_prim; // number of primary occasions 
+  const arma::vec& S; // number of secondary occasion per primary 
+  const arma::vec& entry; // occasion each individual enters survey 
+  
+  // derived variables 
+  arma::mat total_enc; 
   arma::mat log_total_enc; 
   arma::mat log_total_penc; 
   arma::cube logenc0; 
   arma::cube log_penc; 
 
   // output 
+  // capture probability for record of individual x occasion x mesh point
   arma::field<arma::cube>& probfield;
   
   // initialise
@@ -82,7 +85,11 @@ struct PrCaptureCalculator : public Worker {
                         entry(entry), 
                         probfield(probfield) {
     
+    //// compute dervied quantities 
     if (detector_type == 3) { 
+      // multi detector: 
+      //  log_total_enc: log total hazard over detectors for each mesh point x occasion 
+      //  log_total_penc: log total probability of detection for each mesh point x occasion 
       total_enc = arma::zeros<arma::mat>(M, J); 
       log_total_enc = arma::zeros<arma::mat>(M, J); 
       log_total_penc = arma::zeros<arma::mat>(M, J); 
@@ -97,6 +104,8 @@ struct PrCaptureCalculator : public Worker {
       log_total_penc = 1.0 - exp(-total_enc); 
       log_total_penc = log(log_total_penc + 1e-16); 
     } else if (detector_type == 2) {
+      // proximity detector: 
+      //  log_penc: log-probability seen at some point mesh point x trap x occasion 
       log_penc = arma::zeros<arma::cube>(M, K, J); 
       int j = -1; 
       for (int prim = 0; prim < n_prim; ++prim) {
@@ -109,33 +118,40 @@ struct PrCaptureCalculator : public Worker {
         }
       }
     }
+    // log encounter rate occasion x mesh point x trap
     logenc0 = log(enc0); 
   } 
   
   void operator()(std::size_t begin, std::size_t end) { 
+    // loop over individuals 
     for (int i = begin; i < end; ++i) {
       arma::vec savedenc(M);
       double sumcap;
-      int j = -1; 
+      int j = -1; // current occasion processed
+      // loop over primary occasions 
       for (int prim = 0; prim < n_prim; ++prim) { 
        bool unseen = true;
         if (entry(i) - 1 < prim) {
+          // loop over secondary occasions 
          for (int s = 0; s < S(prim); ++s) {
            ++j;
            if (detector_type == 3) savedenc.zeros();
            sumcap = 0;
+           // not a multi-trap (independent detectors)
            if (detector_type != 3) {
             for (int k = 0; k < K; ++k) {
-              if (usage(k, j) < 1e-16) continue;
-              if (capthist(i, j, k) < 0.5 & detector_type == 3) continue;
+              if (usage(k, j) < 1e-16) continue; 
               if (detector_type == 1 | detector_type == 4) {
+                // count detector Poisson counts 
                 probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * logenc0.slice(j).col(k) - usage(k, j) * enc0.slice(j).col(k);
               } else if (detector_type == 2) {
+                // proximity detector Binomial 
                 probfield(i).slice(prim).col(alive_col) += capthist(i, j, k) * log_penc.slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0.slice(j).col(k);
               } 
               if (capthist(i, j, k) > 1e-16) unseen = false;
             }
            }
+           // multi-detector case (dependent detectors)
             if (detector_type == 3) {
               arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all); 
               sumcap = arma::accu(cap_ij); 
