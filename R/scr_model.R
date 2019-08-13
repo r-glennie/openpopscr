@@ -465,7 +465,6 @@ ScrModel <- R6Class("ScrModel",
     
     convert_vec2par = function(vec) {
       par <- NULL
-      n_occasions <- private$data_$n_occasions()
       names <- names(vec)
       npar <- length(private$par_)
       parnames <- names(private$par_)
