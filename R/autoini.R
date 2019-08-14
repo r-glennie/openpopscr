@@ -23,7 +23,7 @@ get_start_values <- function(obj, model = "ScrModel") {
   if (model %in% c("ScrTransientModel", "CjsTransientModel", "JsTransientModel")) {
     auto$sd <- obj$encrange()^2 - mean(obj$encrange(each = TRUE))^2
     if (auto$sd < 0) {
-      auto$sd <- 1e-10
+      auto$sd <- auto$sigma
     } else {
       auto$sd <- sqrt(auto$sd)
     }
