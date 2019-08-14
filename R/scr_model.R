@@ -87,12 +87,18 @@ ScrModel <- R6Class("ScrModel",
       ipar <- match(name, names(private$computed_par_))
       type <- private$par_type_[ipar]
       if (is.null(j)) j <- 1:private$data_$n_traps() 
-      if (is.null(k)) k <- 1:private$data_$n_occasions("all") 
+      if (is.null(k)) {
+        if (type == "k1m") {
+          k <- 1:private$data_$n_occasions("all") - ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1)
+        } else {
+          k <- 1:private$data_$n_occasions("all") 
+        }
+      }
       if (!identical(private$par_, private$last_par_)) private$compute_par() 
       if (type == "jk") {
         m <- 1 
         return(private$computed_par_[[ipar]][k, j])
-      } else if (type == "km" | type == "k1m") {
+      } else if (type == "km" | type == "k1m" | type == "kconm") {
         j <- 1
         mnew <- m 
         if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts()
@@ -109,6 +115,57 @@ ScrModel <- R6Class("ScrModel",
         if (is.null(m)) return(mean(res))
         return(res)
       }
+    }, 
+    
+    predict = function(name, newdata = NULL, type = "response", se = FALSE, alpha = 0.95) {
+      if (is.null(private$mle_)) print("Fit model using $fit method")
+      if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
+      ipar <- match(name, names(private$computed_par_))
+      X <- newdata
+      if (is.null(X)) {
+        X <- private$X_[[ipar]]
+      } else {
+        if (!is.data.frame(X)) stop("newdata must be a data frame.")
+        # handle mlogit parameters 
+        if (private$link2response_[[ipar]] == "mlogit") {
+          nr <- nrow(X)
+          X <- X[rep(1:nr, each = private$data_$n_occasions() - 1),,drop = FALSE]
+          X$t <- rep(0:(private$data_$n_occasions() - 1), each = nr)
+        }
+        if (is.data.frame(X)) X <- as.matrix(X)
+      }
+      if (ncol(X) != ncol(private$X_[[ipar]])) stop("newdata has wrong number of columns.")
+      
+      old_par <- private$convert_par2vec(self$mle())
+      predicterfn <- function(v) {
+        self$set_par(private$convert_vec2par(v));
+        return(X %*% private$par_[[ipar]])
+      }
+      est <- predicterfn(old_par) 
+      if (se) {
+        g <- jacobian(predicterfn, old_par)
+        attributes(res)$g <- g 
+        V <- g %*% private$V_ %*% t(g) 
+        sds <- sqrt(diag(V))
+        z <- qnorm(1 - (1 - alpha) / 2)
+        lcl <- est - z * sds
+        ucl <- est + z * sds
+        attributes(res)$vcov <- V
+      }
+      if (type == "response") {
+        # handle mlogit parameters 
+        if (private$link2response_[[ipar]] == "mlogit") {
+          est <- matrix(est, nr = private$data_$n_occasions() - 1)
+          lcl <- matrix(lcl, nr = private$data_$n_occasions() - 1)
+          ucl <- matrix(ucl, nr = private$data_$n_occasions() - 1)
+        }
+        est <- as.vector(do.call(private$link2response_[[ipar]], list(est)))
+        lcl <- as.vector(do.call(private$link2response_[[ipar]], list(lcl)))
+        ucl <- as.vector(do.call(private$link2response_[[ipar]], list(ucl)))
+      }
+      res <- data.frame(est = est, lcl = lcl, ucl = ucl)
+      self$set_par(self$mle());
+      return(res)
     }, 
     
     calc_D_llk = function() {
@@ -375,10 +432,19 @@ ScrModel <- R6Class("ScrModel",
       tempdatjk <- cbind(tempdatjk, 1)
       tempdatkm <- cbind(tempdatkm, 1)
       tempdatm <- cbind(tempdatm, 1)
-      tempdatk1m <- tempdatkm[-(1:private$data_$n_meshpts()),]
+      # remove covariates from last primary/secondary occasion for k1m parameters
+      if (private$data_$n_primary() > 1) {
+        rm <- rep(seq(private$data_$n_occasions("all") - private$data_$n_secondary()[private$data_$n_primary()] + 1, 
+                   private$data_$n_occasions("all")), 
+                   private$data_$n_meshpts())
+        rm <- rm + rep((0:(private$data_$n_meshpts() - 1)) * private$data_$n_occasions("all"), each = private$data_$n_secondary()[private$data_$n_primary()])
+      } else {
+        rm <- seq(private$data_$n_occasions("all"), nrow(tempdatkm), by = private$data_$n_occasions("all"))
+      }
+      tempdatk1m <- droplevels(tempdatkm[-rm,])
       tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m)
       for (par in 1:npar) {
-        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4)
+        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4)
         parname <- as.character(private$form_[[par]][[2]])
         names(tempdat[[k]]) <- c(tempnms[[k]], parname)
         private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat[[k]])
@@ -414,11 +480,15 @@ ScrModel <- R6Class("ScrModel",
         nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
                      "km" = private$data_$n_occasions("all"), 
                      "m" = private$data_$n_meshpts(),
-                      "k1m" = private$data_$n_occasions("all") - 1)
+                      "k1m" = private$data_$n_occasions("all") - 
+                       ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
+                     "kconm" = private$data_$n_occasions("all") - 
+                       ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1))
         nc <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                      "km" = private$data_$n_meshpts(), 
                      "m" = 1,
-                     "k1m" = private$data_$n_meshpts())
+                     "k1m" = private$data_$n_meshpts(),
+                      "kconm" = private$data_$n_meshpts())
         private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
                                                 list(matrix(private$X_[[par]] %*% private$par_[[par]], 
                                                      nr = nr, 
