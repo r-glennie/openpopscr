@@ -69,8 +69,8 @@ JsModel <- R6Class("JsModel",
       order <- c("phi", "beta", "D")
       private$read_formula(form, detectfn, order)
       # add parameters other than detection 
-      private$par_type_[private$detfn_$npars() + 1] <- "km"
-      private$par_type_[private$detfn_$npars() + 2] <- "k1m"
+      private$par_type_[private$detfn_$npars() + 1] <- "k1m"
+      private$par_type_[private$detfn_$npars() + 2] <- "kconm"
       private$par_type_[private$detfn_$npars() + 3] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       # make parameter list 
@@ -118,8 +118,8 @@ JsModel <- R6Class("JsModel",
       pr_entry <- self$calc_pr_entry()      
       n_occasions <- private$data_$n_occasions()
       n_primary <- private$data_$n_primary() 
-      if (n_primary > 1) first <- match(2:n_primary, private$data_$primary())
-      tpms <- vector("list", length = n_occasions)
+      if (n_primary > 1) first <- match(1:(n_primary - 1), private$data_$primary())
+      tpms <- vector("list", length = n_occasions - 1)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
         occ <- k 
