@@ -1,11 +1,11 @@
 #### Jolly-Seber SCR density surface example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 3)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.3)
+true_par <- list(D = 200, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.5)
 
 # make detectors array 
 detectors <- secr::make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -16,14 +16,14 @@ mesh <- secr::make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapb
 # spatial density effect
 x.std <- scale(mesh[,1])
 y.std <- scale(mesh[,2])
-logD <- log(true_par$D) + 0.5 * x.std + 0.8 * y.std
+logD <- log(true_par$D) +  2 * x.std - 3 * y.std
 ihp <- exp(logD) / true_par$D
 
 # set number of occasions to simulate
-n_occasions <- 10
+n_occasions <- 5
 
 # simulate ScrData 
-scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, ihp = ihp)
+scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, ihp = ihp, seed = 1481)
 
 # openpopscr fit ----------------------------------------------------------
 
