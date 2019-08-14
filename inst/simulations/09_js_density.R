@@ -1,7 +1,7 @@
 #### Density JS simulation
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 30)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # setup simulations -------------------------------------------------------
 
@@ -10,7 +10,7 @@ nsims <- 100
 ests <- vector(mode = "list", length = nsims)
 
 # set truth 
-true_par <- list(D = 1000, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.5)
+true_par <- list(D = 200, lambda0 = 0.5, sigma = 20, phi = 0.8, beta = 0.5)
 
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
@@ -21,7 +21,7 @@ mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer"
 # spatial effect
 x.std <- scale(mesh[,1])
 y.std <- scale(mesh[,2])
-logD <- log(true_par$D) + 0.5 * x.std + 0.8 * y.std
+logD <- log(true_par$D) + 2 * x.std - 3 * y.std
 ihp <- exp(logD) / true_par$D
 
 # set number of occasions to simulate
