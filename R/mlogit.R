@@ -2,7 +2,7 @@
 #'
 #' @param x vector to compute mlogit of or matrix where mlogit is applied by column  
 #'
-#' @return mlogit of vector x or each column of vector x
+#' @return mlogit of vector x or each column of matrix x
 #' @export
 mlogit <- function(x) {
   y <- exp(x)
@@ -23,7 +23,7 @@ mlogit <- function(x) {
 #'
 #' @param y vector to compute inverse mlogit of or matrix where mlogit is applied by column  
 #'
-#' @return inverse mlogit of vector y or each column of vector y 
+#' @return inverse mlogit of vector y or each column of matrix y 
 #' @export
 invmlogit <- function(y) {
   invmlogitVec <- function(v) {
