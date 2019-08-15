@@ -319,7 +319,7 @@ JsModel <- R6Class("JsModel",
     if (!is.null(k)) K <- k
     if (K > 1) {
       for (occ in 2:K) {
-        pr <- pr %*% tpms[[k - 1]]
+        pr <- pr %*% tpms[[occ - 1]]
         alpha[occ] <- pr[2]
       }
     }
@@ -357,14 +357,15 @@ JsModel <- R6Class("JsModel",
     # if Dk is supplied then compute variance of Dks
     Dk_var <- rep(0, 1)
     Dk <- private$Dk_
+    alpha <- private$calc_alpha()
     if (!is.null(Dk)) {
       Dk_var <- numeric(n_occasions) 
       for (k in 1:n_occasions) {
         del_alpha <- grad(private$calc_alpha, wpar, k = k)[-exc]
         sig_alpha <- t(del_alpha) %*% V_theta %*% del_alpha
-        Dk_var[k] <- Dk[k] * Dvar / self$get_par("D") + sig_alpha / self$get_par("D")
+        Dk_var[k] <- Dvar / self$get_par("D") + sig_alpha^2 / (self$get_par("D") * alpha[k]^2)
+        Dk_var[k] <- Dk[k] * Dk_var[k]
       }
-      Dk_var <- Dk_var / (self$data()$area() * Dk)
     }
     private$var_ <- list(sds = sds, Dvar = Dvar, Dkvar = Dk_var)
     return(invisible())
