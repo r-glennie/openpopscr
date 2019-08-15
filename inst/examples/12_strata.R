@@ -29,9 +29,9 @@ scrdat <- list(s1 = scrdat1, s2 = scrdat2, s3 = scrdat3)
 shared_form <- list(lambda0 ~ 1)
 
 # create formulae for private parameters 
-private_form <- list(s1 = list(sigma ~ 1),
-                     s2 = list(sigma ~ 1), 
-                     s3 = list(sigma ~ 1))
+private_form <- list(s1 = list(sigma ~ 1, D ~ 1),
+                     s2 = list(sigma ~ 1, D ~ 1), 
+                     s3 = list(sigma ~ 1, D ~ 1))
 
 
 # set starting values 
