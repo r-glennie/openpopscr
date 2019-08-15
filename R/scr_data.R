@@ -120,10 +120,12 @@ ScrData <- R6Class("ScrData",
         private$time_ <- time
       }
       ## add built-in covariates
-      private$cov_$t <- as.factor((1:self$n_occasions("all") - 1))
-      private$cov_type_ <- c("k")     
-      private$cov_$primary <- as.factor((private$primary_ - 1))
-      private$cov_type_ <- c(private$cov_type_, "k")   
+      private$cov_$t <- (1:self$n_occasions("all") - 1)
+      private$cov_$T <- as.factor((1:self$n_occasions("all") - 1))
+      private$cov_type_ <- c("k", "k")     
+      private$cov_$primary <- (private$primary_ - 1)
+      private$cov_$Primary <- as.factor((private$primary_ - 1))
+      private$cov_type_ <- c(private$cov_type_, "k", "k")   
       private$cov_$x <- scale(private$mesh_[,1])[,1]
       private$cov_$y <- scale(private$mesh_[,2])[,1]
       private$cov_type_ <- c(private$cov_type_, "m")
