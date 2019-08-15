@@ -39,7 +39,7 @@ for (sim in 1:nsims) {
   utils::setTxtProgressBar(progbar, sim)
   
   # simulate ScrData 
-  scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, ihp = ihp, move = TRUE, print = FALSE)
+  scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, move = TRUE, print = FALSE)
   
   # get starting values for numerical optimiser  
   start <- get_start_values(scrdat, model = "JsTransientModel")
