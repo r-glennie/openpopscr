@@ -35,6 +35,13 @@
 #' \itemize{
 #'  \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
 #'   on occasion k at mesh point m, similar to ScrData$covs() function
+#'  \item predict(name, newdata, type, se, alpha): returns predictions for named parameter 
+#'        newdata can be an alternative design matrix for that parameter, 
+#'        type = "response" provides predictions on response scale, otherwise link scale 
+#'        se = TRUE leads to computation of confidence intervals based on delta method 
+#'        alpha = 0.95 is the confidence level 
+#'        nsims = number of simulations used for mlogit confidnce intervals 
+#'        seed = seed used for simulations 
 #'  \item calc_D_llk(): computes the likelihood contribution from the point process model for D
 #'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead) and mesh
 #'  \item calc_encrate(transpose = FALSE): compute encounter rate for each mesh x trap x occasion, can be 
@@ -49,6 +56,7 @@
 #'  \item fit(): fit the model by obtaining the maximum likelihood estimates
 #'  \item set_mle(par, V, llk): set par to maximum likelihood par with variance matrix V and value llk
 #'  \item par(): return current parameter of the model 
+#'  \item design_mat(): returns a list of the design matrices used for each parameter 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to
 #'  \item set_par(): overwrite parameter stored, current value returned by $par() 
@@ -117,7 +125,9 @@ ScrModel <- R6Class("ScrModel",
       }
     }, 
     
-    predict = function(name, newdata = NULL, type = "response", se = FALSE, alpha = 0.95) {
+    predict = function(name, newdata = NULL, type = "response", se = FALSE, alpha = 0.95, nsims = 100, seed = 15185) {
+      set.seed(seed)
+      on.exit(set.seed(round(runif(1, 0, 10000))))
       if (is.null(private$mle_)) print("Fit model using $fit method")
       if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
       ipar <- match(name, names(private$computed_par_))
@@ -126,15 +136,10 @@ ScrModel <- R6Class("ScrModel",
         X <- private$X_[[ipar]]
       } else {
         if (!is.data.frame(X)) stop("newdata must be a data frame.")
-        # handle mlogit parameters 
-        if (private$link2response_[[ipar]] == "mlogit") {
-          nr <- nrow(X)
-          X <- X[rep(1:nr, each = private$data_$n_occasions() - 1),,drop = FALSE]
-          X$t <- rep(0:(private$data_$n_occasions() - 1), each = nr)
-        }
         if (is.data.frame(X)) X <- as.matrix(X)
       }
       if (ncol(X) != ncol(private$X_[[ipar]])) stop("newdata has wrong number of columns.")
+      if (!identical(colnames(X)[-1], colnames(private$X_[[ipar]])[-1])) stop("newdata columns in wrong order or wrong names.")
       
       old_par <- private$convert_par2vec(self$mle())
       predicterfn <- function(v) {
@@ -144,26 +149,29 @@ ScrModel <- R6Class("ScrModel",
       est <- predicterfn(old_par) 
       if (se) {
         g <- jacobian(predicterfn, old_par)
-        attributes(res)$g <- g 
         V <- g %*% private$V_ %*% t(g) 
         sds <- sqrt(diag(V))
         z <- qnorm(1 - (1 - alpha) / 2)
         lcl <- est - z * sds
         ucl <- est + z * sds
-        attributes(res)$vcov <- V
       }
       if (type == "response") {
-        # handle mlogit parameters 
-        if (private$link2response_[[ipar]] == "mlogit") {
-          est <- matrix(est, nr = private$data_$n_occasions() - 1)
-          lcl <- matrix(lcl, nr = private$data_$n_occasions() - 1)
-          ucl <- matrix(ucl, nr = private$data_$n_occasions() - 1)
+        if (se) {
+          if (private$link2response_[[ipar]] != "mlogit") {
+            lcl <- as.vector(do.call(private$link2response_[[ipar]], list(lcl)))
+            ucl <- as.vector(do.call(private$link2response_[[ipar]], list(ucl)))
+          } else {
+            sims <- t(rmvn(nsims, est[,1], V))
+            sims <- do.call(private$link2response_[[ipar]], list(sims))
+            lcl <- apply(sims, 1, FUN = function(x) {quantile(x, prob = (1 - alpha)/2)})
+            ucl <- apply(sims, 1, FUN = function(x) {quantile(x, prob = 1 - (1 - alpha)/2)})
+          }
         }
         est <- as.vector(do.call(private$link2response_[[ipar]], list(est)))
-        lcl <- as.vector(do.call(private$link2response_[[ipar]], list(lcl)))
-        ucl <- as.vector(do.call(private$link2response_[[ipar]], list(ucl)))
       }
-      res <- data.frame(est = est, lcl = lcl, ucl = ucl)
+      res <- est
+      if(se) res <- data.frame(est = est, lcl = lcl, ucl = ucl)
+      if(se) {attributes(res)$vcov <- V;  attributes(res)$g <- g}
       self$set_par(self$mle());
       return(res)
     }, 
@@ -326,6 +334,7 @@ ScrModel <- R6Class("ScrModel",
     }, 
     
     par = function() {return(private$par_)},
+    design_mats = function() {return(private$X_)}, 
     mle = function() {return(private$mle_)},
     data = function() {return(private$data_)}, 
     detectfn = function() {return(private$detfn_)}, 
