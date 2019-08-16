@@ -361,10 +361,18 @@ JsModel <- R6Class("JsModel",
     if (!is.null(Dk)) {
       Dk_var <- numeric(n_occasions) 
       for (k in 1:n_occasions) {
-        del_alpha <- grad(private$calc_alpha, wpar, k = k)[-exc]
-        sig_alpha <- t(del_alpha) %*% V_theta %*% del_alpha
-        Dk_var[k] <- Dvar / self$get_par("D") + sig_alpha^2 / (self$get_par("D") * alpha[k]^2)
-        Dk_var[k] <- Dk[k] * Dk_var[k]
+        predictfn <- function(v) {
+          self$set_par(private$convert_vec2par(v))
+          private$infer_D()
+          return(log(private$Dk_))
+        }
+        oldpar <- self$par()
+        parvec <- private$convert_par2vec(self$par())
+        J <- jacobian(predictfn, parvec)
+        self$set_par(oldpar)
+        private$infer_D()
+        VD <- J %*% V %*% t(J)
+        Dk_var <- diag(VD)
       }
     }
     private$var_ <- list(sds = sds, Dvar = Dvar, Dkvar = Dk_var)
