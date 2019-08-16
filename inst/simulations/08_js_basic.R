@@ -1,13 +1,13 @@
 #### Basic JS simulation
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 1)
+RcppParallel::setThreadOptions(numThreads = 30)
 
 # setup simulations -------------------------------------------------------
 
 set.seed(184821)
 nsims <- 100 
-ests <- vector(mode = "list", length = nsims)
+ests <- dens <- vector(mode = "list", length = nsims)
 
 # set truth 
 true_par <- list(D = 1000, lambda0 = 1, sigma = 30, phi = 0.5, beta = 0.3)
@@ -49,11 +49,15 @@ for (sim in 1:nsims) {
   # fit model
   obj$fit()
   
-  # store results
+  # store parameter results
   ests[[sim]] <- obj$estimates()$par
+  
+  # store density results 
+  dens[[sim]] <- obj$estimates()$D
 
 }
 
+## PARAMETERS
 # extract results 
 mu <- sapply(ests, FUN = function(x){x[,1]})
 lcl <- sapply(ests, FUN = function(x){x[,3]})
@@ -68,3 +72,17 @@ b <- (1 - true_par$beta) / (n_occasions - 1)
 b <- log(b/true_par$beta)
 sum(lcl[4,] < b & ucl[4,] > b)
 sum(lcl[5,] < log(true_par$D) & ucl[5,] > log(true_par$D))
+
+## DENSITY 
+trueD <- rep(0, n_occasions)
+trueD[1] <- true_par$D * true_par$beta
+b <- (1 - true_par$beta) / (n_occasions - 1) 
+for (i in 2:n_occasions) trueD[i] <- trueD[i - 1] * true_par$phi + b * true_par$D
+ci <- rep(0, n_occasions)
+for (i in 1:n_occasions) {
+  lcls <- sapply(dens, FUN = function(x){x[i, 3]})
+  ucls <- sapply(dens, FUN = function(x){x[i, 4]})
+  ci[i] <- sum(lcls < trueD[i] & trueD[i] < ucls)
+}
+
+
