@@ -68,11 +68,11 @@
 ScrModel <- R6Class("ScrModel", 
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
       if (print) cat("Reading formulae.......")
-      private$read_formula(form, detectfn)
+      private$read_formula(form, detectfn, statemod)
       # add parameters other than detection 
       private$par_type_[private$detfn_$npars() + 1] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "D")
@@ -90,7 +90,7 @@ ScrModel <- R6Class("ScrModel",
       private$print_ = print 
     },
     
-    get_par = function(name, j = NULL, k = NULL, m = NULL) {
+    get_par = function(name, j = NULL, k = NULL, m = NULL, s = NULL) {
       if (!(name %in% names(private$computed_par_))) stop("No parameter with that name.")
       ipar <- match(name, names(private$computed_par_))
       type <- private$par_type_[ipar]
@@ -102,10 +102,12 @@ ScrModel <- R6Class("ScrModel",
           k <- 1:private$data_$n_occasions("all") 
         }
       }
+      if (is.null(s)) s <- 1
       if (!identical(private$par_, private$last_par_)) private$compute_par() 
       if (type == "jk") {
-        m <- 1 
         return(private$computed_par_[[ipar]][k, j])
+      } else if (type == "jks") {
+        return(private$computed_par_[[ipar]][k, j, self$state()$group(s)])
       } else if (type == "km" | type == "k1m" | type == "kconm") {
         j <- 1
         mnew <- m 
@@ -186,7 +188,9 @@ ScrModel <- R6Class("ScrModel",
     
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(1, nrow = n_mesh, ncol = 1, byrow = TRUE)
+      nstates <- private$state_$nstates()
+      delta <- private$state_$delta() 
+      pr0 <- matrix(delta, nrow = n_mesh, ncol = nstates, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a 
       pr0 <- pr0 * D
@@ -196,19 +200,26 @@ ScrModel <- R6Class("ScrModel",
     calc_encrate = function(transpose = FALSE) {
       dist <- private$data_$distances()
       n_occasions <- private$data_$n_occasions("all")
-      enc_rate <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+      nstates <- self$state()$nstates()
+      ngrp <- self$state()$ngroups()
+      enc_rate <- vector(mode = "list", length = ngrp)
       n_det_par <- self$detectfn()$npars()
       det_par <- vector(mode = "list", length = n_det_par)
-      for (k in 1:n_occasions) {
-        for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1))
-        enc_rate[k,,] <- self$detectfn()$h(dist, det_par)
+      for (s in 1:nstates) {
+        enc_rate[[s]] <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+        for (k in 1:n_occasions) {
+          for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1, s = s))
+          enc_rate[[s]][k,,] <- self$detectfn()$h(dist, det_par)
+        }
+        # add epsilon to stop log(0.0)
+        enc_rate[[s]] <- enc_rate[[s]] + 1e-16
       }
-      # add epsilon to stop log(0.0)
-      enc_rate <- enc_rate + 1e-16
       if (transpose) {
-        temp <- enc_rate
-        enc_rate <- array(0, dim = c(ncol(dist), nrow(dist), n_occasions)) 
-        for (k in 1:n_occasions) enc_rate[,,k] <- t(temp[k,,])
+        for (s in 1:nstates) {
+          temp <- enc_rate[[s]]
+          enc_rate[[s]] <- array(0, dim = c(ncol(dist), nrow(dist), n_occasions)) 
+          for (k in 1:n_occasions) enc_rate[[s]][,,k] <- t(temp[k,,])
+        }
       }
      return(enc_rate) 
     }, 
@@ -219,12 +230,16 @@ ScrModel <- R6Class("ScrModel",
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
       n_meshpts <- private$data_$n_meshpts() 
+      n_states <- private$state_$nstates() 
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
       prob <- C_calc_pr_capture(n, 
                                 n_occasions, 
                                 n_traps, 
-                                n_meshpts, 
+                                n_meshpts,
+                                n_states,
+                                0, 
+                                0,
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
@@ -238,15 +253,19 @@ ScrModel <- R6Class("ScrModel",
     
     calc_Dpdet = function() {
       enc_rate <- self$calc_encrate() 
+      nstates <- self$state()$nstates()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 1)
-        pr_empty[[j]][, 1] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
+        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates)
+        for (g in 1:nstates) {
+          pr_empty[[j]][, g] <- exp(-t(trap_usage[, j]) %*% enc_rate[[g]][j,,])
+        }
       }
       pr0 <- self$calc_initial_distribution()
-      tpms <- list(matrix(0, nr = 2, nc = 2))
-      Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, 1);
+      tpms <- vector(mode = "list", length = private$data_$n_occasions())
+      for (k in 1:private$data_$n_occasions()) tpms[[i]] <- self$state()$tpm(k = k)
+      Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, nstates);
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
       Dpdet <- sum(D) - Dpdet
@@ -266,7 +285,16 @@ ScrModel <- R6Class("ScrModel",
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) {
+        slen <- length(self$state()$par())
+        param2 <- param 
+         if (slen > 0) {
+           ind <- seq(length(param) - slen + 1, length(param))
+           self$state()$set_par(param[ind])
+           param2 <- param[-ind]
+         }
+         self$set_par(private$convert_vec2par(param2));
+      }
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 
@@ -276,19 +304,24 @@ ScrModel <- R6Class("ScrModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      tpms <- list(matrix(0, nr = 2, nc = 2))
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 1, rep(0, private$data_$n()))
+      # get tpms for state model 
+      nstates <- self$state()$nstates() 
+      tpms <- vector(mode = "list", length = private$data_$n_occasions())
+      for (k in 1:private$data_$n_occasions()) tpms[[i]] <- self$state()$tpm(k = k)
       # compute log-likelihood
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
       if (private$print_) cat("llk:", llk, "\n")
       return(llk)
     },
     
-    fit = function(ini_par = NULL, nlm.args = NULL) {
-      if (!is.null(ini_par)) self$set_par(ini_par)
+    fit = function(nlm.args = NULL) {
       par <- self$par()
+      # scrmodel parameters 
       w_par <- private$convert_par2vec(par)
+      # add in state model parameters
+      w_par <- c(w_par, self$state()$par)
       t0 <- Sys.time()
       if (private$print_) cat("Fitting model..........\n")
       if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
@@ -305,13 +338,21 @@ ScrModel <- R6Class("ScrModel",
       names(mle) <- names(w_par)
       llk <- -mod$minimum
       V <- solve(mod$hessian)
+      slen <- length(self$state()$par)
       if (private$print_) cat("done\n")
       self$set_mle(mle, V, llk)
       return(invisible())
     }, 
     
     set_mle = function(par, V, llk) {
-      mle <- private$convert_vec2par(par)
+      slen <- length(self$state()$par())
+      param2 <- par 
+      if (slen > 0) {
+        ind <- seq(length(par) - slen + 1, length(par))
+        self$state()$set_par(par[ind])
+        param2 <- par[-ind]
+      }
+      mle <- private$convert_vec2par(param2);
       self$set_par(mle)
       private$mle_ <- mle 
       private$llk_ <- llk 
@@ -329,11 +370,16 @@ ScrModel <- R6Class("ScrModel",
       } else {
         cat("PARAMETER ESTIMATES (link scale)\n")
         print(signif(private$results_, 4))
+        slen <- length(self$state()$par())
+        if (slen > 0) {
+          self$state()$print()
+        }
       }
       options(scipen = 0)
     }, 
     
     par = function() {return(private$par_)},
+    state = function() {return(private$state_)}, 
     design_mats = function() {return(private$X_)}, 
     mle = function() {return(private$mle_)},
     data = function() {return(private$data_)}, 
@@ -362,6 +408,7 @@ ScrModel <- R6Class("ScrModel",
   private = list(
     data_ = NULL,
     detfn_ = NULL, 
+    state_ = NULL, 
     form_ = NULL, 
     par_ = NULL, 
     last_par_ = NULL,
@@ -378,10 +425,17 @@ ScrModel <- R6Class("ScrModel",
     sig_level_ = 0.05, 
     print_  = NULL,
     
-    read_formula = function(form, detectfn, order = NULL) {
+    read_formula = function(form, detectfn, statemod, order = NULL) {
       private$form_ <- form 
       par_names <- sapply(form, function(f){f[[2]]})
       private$par_type_ <- rep("", length(par_names))
+      # state model 
+      if (is.null(statemod)) {
+        private$state_ <- StateModel$new(private$data_, 
+                                         c("Alive"), 
+                                         matrix(".", nr = 1, nc = 1), 
+                                         list(delta = c(1), trm = matrix(0, nr = 1, nc = 1)))
+      }
       # detection function 
       if (is.null(detectfn)) {
         private$detfn_ <- DetFn$new()
@@ -394,7 +448,7 @@ ScrModel <- R6Class("ScrModel",
         find <- par_names == private$detfn_$par(i)
         if (all(!find)) stop("Parameters in formulae incorrect.")
         private$form_[[i]]<- form[find][[1]]
-        private$par_type_[i] <- "jk"
+        private$par_type_[i] <- "jks"
       }
       if (!is.null(order)) {
         ord <- c(private$detfn_$pars(), order)
@@ -451,7 +505,12 @@ ScrModel <- R6Class("ScrModel",
         rm <- seq(private$data_$n_occasions("all"), nrow(tempdatkm), by = private$data_$n_occasions("all"))
       }
       tempdatk1m <- droplevels(tempdatkm[-rm,])
-      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m)
+      # create tempdat for kjs parameters 
+      ngrps <- self$state()$ngroups() 
+      tempdatjks <- do.call("rbind", replicate(ngrps, tempdatjk, simplify = FALSE))
+      tempdatjks$state <- rep(1:ngrps, each = nrow(tempdatjk))
+      # collate tempdats together 
+      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m, tempdatkjs)
       for (par in 1:npar) {
         k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4)
         parname <- as.character(private$form_[[par]][[2]])
@@ -486,22 +545,33 @@ ScrModel <- R6Class("ScrModel",
       npar <- length(private$par_type_)
       private$computed_par_ <- vector(mode = "list", length = npar)
       for (par in 1:npar) {
-        nr <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
+        dimsize <- switch(private$par_type_[par], "jk" = 2,
+                          "jks" = 3, 
+                          "km" = 2, 
+                          "m" = 2,
+                          "k1m" = 2, 
+                          "kconm" = 2)
+        dim <- rep(0, dimsize)
+        dim[1] <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
                      "km" = private$data_$n_occasions("all"), 
                      "m" = private$data_$n_meshpts(),
                       "k1m" = private$data_$n_occasions("all") - 
                        ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
                      "kconm" = private$data_$n_occasions("all") - 
                        ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1))
-        nc <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
+        if (dimsize > 1) {
+        dim[2] <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                      "km" = private$data_$n_meshpts(), 
                      "m" = 1,
                      "k1m" = private$data_$n_meshpts(),
                       "kconm" = private$data_$n_meshpts())
+        } 
+        if (dimsize > 2) {
+          dim[3] <- switch(private$par_type_[par], "jks" = private$state_$ngroups())
+        }
         private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
-                                                list(matrix(private$X_[[par]] %*% private$par_[[par]], 
-                                                     nr = nr, 
-                                                     nc = nc)))
+                                                list(array(private$X_[[par]] %*% private$par_[[par]], 
+                                                     dim = dim)))
       }
       names(private$computed_par_) <- names(private$form_)
       return(invisible())
@@ -514,7 +584,7 @@ ScrModel <- R6Class("ScrModel",
       if (private$print_) cat("Computing confidence intervals.......")
       ci <- private$calc_confint()
       if (private$print_) cat("done\n")
-      results <- cbind(par, sd, ci$LCL, ci$UCL)
+      results <- cbind(ci$est, ci$sds, ci$LCL, ci$UCL)
       colnames(results) <- c("Estimate", "Std. Error", "LCL", "UCL")
       rownames(results) <- names(par)
       private$results_ <- results 
@@ -530,7 +600,20 @@ ScrModel <- R6Class("ScrModel",
       lcl <- est - alp * sds
       ucl <- est + alp * sds 
       names(lcl) <- names(ucl) <- names(est)
-      return(list(LCL = lcl, UCL = ucl))
+      slen <- length(self$states()$par()) 
+      if (slen > 0) {
+        ind <- seq(length(param) - slen + 1, length(param))
+        slcl <- lcl[ind]
+        sucl <- ucl[ind]
+        sest <- est[ind]
+        ssds <- sds[ind]
+        self$states()$calc_confint(sest, ssds, slcl, sucl)
+        est <- est[-ind]
+        sds <- sds[-ind]
+        lcl <- lcl[-ind]
+        ucl <- ucl[-ind]
+      }
+      return(list(est = est, sds = sds, LCL = lcl, UCL = ucl))
     },
     
     calc_negllk = function(param = NULL, names = NULL) {

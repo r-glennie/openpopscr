@@ -96,8 +96,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // C_calc_pr_capture
-arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, const arma::cube& capthist, const arma::cube& enc0, const arma::mat usage, const int num_states, const int detector_type, const int n_prim, const arma::vec S, const arma::vec entry);
-RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capthistSEXP, SEXP enc0SEXP, SEXP usageSEXP, SEXP num_statesSEXP, SEXP detector_typeSEXP, SEXP n_primSEXP, SEXP SSEXP, SEXP entrySEXP) {
+arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, const arma::cube& capthist, const Rcpp::List enc0, const arma::mat usage, const int num_states, const int minstate, const int maxstate, const int detector_type, const int n_prim, const arma::vec S, const arma::vec entry);
+RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capthistSEXP, SEXP enc0SEXP, SEXP usageSEXP, SEXP num_statesSEXP, SEXP minstateSEXP, SEXP maxstateSEXP, SEXP detector_typeSEXP, SEXP n_primSEXP, SEXP SSEXP, SEXP entrySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -106,14 +106,16 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type K(KSEXP);
     Rcpp::traits::input_parameter< const int >::type M(MSEXP);
     Rcpp::traits::input_parameter< const arma::cube& >::type capthist(capthistSEXP);
-    Rcpp::traits::input_parameter< const arma::cube& >::type enc0(enc0SEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type enc0(enc0SEXP);
     Rcpp::traits::input_parameter< const arma::mat >::type usage(usageSEXP);
     Rcpp::traits::input_parameter< const int >::type num_states(num_statesSEXP);
+    Rcpp::traits::input_parameter< const int >::type minstate(minstateSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxstate(maxstateSEXP);
     Rcpp::traits::input_parameter< const int >::type detector_type(detector_typeSEXP);
     Rcpp::traits::input_parameter< const int >::type n_prim(n_primSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type S(SSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type entry(entrySEXP);
-    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capthist, enc0, usage, num_states, detector_type, n_prim, S, entry));
+    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capthist, enc0, usage, num_states, minstate, maxstate, detector_type, n_prim, S, entry));
     return rcpp_result_gen;
 END_RCPP
 }
