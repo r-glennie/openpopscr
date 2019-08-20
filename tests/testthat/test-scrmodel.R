@@ -15,7 +15,7 @@ scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh, seed = 25939, pri
 form <- list(lambda0 ~ 1, 
              sigma  ~ 1, 
              D ~ 1)
-start <- list(lamdba0 = 0.5, sigma = 20, D = 300)
+start <- list(lambda0 = 0.5, sigma = 20, D = 300)
 
 test_that("ScrModel checks inputs", {
   expect_error(ScrModel$new(form, scrdat$capthist(), start, print = FALSE), "Must supply a ScrData object for data.")  
