@@ -28,7 +28,7 @@
 #'                    NA for edge with fixed transition probability, 0 for no edge 
 #'   \item start: list with trm or tpm for initial transition rate matrix or transition probability matrix and 
 #'         delta for initial distribution 
-#'   \item delta_zero: TRUE if initial is to be fixed at zero, else it is estimated 
+#'   \item delta_fixed: TRUE if initial is to be fixed, else it is estimated 
 #'   \item groups: factor variable where states with same factor share state effect on detection parameters
 #' }
 #' 
@@ -40,15 +40,19 @@
 #' 
 StateModel <- R6Class("StateModel", 
   public = list(
-      initialize = function(data, names, structure, start, delta_zero = NULL, groups = NULL) {
+      initialize = function(data, names, structure, start, delta_fixed = NULL, groups = NULL) {
         private$nstates_ = length(names)
         private$names_ = names
         private$data_ = data
         private$check_struct(structure)
         private$struct_ = structure 
-        private$delta_zero_ = delta_zero
-        if (is.null(delta_zero)) private$delta_zero_ <- rep(FALSE, private$nstates_)
-        private$groups_ = ifelse(is.null(groups), factor(rep(1, private$nstates_)), groups)
+        private$delta_fixed_ = delta_fixed
+        if (is.null(delta_fixed)) private$delta_fixed_ <- rep(FALSE, private$nstates_)
+        if (is.null(groups)) {
+          private$groups_ = factor(1:private$nstates_)
+        } else {
+          private$groups_ <- groups 
+        }
         private$make_par()
         private$initialise_par(start)
         private$compute_par()
@@ -105,7 +109,7 @@ StateModel <- R6Class("StateModel",
         private$compute_par()
       }, 
       
-      estimates() = function() {
+      estimates = function() {
         return(private$results_) 
       }, 
       
@@ -138,7 +142,7 @@ StateModel <- R6Class("StateModel",
     computed_par_ = NULL, 
     Xmats_ = NULL,
     delta_ = NULL, 
-    delta_zero_ = NULL, 
+    delta_fixed_ = NULL, 
     groups_ = NULL, 
     results_ = NULL, 
     
@@ -177,15 +181,16 @@ StateModel <- R6Class("StateModel",
         }
       }
       # add delta in 
-      nz <- sum(private$delta_zero_)
+      nz <- sum(private$delta_fixed_)
       ndeltapar <- nstates - nz - 1 
       if (ndeltapar > 0) {
         private$par_ <- rep(0, sum(npar) + ndeltapar)
+        row <- c(rep(0, ndeltapar), row)
+        col <- c(rep(0, ndeltapar), col)
       } else {
         private$par_ <- rep(0, sum(npar))
+        ndeltapar <- 0 
       }
-      row <- c(rep(0, ndeltapar), row)
-      col <- c(rep(0, ndeltapar), col)
       private$parloc_ <- parloc 
       private$parvecloc_ <- matrix(0, nr = sum(npar) + ndeltapar, nc = 2)
       private$parvecloc_[,1] <- row 
@@ -200,10 +205,10 @@ StateModel <- R6Class("StateModel",
       nstates <- self$nstates()
       if (length(start$delta) < nstates) stop("start$delta must be of length == number of states")
       private$delta_ <- start$delta 
-      nz <- sum(private$delta_zero_)
+      nz <- sum(private$delta_fixed_)
       ndeltapar <- nstates - nz - 1 
       if (ndeltapar > 0) {
-        private$par_[1:ndeltapar] <- invmlogit(start$delta[!private$delta_zero_])
+        private$par_[1:ndeltapar] <- invmlogit(start$delta[!private$delta_fixed_])
       }
       ## trm 
       if (!is.null(start$tpm) & is.null(start$trm)) {
@@ -234,15 +239,13 @@ StateModel <- R6Class("StateModel",
         }
       }
       private$computed_par_ <- exp(pred) 
-      nz <- sum(private$delta_zero_)
+      nz <- sum(private$delta_fixed_)
       ndeltapar <- private$nstates_ - nz - 1 
       delta <- rep(0, private$nstates_)
       if (ndeltapar > 0) {
-        delta[!private$delta_zero_] <- mlogit(private$par_[1:ndeltapar])
-      } else {
-        delta[!private$delta_zero_] <- 1 
-      }
-      private$delta_ <- delta 
+        delta[!private$delta_fixed_] <- mlogit(private$par_[1:ndeltapar])
+        private$delta_ <- delta 
+      } 
       invisible()
     }
   )
