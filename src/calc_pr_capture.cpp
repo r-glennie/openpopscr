@@ -69,9 +69,11 @@ struct PrCaptureCalculator : public Worker {
                         const int M, 
                         const int alive_col, 
                         const arma::cube& capthist, 
-                        const arma::cube& enc0, 
+                        const Rcpp::List enc, 
                         const arma::mat& usage, 
                         const int num_states,
+                        const int minstate, 
+                        const int maxstate, 
                         const int detector_type,
                         const int n_prim, 
                         const arma::vec& S, 
@@ -79,9 +81,11 @@ struct PrCaptureCalculator : public Worker {
                         arma::field<arma::cube>& probfield) : J(J), K(K), M(M), 
                         alive_col(alive_col), 
                         capthist(capthist), 
-                        enc0(enc0), 
+                        enc(enc), 
                         usage(usage), 
                         num_states(num_states), 
+                        minstate(minstate), 
+                        maxstate(maxstate), 
                         detector_type(detector_type),
                         n_prim(n_prim), 
                         S(S), 
@@ -90,9 +94,16 @@ struct PrCaptureCalculator : public Worker {
     
     //// compute dervied quantities 
     // encounter rate per state 
-    encvec.resize(num_states); 
+    enc0.resize(num_states); 
     for (int g = 0; g < num_states; ++g) {
-      enc0[g] = Rcpp::as<arma::cube>(enc[j]); 
+      enc0[g] = Rcpp::as<arma::cube>(enc[g]); 
+    }
+    if (detector_type == 3) {
+      total_enc.resize(num_states);
+      log_total_enc.resize(num_states);
+      log_total_penc.resize(num_states);
+    } else if (detector_type == 2) {
+      log_penc.resize(num_states);
     }
     for (int g = 0; g < num_states; ++g) {
       if (detector_type == 3) { 
@@ -128,6 +139,7 @@ struct PrCaptureCalculator : public Worker {
         }
       }
       // log encounter rate occasion x mesh point x trap
+      logenc0.resize(num_states);
       logenc0[g] = log(enc0[g]); 
     }
   } 
@@ -137,11 +149,11 @@ struct PrCaptureCalculator : public Worker {
     for (int i = begin; i < end; ++i) {
       arma::vec savedenc(M);
       double sumcap;
-      int j = -1; // current occasion processed
       int g = 0; // current state processed 
       // loop over primary occasions 
       for (int gp = minstate; gp < minstate + num_states; ++gp) {
         g = gp - minstate; 
+        int j = -1; // current occasion processed
         for (int prim = 0; prim < n_prim; ++prim) { 
          bool unseen = true;
           if (entry(i) - 1 < prim) {
@@ -183,6 +195,7 @@ struct PrCaptureCalculator : public Worker {
         }
       }
     }
+  }
 };  
   
 //' Computes probability of each capture record
