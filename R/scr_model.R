@@ -42,6 +42,9 @@
 #'        alpha = 0.95 is the confidence level 
 #'        nsims = number of simulations used for mlogit confidnce intervals 
 #'        seed = seed used for simulations 
+#'  \item pr_state: return a list (one entry for each individual) of arrays with entry (m, s, k) being
+#'        the probability the individual was at mesh point m, in state s, in occasion k given the observed
+#'        data and current parameters
 #'  \item calc_D_llk(): computes the likelihood contribution from the point process model for D
 #'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead) and mesh
 #'  \item calc_encrate(transpose = FALSE): compute encounter rate for each mesh x trap x occasion, can be 
@@ -56,6 +59,8 @@
 #'  \item fit(): fit the model by obtaining the maximum likelihood estimates
 #'  \item set_mle(par, V, llk): set par to maximum likelihood par with variance matrix V and value llk
 #'  \item par(): return current parameter of the model 
+#'  \item npar(): number of parameters in the model 
+#'  \item state(): returns stored StateModel object 
 #'  \item design_mat(): returns a list of the design matrices used for each parameter 
 #'  \item mle(): return maximum likelihood estimates for the fitted model 
 #'  \item data(): return ScrData that the model is fit to
@@ -177,6 +182,22 @@ ScrModel <- R6Class("ScrModel",
       if(se) {attributes(res)$vcov <- V;  attributes(res)$g <- g}
       self$set_par(self$mle());
       return(res)
+    }, 
+    
+    pr_state = function() {
+      fw <- private$calc_forwback() 
+      nocc <- private$data_$n_occasions("all")
+      n <- private$data_$n()
+      nmesh <- private$data_$n_meshpts()
+      nstates <- self$state()$nstates()
+      pred <- vector(mode = "list", length = n)
+      for (i in 1:n) {
+        pred[[i]] <- array(0, dim = c(nmesh, nstates, nocc))
+        c <- max(fw$lalpha[[i]][,,nocc])
+        llk <- c + log(sum(exp(fw$lalpha[[i]][,,nocc] - c)))
+        for (j in 1:nocc) pred[[i]][,,j] <- exp(fw$lalpha[[i]][,,j] + fw$lbeta[[i]][,,j] - llk)
+      }
+      return(pred)
     }, 
     
     calc_D_llk = function() {
@@ -651,6 +672,32 @@ ScrModel <- R6Class("ScrModel",
       }
       return(list(est = est, sds = sds, LCL = lcl, UCL = ucl))
     },
+    
+    calc_forwback = function(forw = NULL, back = NULL) {
+      if (is.null(forw) & is.null(back)) forw <- back <- TRUE
+      if (is.null(forw)) forw <- FALSE
+      if (is.null(back)) back <- FALSE
+      # initial distribution 
+      pr0 <- self$calc_initial_distribution()
+      # compute probability of capture histories 
+      # across all individuals, occasions and traps 
+      pr_capture <- self$calc_pr_capture()
+      # compute lalpha for each individual
+      n <- private$data_$n()
+      n_occasions <- private$data_$n_occasions()
+      n_meshpts <- private$data_$n_meshpts() 
+      # get tpms for state model 
+      nstates <- self$state()$nstates() 
+      tpms <- vector(mode = "list", length = private$data_$n_occasions())
+      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k)
+      # compute forward-backward 
+      if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
+      if (back) lbeta <- C_calc_beta(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
+      if (forw & back) return(list(lalpha = lalpha, lbeta = lbeta))
+      if (forw) return(lalpha)
+      if (back) return(lbeta)
+      return(0)
+    }, 
     
     calc_negllk = function(param = NULL, names = NULL) {
       negllk <- -self$calc_llk(param, names)

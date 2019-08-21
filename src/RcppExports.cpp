@@ -120,3 +120,39 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// C_calc_alpha
+arma::field<arma::cube> C_calc_alpha(const int n, const int J, const int M, const arma::mat pr0, const Rcpp::List pr_capture, const Rcpp::List tpms, const int num_states, const arma::vec entry);
+RcppExport SEXP _openpopscr_C_calc_alpha(SEXP nSEXP, SEXP JSEXP, SEXP MSEXP, SEXP pr0SEXP, SEXP pr_captureSEXP, SEXP tpmsSEXP, SEXP num_statesSEXP, SEXP entrySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const int >::type J(JSEXP);
+    Rcpp::traits::input_parameter< const int >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat >::type pr0(pr0SEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type pr_capture(pr_captureSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type tpms(tpmsSEXP);
+    Rcpp::traits::input_parameter< const int >::type num_states(num_statesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec >::type entry(entrySEXP);
+    rcpp_result_gen = Rcpp::wrap(C_calc_alpha(n, J, M, pr0, pr_capture, tpms, num_states, entry));
+    return rcpp_result_gen;
+END_RCPP
+}
+// C_calc_beta
+arma::field<arma::cube> C_calc_beta(const int n, const int J, const int M, const arma::mat pr0, const Rcpp::List pr_capture, const Rcpp::List tpms, const int num_states, const arma::vec entry);
+RcppExport SEXP _openpopscr_C_calc_beta(SEXP nSEXP, SEXP JSEXP, SEXP MSEXP, SEXP pr0SEXP, SEXP pr_captureSEXP, SEXP tpmsSEXP, SEXP num_statesSEXP, SEXP entrySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const int >::type J(JSEXP);
+    Rcpp::traits::input_parameter< const int >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat >::type pr0(pr0SEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type pr_capture(pr_captureSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type tpms(tpmsSEXP);
+    Rcpp::traits::input_parameter< const int >::type num_states(num_statesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec >::type entry(entrySEXP);
+    rcpp_result_gen = Rcpp::wrap(C_calc_beta(n, J, M, pr0, pr_capture, tpms, num_states, entry));
+    return rcpp_result_gen;
+END_RCPP
+}

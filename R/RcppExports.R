@@ -108,3 +108,37 @@ C_calc_pr_capture <- function(n, J, K, M, capthist, enc0, usage, num_states, min
     .Call(`_openpopscr_C_calc_pr_capture`, n, J, K, M, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry)
 }
 
+#' Computes forward probabilities
+#'
+#' @param n number of individuals 
+#' @param J total number of occasions 
+#' @param M total number of mesh points
+#' @param pr0 initial distribution over life states
+#' @param pr_capture output of calc_pr_capture() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry vector of entry occasions per individual 
+#'
+#' @return log-likelihood value 
+#' 
+C_calc_alpha <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
+    .Call(`_openpopscr_C_calc_alpha`, n, J, M, pr0, pr_capture, tpms, num_states, entry)
+}
+
+#' Computes backward probabilities
+#'
+#' @param n number of individuals 
+#' @param J total number of occasions 
+#' @param M total number of mesh points
+#' @param pr0 initial distribution over life states
+#' @param pr_capture output of calc_pr_capture() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry vector of entry occasions per individual 
+#'
+#' @return log-likelihood value 
+#' 
+C_calc_beta <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
+    .Call(`_openpopscr_C_calc_beta`, n, J, M, pr0, pr_capture, tpms, num_states, entry)
+}
+
