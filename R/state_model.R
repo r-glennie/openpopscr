@@ -95,14 +95,23 @@ StateModel <- R6Class("StateModel",
         return(P)
       }, 
       
-      plot = function(...) {
-        trm <- self$trm() 
+      plot_trm = function(k = 1, ...) {
+        trm <- self$trm(k) 
         colnames(trm) <- self$names() 
         rownames(trm) <- self$names() 
         chain <- new("ctmc", generator = trm)
         plot(chain, ..., vertex.size = 30, edge.lty = 2)
         invisible()
       }, 
+      
+      plot_tpm = function(k = 1, ...) {
+        tpm <- self$tpm(k) 
+        colnames(tpm) <- self$names() 
+        rownames(tpm) <- self$names() 
+        chain <- new("markovchain", states = self$names(), transitionMatrix = tpm)
+        plot(chain, ..., vertex.size = 30, edge.lty = 2)
+        invisible()
+      },
       
       set_par = function(par) {
         private$par_ <- par 

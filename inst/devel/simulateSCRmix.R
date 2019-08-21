@@ -1,12 +1,12 @@
 #### Simple script to simulate SCR data 
 ## Set parameters 
 D <- 500
-lambda0 <- c(0.1, 0.5)
-sigma <-  c(30, 30)
+lambda0 <- c(0.5, 0.5)
+sigma <-  c(50, 20)
 
 ## Survey setup 
 # number of occasions
-K <- 10
+K <- 5
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 rownames(detectors) <- 1:nrow(detectors)
@@ -24,8 +24,11 @@ y <- mesh[pt, 2]
 nstates <- 2 
 delta <- c(0.7, 0.3)
 mix <- sample(1:2, size = N, replace = TRUE, prob = delta)
-tpm <- matrix(c(0.8, 0.2, 
-                0.3, 0.7), nr = nstates, nc = nstates, byrow = TRUE)
+obsmix <- rep(NA, length(mix))
+cmix <- NULL
+#tpm <- matrix(c(0.8, 0.2, 
+#                0.3, 0.7), nr = nstates, nc = nstates, byrow = TRUE)
+tpm <- diag(2)
 
 ## Simulate survey 
 cap <- data.frame(session = numeric(), 
@@ -43,6 +46,8 @@ for (k in 1:K) {
     if (any(c > 0)) {
       if (!seen[i]) {
         id[i] <- max(id) + 1
+        if (is.na(obsmix[i])) cmix <- c(cmix, mix[i])
+        obsmix[i] <- mix[i]
         seen[i] <- TRUE
       } 
       dets <- which(c > 0)
@@ -67,29 +72,49 @@ scrdat <- ScrData$new(ch, mesh = mesh)
 
 ## create state model 
 statemod <- StateModel$new(data = scrdat, 
-                           names = c("lazy", "busy"), 
-                           structure = matrix(c(".", "~1", 
-                                                "~1", "."), nr = 2, nc = 2, byrow = T), 
-                           start = list(delta = c(0.5, 0.5), tpm = matrix(c(0.8, 0.2,
-                                                                            0.2, 0.8), nr = 2, nc = 2, byrow = T)))
+                           names = c("male", "female"), 
+                           structure = matrix(c(".", "0", 
+                                                "0", "."), nr = 2, nc = 2, byrow = T), 
+                           start = list(delta = c(0.5, 0.5), tpm = diag(2)))#tpm = matrix(c(0.8, 0.2,
+                                                                            #0.2, 0.8), nr = 2, nc = 2, byrow = T)))
                            #delta_fixed = c(TRUE, TRUE))
 
-form <- list(lambda0 ~ state, 
-             sigma ~ 1, 
+form <- list(lambda0 ~ 1, 
+             sigma ~ state, 
              D ~ 1)
 
 start <- get_start_values(scrdat)
 
-mod <- ScrModel$new(form, scrdat, start, statemod = statemod)
+#mod <- ScrModel$new(form, scrdat, start, statemod = statemod)
 
-enc <- mod$calc_encrate()
+#mod$calc_llk()
+
+#mod$fit()
+
+## some observed sexes 
+s <- ifelse(cmix == 1, "male", "female")
+si <- vector(mode = "list", length = scrdat$n())
+for (i in 1:20) {
+  si[[i]] <- s[i]
+}
+
+scrdat$add_covariate("state", si, "i")
+
+mod <- ScrModel$new(form, scrdat, start, statemod = statemod)
 
 mod$calc_llk()
 
 mod$fit()
 
+
 library(secr)
-#secrfit <- secr.fit(scrdat$capthist(), mask = scrdat$mesh(), detectfn = "HHN", model = list(sigma ~ h2))
+ch <- scrdat$capthist()
+covariates(ch) <- data.frame(sex = factor(c(s[1:20], rep(NA, length(s) - 20))))
+secrfit <- secr.fit(ch, 
+                    mask = scrdat$mesh(), 
+                    detectfn = "HHN", 
+                    model = list(sigma ~ h2), 
+                    hcov = "sex")
 
 
 

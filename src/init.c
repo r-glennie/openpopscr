@@ -21,7 +21,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_openpopscr_C_calc_move_llk",   (DL_FUNC) &_openpopscr_C_calc_move_llk,   12},
     {"_openpopscr_C_calc_pdet",       (DL_FUNC) &_openpopscr_C_calc_pdet,       5},
     {"_openpopscr_C_calc_move_pdet",  (DL_FUNC) &_openpopscr_C_calc_move_pdet,  10},
-    {"_openpopscr_C_calc_pr_capture", (DL_FUNC) &_openpopscr_C_calc_pr_capture, 14},
+    {"_openpopscr_C_calc_pr_capture", (DL_FUNC) &_openpopscr_C_calc_pr_capture, 15},
     {NULL, NULL, 0}
 };
 

@@ -44,6 +44,7 @@ struct PrCaptureCalculator : public Worker {
   const Rcpp::List enc; // encounter rate: occasion x mesh point x trap
   const arma::mat& usage; // usage of traps: trap x occasion 
   const int num_states; // number of hidden states in life history model 
+  const arma::cube& known_state; // -1 if known not to be in that state 
   const int minstate; // states before alive state 
   const int maxstate; // states after alives states
   const int detector_type; // type of detector, see initialize in ScrData  
@@ -74,6 +75,7 @@ struct PrCaptureCalculator : public Worker {
                         const int num_states,
                         const int minstate, 
                         const int maxstate, 
+                        const arma::cube& known_state, 
                         const int detector_type,
                         const int n_prim, 
                         const arma::vec& S, 
@@ -86,6 +88,7 @@ struct PrCaptureCalculator : public Worker {
                         num_states(num_states), 
                         minstate(minstate), 
                         maxstate(maxstate), 
+                        known_state(known_state), 
                         detector_type(detector_type),
                         n_prim(n_prim), 
                         S(S), 
@@ -160,38 +163,43 @@ struct PrCaptureCalculator : public Worker {
             // loop over secondary occasions 
            for (int s = 0; s < S(prim); ++s) {
              ++j;
-             if (detector_type == 3) savedenc.zeros();
-             sumcap = 0;
-             // not a multi-trap (independent detectors)
-             if (detector_type != 3) {
-              for (int k = 0; k < K; ++k) {
-                if (usage(k, j) < 1e-16) continue; 
-                if (detector_type == 1 | detector_type == 4) {
-                  // count detector Poisson counts 
-                  probfield(i).slice(prim).col(gp) += capthist(i, j, k) * logenc0[g].slice(j).col(k) - usage(k, j) * enc0[g].slice(j).col(k);
-                } else if (detector_type == 2) {
-                  // proximity detector Binomial 
-                  probfield(i).slice(prim).col(gp) += capthist(i, j, k) * log_penc[g].slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0[g].slice(j).col(k);
-                } 
-                if (capthist(i, j, k) > 1e-16) unseen = false;
-              }
-             }
-             // multi-detector case (dependent detectors)
-              if (detector_type == 3) {
-                arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all); 
-                sumcap = arma::accu(cap_ij); 
-                if (sumcap > 0) unseen = false; 
-                savedenc += logenc0[g].slice(j) * cap_ij;  
-                if (!unseen) probfield(i).slice(prim).col(gp) += savedenc - sumcap * log_total_enc[g].col(j); 
-                probfield(i).slice(prim).col(gp) += -(1.0 - sumcap) * total_enc[g].col(j) + sumcap * log_total_penc[g].col(j); 
+             // if we know it is not this state, all zero 
+             if (known_state(i, j, gp) < 0) {
+               probfield(i).slice(prim).col(gp).zeros(); 
+             } else {
+               if (detector_type == 3) savedenc.zeros();
+               sumcap = 0;
+               // not a multi-trap (independent detectors)
+               if (detector_type != 3) {
+                for (int k = 0; k < K; ++k) {
+                  if (usage(k, j) < 1e-16) continue; 
+                  if (detector_type == 1 | detector_type == 4) {
+                    // count detector Poisson counts 
+                    probfield(i).slice(prim).col(gp) += capthist(i, j, k) * logenc0[g].slice(j).col(k) - usage(k, j) * enc0[g].slice(j).col(k);
+                  } else if (detector_type == 2) {
+                    // proximity detector Binomial 
+                    probfield(i).slice(prim).col(gp) += capthist(i, j, k) * log_penc[g].slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0[g].slice(j).col(k);
+                  } 
+                  if (capthist(i, j, k) > 1e-16) unseen = false;
+                }
+               }
+               // multi-detector case (dependent detectors)
+                if (detector_type == 3) {
+                  arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all); 
+                  sumcap = arma::accu(cap_ij); 
+                  if (sumcap > 0) unseen = false; 
+                  savedenc += logenc0[g].slice(j) * cap_ij;  
+                  if (!unseen) probfield(i).slice(prim).col(gp) += savedenc - sumcap * log_total_enc[g].col(j); 
+                  probfield(i).slice(prim).col(gp) += -(1.0 - sumcap) * total_enc[g].col(j) + sumcap * log_total_penc[g].col(j); 
+                }
+                if (unseen) {
+                  for (int gpi = 0; gpi < minstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
+                  for (int gpi = minstate + num_states; gpi < minstate + num_states + maxstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
+                }
+                probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));
               }
             }
           }
-          if (unseen) {
-            for (int gp = 0; gp < minstate; ++gp) probfield(i).slice(prim).col(gp).ones(); 
-            for (int gp = minstate + num_states; gp < minstate + num_states + maxstate; ++gp) probfield(i).slice(prim).col(gp).ones(); 
-          }
-          probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp)); 
         }
       }
     }
@@ -224,7 +232,8 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              const arma::mat usage, 
                              const int num_states,
                              const int minstate, 
-                             const int maxstate, 
+                             const int maxstate,
+                             const arma::cube& known_state, 
                              const int detector_type, 
                              const int n_prim, 
                              const arma::vec S, 
@@ -233,7 +242,7 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
   if (num_states < 3) alive_col = 0; 
   arma::field<arma::cube> probfield(n);
   for (int i = 0; i < n; ++i) probfield(i) = arma::zeros<arma::cube>(M, num_states, n_prim); 
-  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, minstate, maxstate, detector_type, n_prim, S, entry, probfield); 
+  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry, probfield); 
   parallelFor(0, n, pr_capture_calc, 1); 
   return(probfield);
 }

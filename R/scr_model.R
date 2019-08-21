@@ -86,6 +86,7 @@ ScrModel <- R6Class("ScrModel",
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
+      private$read_states() 
       if (print) cat("done\n")
       private$print_ = print 
     },
@@ -233,6 +234,7 @@ ScrModel <- R6Class("ScrModel",
       n_states <- private$state_$nstates() 
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
+      kstates <- private$known_states_
       prob <- C_calc_pr_capture(n, 
                                 n_occasions, 
                                 n_traps, 
@@ -243,6 +245,7 @@ ScrModel <- R6Class("ScrModel",
                                 n_states, 
                                 0, 
                                 0,
+                                kstates,
                                 self$data()$detector_type(), 
                                 n_occasions, 
                                 rep(1, n_occasions),
@@ -409,6 +412,7 @@ ScrModel <- R6Class("ScrModel",
     data_ = NULL,
     detfn_ = NULL, 
     state_ = NULL, 
+    known_states_ = NULL, 
     form_ = NULL, 
     par_ = NULL, 
     last_par_ = NULL,
@@ -474,6 +478,7 @@ ScrModel <- R6Class("ScrModel",
       tempdatjk <- tempdatkm <- tempdatm <- NULL
       covnms <- names(covslst$cov)
       for (i in 1:length(covs)) {
+        if (covs[i] %in% c("i", "ik")) next 
         k <- switch(covs[i], "k" = 1, "j" = 2, "m" = 3, 
                     "kj" = 4, "km" = 5)
         if (k == 1) {
@@ -585,6 +590,26 @@ ScrModel <- R6Class("ScrModel",
       }
       names(private$computed_par_) <- names(private$form_)
       return(invisible())
+    }, 
+    
+    read_states = function() {
+      kstates <- array(1, dim = c(private$data_$n(), private$data_$n_occasions("all"), self$state()$nstates()))
+      covtypes <- private$data_$get_cov_list()$cov_type
+      snms <- self$state()$names()
+      if ("i" %in% covtypes |  "ik" %in% covtypes) {
+        wh <- min(which(covtypes %in% c("i", "ik")))
+        cov <- private$data_$get_cov_list()$cov[[wh]]
+        type <- covtypes[wh]
+        for (i in 1:private$data_$n()) {
+          for (k in 1:private$data_$n_occasions()) {
+            s <- private$data_$covs(i = i, k = k)$state
+            si <- match(s, snms)
+            kstates[i, k, -si] <- -1
+          }
+        }
+      }
+      private$known_states_ <- kstates
+      invisible()
     }, 
     
     make_results = function() {

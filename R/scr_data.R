@@ -198,10 +198,13 @@ ScrData <- R6Class("ScrData",
     detector_type = function() {return(private$detector_type_)}, 
     get_cov_list = function() {return(list(cov = private$cov_, cov_type = private$cov_type_))}, 
     
-    covs = function(j = NULL, k = NULL, m = NULL) {
+    covs = function(j = NULL, k = NULL, m = NULL, i = NULL) {
       if (any(is.null(j))) j0 <- seq(1, self$n_traps()) else j0 <- j
       if (any(is.null(k))) k0 <- seq(1, self$n_occasions("all")) else k0 <- k 
       if (any(is.null(m))) m0 <- seq(1, self$n_meshpts()) else m0 <- m 
+      if (any(is.null(i))) i0 <- 1 else i0 <- i 
+      if (!is.null(i) && length(i) > 1) stop("For covs(), arguument i must be a single integer.")
+      if (!is.null(i) && length(k) > 1) stop("For covs(), argument k must be a single integer when i is used.")
       dat <- lapply(1:length(private$cov_), FUN =  function(c) {
         switch(private$cov_type_[c], 
                j = private$cov_[[c]][j0], 
@@ -209,6 +212,8 @@ ScrData <- R6Class("ScrData",
                m = private$cov_[[c]][m0], 
                kj = private$cov_[[c]][k0, j0],
                km = private$cov_[[c]][k0, m0], 
+               i = private$cov_[[c]][[i0]], 
+               ik = private$cov__[[c]][[i0]][[k0]], 
                private$cov_[[c]])
       })
       names(dat) <- names(private$cov_)
@@ -299,8 +304,13 @@ ScrData <- R6Class("ScrData",
       ncov <- length(private$cov_)
       if (!is.character(cov_name)) stop("Covariate name must be a character string.")
       if (cov_name %in% names) stop("Covariate with that name already exists.")
-      if (!(cov_type %in% c("j", "k", "kj", "km", "m"))) stop("Invalid covariate type.")
-      if (!is.factor(cov) & !is.numeric(cov)) stop("Invalid covariate, must be factor or numeric.")
+      if (!(cov_type %in% c("i", "ik", "j", "k", "kj", "km", "m"))) stop("Invalid covariate type.")
+      if (!(cov_type %in% c("i", "ik"))) {
+        if (!is.factor(cov) & !is.numeric(cov)) stop("Invalid covariate, must be factor or numeric.")
+      }
+      if (cov_type == "i") if (length(cov) != self$n()) stop("Invalid covariate.")
+      if (cov_type == "ik") if (nrow(cov) != self$n() || ncol(cov) != self$n_occasions()) stop("Invalid covariate.")
+      if ("i" %in% private$cov_type_ || "ik" %in% private$cov_type_) stop("Can only have one known state covariate.")
       if (cov_type == "j") if (length(cov) != self$n_traps()) stop("Invalid covariate.")
       if (cov_type == "k") if (length(cov) != self$n_occasions()) stop("Invalid covariate.")
       if (cov_type == "kj") if (nrow(cov) != self$n_occasions() || ncol(cov) != self$n_traps()) stop("Invalid covariate.")
