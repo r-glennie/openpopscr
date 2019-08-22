@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Richard Glennie, University of St Andrews
+// Copyright (c) 2019 Richard Glennie, University of St Andrews
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files, to deal in the software
@@ -150,56 +150,65 @@ struct PrCaptureCalculator : public Worker {
   void operator()(std::size_t begin, std::size_t end) { 
     // loop over individuals 
     for (int i = begin; i < end; ++i) {
-      arma::vec savedenc(M);
-      double sumcap;
+      arma::vec savedenc(M); 
+      double sumcap; 
       int g = 0; // current state processed 
-      // loop over primary occasions 
-      for (int gp = minstate; gp < minstate + num_states; ++gp) {
-        g = gp - minstate; 
-        int j = -1; // current occasion processed
-        for (int prim = 0; prim < n_prim; ++prim) { 
-         bool unseen = true;
-          if (entry(i) - 1 < prim) {
-            // loop over secondary occasions 
-           for (int s = 0; s < S(prim); ++s) {
-             ++j;
-             // if we know it is not this state, all zero 
-             if (known_state(i, j, gp) < 0) {
-               probfield(i).slice(prim).col(gp).zeros(); 
-             } else {
-               if (detector_type == 3) savedenc.zeros();
-               sumcap = 0;
-               // not a multi-trap (independent detectors)
-               if (detector_type != 3) {
-                for (int k = 0; k < K; ++k) {
-                  if (usage(k, j) < 1e-16) continue; 
-                  if (detector_type == 1 | detector_type == 4) {
-                    // count detector Poisson counts 
-                    probfield(i).slice(prim).col(gp) += capthist(i, j, k) * logenc0[g].slice(j).col(k) - usage(k, j) * enc0[g].slice(j).col(k);
-                  } else if (detector_type == 2) {
-                    // proximity detector Binomial 
-                    probfield(i).slice(prim).col(gp) += capthist(i, j, k) * log_penc[g].slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0[g].slice(j).col(k);
-                  } 
-                  if (capthist(i, j, k) > 1e-16) unseen = false;
+      int j = -1; // current occasion processed 
+      // loop over primary occasions
+      for (int prim = 0; prim < n_prim; ++prim) {
+        bool unseen = true; // individual seen or not in this primary?
+        if (prim > entry(i) - 1) {
+          // loop over secondary occasions 
+          for (int s = 0; s < S(prim); ++s) {
+            ++j; // increment occasion number 
+            // loop over detectable states
+            for (int gp = minstate; gp < minstate + num_states; ++gp) {
+              g = gp - minstate; // current state 
+              // if state known to be impossible, leave probfield zero 
+              if (known_state(i, j, gp) < 0) {
+                continue; 
+              } else {
+                // state is possible 
+                if (detector_type == 3) savedenc.zeros(); 
+                sumcap = 0; 
+                // independent detectors 
+                if (detector_type != 3) {
+                  // loop over detectors 
+                  for (int k = 0; k < K; ++k) {
+                    if (usage(k, j) < 1e-16) continue; // detector unused 
+                    if (detector_type == 1 | detector_type == 4) {
+                      // count detector Poisson
+                      probfield(i).slice(prim).col(gp) += capthist(i, j, k) * logenc0[g].slice(j).col(k) - usage(k, j) * enc0[g].slice(j).col(k);
+                    } else if (detector_type == 2) {
+                      // proximity detector 
+                      probfield(i).slice(prim).col(gp) += capthist(i, j, k) * log_penc[g].slice(j).col(k) - (1.0 - capthist(i, j, k)) * usage(k, j) * enc0[g].slice(j).col(k);
+                    }
+                    // seen? 
+                    if (capthist(i, j, k) > 1e-16) unseen = false; 
+                  }
                 }
-               }
-               // multi-detector case (dependent detectors)
+                // dependent detectors 
                 if (detector_type == 3) {
-                  arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all); 
-                  sumcap = arma::accu(cap_ij); 
+                  // get detector record for this individual and occasion 
+                  arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all);  
+                  sumcap = arma::accu(cap_ij);
+                  // seen? 
                   if (sumcap > 0) unseen = false; 
                   savedenc += logenc0[g].slice(j) * cap_ij;  
                   if (!unseen) probfield(i).slice(prim).col(gp) += savedenc - sumcap * log_total_enc[g].col(j); 
                   probfield(i).slice(prim).col(gp) += -(1.0 - sumcap) * total_enc[g].col(j) + sumcap * log_total_penc[g].col(j); 
                 }
-                if (unseen) {
-                  for (int gpi = 0; gpi < minstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
-                  for (int gpi = minstate + num_states; gpi < minstate + num_states + maxstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
-                }
-                probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));
               }
+              probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));
             }
           }
+        } else {
+          // if not entered in this primary yet 
+          j = j + S(prim); // move occasion number to end of primary 
+        }
+        if (unseen) {
+          for (int gpi = 0; gpi < minstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
+          for (int gpi = minstate + num_states; gpi < minstate + num_states + maxstate; ++gpi) probfield(i).slice(prim).col(gpi).ones(); 
         }
       }
     }
