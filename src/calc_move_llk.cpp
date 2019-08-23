@@ -25,6 +25,7 @@
 #include <RcppArmadillo.h>
 #include <RcppParallel.h>
 #include <vector>
+#include "forward_declare.h"
 
 using namespace RcppParallel; 
 
@@ -72,8 +73,8 @@ arma::sp_mat CalcTrm(const arma::vec num_cells, const double sd, const double dx
 arma::vec ExpG(const arma::vec& v_in,
                   const arma::sp_mat& a,
                   const double& t,
-                  const int& krylov_dim = 30,
-                  const double& tol = 1e-10) {
+                  const int& krylov_dim,
+                  const double& tol) {
   arma::rowvec v(v_in.t()); 
   double m = fmin(a.n_rows, krylov_dim);
   double anorm = arma::norm(a, "Inf");
@@ -203,15 +204,16 @@ struct MoveLlkCalculator : public Worker {
   const arma::vec inside; 
   const double dx; 
   const arma::vec dt; 
-  const arma::vec sd; 
+  const arma::mat sd; 
   const int num_states;
+  const int minstate; 
+  const int maxstate; 
   const arma::vec entry; 
   
   // transform 
   std::vector<arma::mat> tpm; 
   std::vector<arma::cube> pr_cap; 
   std::vector<arma::sp_mat> trm; 
-  int alive_col; 
   
   // output 
   arma::vec& illk; 
@@ -225,24 +227,29 @@ struct MoveLlkCalculator : public Worker {
                 const arma::vec inside, 
                 const double dx, 
                 const arma::vec dt, 
-                const arma::vec sd,
+                const arma::mat sd,
                 const int num_states,
+                const int minstate, 
+                const int maxstate, 
                 const arma::vec entry,
-                arma::vec& illk) : n(n), J(J), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_cells(num_cells), inside(inside), dx(dx), dt(dt), sd(sd), num_states(num_states), entry(entry), illk(illk) {
+                arma::vec& illk) : n(n), J(J), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_cells(num_cells), inside(inside), dx(dx), dt(dt), sd(sd), num_states(num_states), minstate(minstate), maxstate(maxstate), entry(entry), illk(illk) {
     if (num_states > 1) {
       tpm.resize(J); 
       for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]); 
     }
-    trm.resize(J); 
-    for (int j = 0; j < J - 1; ++j) trm[j] = CalcTrm(num_cells, sd(j), dx, inside); 
+    trm.resize(J * num_states); 
+    for (int j = 0; j < J - 1; ++j) {
+      for (int g = minstate; g < minstate + num_states; ++g) {
+        if (sd(j, g - minstate) < 0) continue; 
+        trm[g - minstate + j * num_states] = CalcTrm(num_cells, sd(j, g - minstate), dx, inside); 
+      }
+    }
     pr_cap.resize(n);
     for (int i = 0; i < n; ++i) {
       Rcpp::NumericVector pr_capvec(pr_capture[i]);
       arma::cube pr_icap(pr_capvec.begin(), num_cells(0), num_states, J, false);
       pr_cap[i] = pr_icap;
     }
-    alive_col = 0; 
-    if (num_states > 2) alive_col = 1; 
   }
   
   void operator()(std::size_t begin, std::size_t end) { 
@@ -256,11 +263,14 @@ struct MoveLlkCalculator : public Worker {
         if (num_states > 1) {
           pr *= tpm[j];
         }
-        try {
-          pr.col(alive_col) = ExpG(pr.col(alive_col), trm[j], dt(j));
-        } catch(...) {
-          illk(i) = -arma::datum::inf;
-          break;
+        for (int g = minstate; g < minstate + num_states; ++g) {
+          if (sd(j, g - minstate) < 0) continue; 
+          try {
+            pr.col(g) = ExpG(pr.col(g), trm[g - minstate + j * num_states], dt(j));
+          } catch(...) {
+            illk(i) = -arma::datum::inf;
+            break;
+          }
         }
         sum_pr = accu(pr);
         llk += log(sum_pr);
@@ -300,12 +310,14 @@ double C_calc_move_llk(const int n, const int J,
                        const arma::vec inside, 
                        const double dx, 
                        const arma::vec dt, 
-                       const arma::vec sd, 
+                       const arma::mat sd, 
                        const int num_states,
+                       const int minstate, 
+                       const int maxstate, 
                        const arma::vec entry) {
   
   arma::vec illk(n);
-  MoveLlkCalculator move_llk_calulator(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry, illk); 
+  MoveLlkCalculator move_llk_calulator(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry, illk); 
   parallelFor(0, n, move_llk_calulator, 1); 
   return(arma::accu(illk)); 
 }
@@ -334,8 +346,10 @@ double C_calc_move_pdet(const int J,
                    const arma::vec inside, 
                    const double dx, 
                    const arma::vec dt,
-                   const arma::vec sd, 
-                   const int num_states) {
+                   const arma::mat sd, 
+                   const int num_states, 
+                   const int minstate, 
+                   const int maxstate) {
   
   double pdet = 0; 
   arma::mat pr(pr0);
@@ -348,15 +362,19 @@ double C_calc_move_pdet(const int J,
   for (int j = 0; j < J - 1; ++j) {
     pr_capture = Rcpp::as<arma::mat>(pr_captures[j]);
     pr %= pr_capture;
-    trm = CalcTrm(num_cells, sd(j), dx, inside);
+    
     if (num_states > 1) {
       tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr *= tpm; 
     }
-    try {
-      pr.col(alive_col) = ExpG(pr.col(alive_col), trm, dt(j)); 
-    } catch(...) {
-      return -arma::datum::inf; 
+    for (int g = minstate; g < minstate + num_states; ++g) {
+      if (sd(j, g - minstate) < 0) continue; 
+      trm = CalcTrm(num_cells, sd(j, g - minstate), dx, inside);
+      try {
+        pr.col(g) = ExpG(pr.col(g), trm, dt(j)); 
+      } catch(...) {
+        return -arma::datum::inf; 
+      }
     }
     sum_pr = accu(pr); 
     pdet += log(sum_pr); 

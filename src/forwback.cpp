@@ -21,7 +21,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // openpopscr project: open population spatial capture-recapture modelling
 //
-// moveds.cpp: C++ functions to compute conditional probabilities and Viterbi path
+// moveds.cpp: C++ functions to compute conditional probabilities 
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -212,9 +212,9 @@ arma::field<arma::cube> C_calc_beta(const int n, const int J, const int M,
                                      const int num_states,
                                      const arma::vec entry) {
   
-  arma::field<arma::cube> lalpha(n);
-  for (int i = 0; i < n; ++i) lalpha(i) = arma::zeros<arma::cube>(M, num_states, J); 
-  BetaCalculator beta_calculator(n, J, M, pr0, pr_capture, tpms, num_states, entry, lalpha); 
+  arma::field<arma::cube> lbeta(n);
+  for (int i = 0; i < n; ++i) lbeta(i) = arma::zeros<arma::cube>(M, num_states, J); 
+  BetaCalculator beta_calculator(n, J, M, pr0, pr_capture, tpms, num_states, entry, lbeta); 
   parallelFor(0, n, beta_calculator, 1); 
-  return(lalpha); 
+  return(lbeta); 
 }

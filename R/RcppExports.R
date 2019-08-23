@@ -62,8 +62,8 @@ C_calc_pdet <- function(J, pr0, pr_captures, tpms, num_states) {
 #'
 #' @return log-likelihood value 
 #' 
-C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry) {
-    .Call(`_openpopscr_C_calc_move_llk`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, entry)
+C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry) {
+    .Call(`_openpopscr_C_calc_move_llk`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry)
 }
 
 #' Computes detection probability (seen at least once) for Jolly-Seber model 
@@ -81,8 +81,8 @@ C_calc_move_llk <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, 
 #'
 #' @return pdet = probability seen at some time on the survey 
 #' 
-C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states) {
-    .Call(`_openpopscr_C_calc_move_pdet`, J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states)
+C_calc_move_pdet <- function(J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate) {
+    .Call(`_openpopscr_C_calc_move_pdet`, J, pr0, pr_captures, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate)
 }
 
 #' Computes probability of each capture record
@@ -140,5 +140,47 @@ C_calc_alpha <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
 #' 
 C_calc_beta <- function(n, J, M, pr0, pr_capture, tpms, num_states, entry) {
     .Call(`_openpopscr_C_calc_beta`, n, J, M, pr0, pr_capture, tpms, num_states, entry)
+}
+
+#' Computes forward probabilities
+#'
+#' @param n number of individuals 
+#' @param J total number of occasions 
+#' @param pr0 initial distribution over life states
+#' @param pr_capture output of calc_pr_capture() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#' @param num_cells number of cells in x,y,total 
+#' @param inside 0 if meshpt outside survey region, 1 otherwise 
+#' @param dx mesh spacing 
+#' @param dt time between occasions 
+#' @param sd movement parameter for each occasion 
+#' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry time each individual entered survey 
+#'
+#' @return forwards probabiltiies individual x occasion x mesh x state
+#' 
+C_calc_movealpha <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry) {
+    .Call(`_openpopscr_C_calc_movealpha`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry)
+}
+
+#' Computes backward probabilities
+#'
+#' @param n number of individuals 
+#' @param J total number of occasions 
+#' @param pr0 initial distribution over life states
+#' @param pr_capture output of calc_pr_capture() in JsModel
+#' @param tpms output of calc_tpms() in JsModel
+#' @param num_cells number of cells in x,y,total 
+#' @param inside 0 if meshpt outside survey region, 1 otherwise 
+#' @param dx mesh spacing 
+#' @param dt time between occasions 
+#' @param sd movement parameter for each occasion 
+#' @param num_states 2 = CJS model, 3 = JS model 
+#' @param entry time each individual entered survey 
+#'
+#' @return backwards probabiltiies individual x occasion x mesh x state 
+#' 
+C_calc_movebeta <- function(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry) {
+    .Call(`_openpopscr_C_calc_movebeta`, n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry)
 }
 

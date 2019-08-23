@@ -44,7 +44,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              inherit = ScrModel, 
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
@@ -62,8 +62,8 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       if (print) cat("done\n")
       if (print) cat("Reading formulae.......")
       order <- c("sd", "D")
-      private$read_formula(form, detectfn, order)
-      private$par_type_[private$detfn_$npars() + 1] <- "km"
+      private$read_formula(form, detectfn, statemod, order)
+      private$par_type_[private$detfn_$npars() + 1] <- "kms"
       private$par_type_[private$detfn_$npars() + 2] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "sd", "D")
       # make parameter list 
@@ -76,13 +76,16 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
+      private$read_states() 
       if (print) cat("done\n")
       private$print_ = print 
     },
     
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(1, nrow = n_mesh, ncol = 1, byrow = TRUE)
+      nstates <- private$state_$nstates()
+      delta <- private$state_$delta() 
+      pr0 <- matrix(delta, nrow = n_mesh, ncol = nstates, byrow = TRUE)
       a <- private$data_$cell_area() 
       D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_ 
       pr0 <- pr0 * D
@@ -92,16 +95,22 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     calc_Dpdet = function() {
       # compute probability of zero capture history 
       enc_rate <- self$calc_encrate() 
+      nstates <- self$state()$nstates()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
-        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 1)
-        pr_empty[[j]][, 1] <- exp(-t(trap_usage[, j]) %*% enc_rate[j,,])
+        pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates)
+        for (g in 1:nstates) {
+          pr_empty[[j]][, g] <- exp(-t(trap_usage[, j]) %*% enc_rate[[g]][j,,])
+        }
       }
       pr0 <- self$calc_initial_distribution()
-      tpms <- list(matrix(0, nr = 2, nc = 2))
+      tpms <- vector(mode = "list", length = private$data_$n_occasions())
+      dt <- diff(private$data_$time())
+      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", m = 1)
+      sd <- self$get_par("sd", m = 1, s = 1:self$state()$nstates())
+      sd[is.na(sd)] <- -10
       Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
                                pr_empty, 
@@ -111,7 +120,9 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                                private$dx_,
                                dt, 
                                sd,
-                               1); 
+                               nstates, 
+                               0, 
+                               0); 
       a <- private$data_$cell_area() 
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
       Dpdet <- sum(D) - Dpdet 
@@ -120,19 +131,34 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(param)) {
+        slen <- length(self$state()$par())
+        param2 <- param 
+        if (slen > 0) {
+          ind <- seq(length(param) - slen + 1, length(param))
+          self$state()$set_par(param[ind])
+          param2 <- param[-ind]
+        }
+        self$set_par(private$convert_vec2par(param2));
+      }
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
       # compute probability of capture histories 
       # across all individuals, occasions and traps 
       pr_capture <- self$calc_pr_capture()
-      # compute likelihood for each individual
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      tpms <- list(matrix(0, nr = 2, nc = 2))
+      # get tpms for state model 
+      nstates <- self$state()$nstates() 
+      tpms <- vector(mode = "list", length = private$data_$n_occasions())
+      dt <- diff(private$data_$time())
+      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      # get movement 
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", m = 1)
+      sd <- self$get_par("sd", m = 1, s = 1:self$state()$nstates())
+      sd[is.na(sd)] <- -10
+      # compute likelihood for each individual
       llk <- C_calc_move_llk(n, 
                              n_occasions,
                              pr0, 
@@ -143,7 +169,9 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                              private$dx_, 
                              dt, 
                              sd, 
-                             1, 
+                             nstates, 
+                             0, 
+                             0,
                              rep(0, private$data_$n()))
       # compute log-likelihood
       llk <- llk - n * log(self$calc_Dpdet())
