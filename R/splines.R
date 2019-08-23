@@ -45,6 +45,8 @@ openpopscrgam <- function (formula,
                            list.call = FALSE, 
                            modCon = 0) {
   # split formula into parametric and smooth parts
+  options(na.action = NULL)
+  on.exit(options(na.action = na.omit))
   split <- interpret.gam(formula)
   pterms <- terms(split$pf)
   # get number of smooths 
@@ -54,7 +56,7 @@ openpopscrgam <- function (formula,
     m <- 0
   } else m <- length(split$smooth.spec)
   # compute parametric model frame 
-  mf <- model.frame(split$pf, data, drop.unused.levels = FALSE)
+  mf <- model.frame(split$pf, data, na.action = NULL, drop.unused.levels = FALSE)
   # drop intercept, if needed 
   if (drop.intercept) attr(pterms, "intercept") <- 1
   # get parametric design matrix 

@@ -28,8 +28,8 @@
 #'                    NA for edge with fixed transition probability, 0 for no edge 
 #'   \item start: list with trm or tpm for initial transition rate matrix or transition probability matrix and 
 #'         delta for initial distribution 
+#'   \item cov: data frame, one row per state, one column per variable 
 #'   \item delta_fixed: TRUE if initial is to be fixed, else it is estimated 
-#'   \item groups: factor variable where states with same factor share state effect on detection parameters
 #' }
 #' 
 #' Methods include: 
@@ -40,7 +40,7 @@
 #' 
 StateModel <- R6Class("StateModel", 
   public = list(
-      initialize = function(data, names, structure, start, delta_fixed = NULL, groups = NULL) {
+      initialize = function(data, names, structure, start, cov = NULL, delta_fixed = NULL) {
         private$nstates_ = length(names)
         private$names_ = names
         private$data_ = data
@@ -48,10 +48,11 @@ StateModel <- R6Class("StateModel",
         private$struct_ = structure 
         private$delta_fixed_ = delta_fixed
         if (is.null(delta_fixed)) private$delta_fixed_ <- rep(FALSE, private$nstates_)
-        if (is.null(groups)) {
-          private$groups_ = factor(1:private$nstates_)
+        if (is.null(cov)) {
+          private$groups_ = data.frame(state = factor(1:private$nstates_))
         } else {
-          private$groups_ <- groups 
+          private$groups_ <- cov 
+          private$groups_$state = factor(1:private$nstates_)
         }
         private$make_par()
         private$initialise_par(start)
@@ -66,12 +67,9 @@ StateModel <- R6Class("StateModel",
       par = function() {return(private$par_)}, 
       struct = function() {return(private$struct_)}, 
       delta = function() {return(private$delta_)},
-      groups = function() {return(private$groups_)}, 
-      group = function(s = NULL) {
-        if (is.null(s)) return(self$groups())
-        return(self$groups()[s])
-      }, 
-      ngroups = function() {return(nlevels(private$groups_))}, 
+      groups = function() {return(private$groups_)},
+      groupnms = function() {return(names(private$groups_))}, 
+      ngroups = function(c = 1) {return(nlevels(private$groups_[,c]))}, 
       
       trm = function(k = 1) {
         if (!identical(private$par_, private$last_par_)) private$compute_par() 
@@ -142,7 +140,7 @@ StateModel <- R6Class("StateModel",
     nstates_ = NULL, 
     data_ = NULL, 
     names_ = NULL, 
-    struct_ = NULL, 
+    struct_ = NULL,
     nzeros_ = NULL, 
     parloc_ = NULL,
     parvecloc_ = NULL, 

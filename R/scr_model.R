@@ -113,7 +113,7 @@ ScrModel <- R6Class("ScrModel",
       if (type == "jk") {
         return(private$computed_par_[[ipar]][k, j])
       } else if (type == "jks") {
-        return(private$computed_par_[[ipar]][k, j, self$state()$group(s)])
+        return(private$computed_par_[[ipar]][k, j, s])
       } else if (type == "km" | type == "k1m" | type == "kconm") {
         j <- 1
         mnew <- m 
@@ -121,6 +121,11 @@ ScrModel <- R6Class("ScrModel",
         res <- private$computed_par_[[ipar]][k, mnew]
         if (is.null(m) & length(k) > 1) return(rowMeans(res))
         if (is.null(m) & length(k) == 1) return(mean(res))
+        return(res)
+      } else if (type == "kms") {
+        mnew <- m 
+        if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts()
+        res <- private$computed_par_[[ipar]][k, mnew, s]
         return(res)
       } else if (type == "m") {
         j <- 1 
@@ -223,15 +228,22 @@ ScrModel <- R6Class("ScrModel",
       dist <- private$data_$distances()
       n_occasions <- private$data_$n_occasions("all")
       nstates <- self$state()$nstates()
-      ngrp <- self$state()$ngroups()
-      enc_rate <- vector(mode = "list", length = ngrp)
+      enc_rate <- vector(mode = "list", length = nstates)
       n_det_par <- self$detectfn()$npars()
       det_par <- vector(mode = "list", length = n_det_par)
       for (s in 1:nstates) {
         enc_rate[[s]] <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
         for (k in 1:n_occasions) {
           for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1, s = s))
-          enc_rate[[s]][k,,] <- self$detectfn()$h(dist, det_par)
+          if (any(sapply(det_par, anyNA))) {
+            if (all(sapply(det_par, anyNA))) {
+              enc_rate[[s]][k,,] <- 0
+            } else {
+              stop("Make sure that either all detection parameters have a state variable with NA's in the same places or none do.")
+            }
+          } else {
+            enc_rate[[s]][k,,] <- self$detectfn()$h(dist, det_par)
+          }
         }
         # add epsilon to stop log(0.0)
         enc_rate[[s]] <- enc_rate[[s]] + 1e-16
@@ -537,16 +549,26 @@ ScrModel <- R6Class("ScrModel",
       tempnms <- c(tempnms, names(tempdatk1m))
       # create tempdat for kjs parameters 
       nstates <- self$state()$nstates()
-      ngrps <- self$state()$ngroups() 
       tempdatjks <- do.call("rbind", replicate(nstates, tempdatjk, simplify = FALSE))
-      tempdatjks$state <- rep(1:nstates, each = nrow(tempdatjk))
-      tempdatjks$state <- self$state()$group(tempdatjks$state)
+      grps <- self$state()$groups()
+      ngrps <- ncol(grps)
+      grpnm <- self$state()$groupnms()
+      for (g in 1:ngrps) {
+        tempdatjks[[grpnm[g]]] <- rep(1:nstates, each = nrow(tempdatjk))
+        tempdatjks[[grpnm[g]]] <- grps[tempdatjks[[grpnm[g]]], g]
+      }
+      # create tempdat for kms parameters 
+      tempdatkms <- do.call("rbind", replicate(nstates, tempdatkm, simplify = FALSE))
+      for (g in 1:ngrps) {
+        tempdatkms[[grpnm[g]]] <- rep(1:nstates, each = nrow(tempdatkm))
+        tempdatkms[[grpnm[g]]] <- grps[tempdatkms[[grpnm[g]]], g]
+      }
       tempnms <- c(tempnms, names(tempdatjks))
       # collate tempdats together 
-      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m, tempdatjks)
+      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m, tempdatjks, tempdatkms)
       parloc <- sapply(tempdat, FUN = function(x) {min(which(names(x) == "par"))})
       for (par in 1:npar) {
-        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4, "jks" = 5)
+        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4, "jks" = 5, "kms" = 6)
         parname <- as.character(private$form_[[par]][[2]])
         names(tempdat[[k]])[parloc[k]] <- parname
         private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat[[k]])
@@ -584,11 +606,13 @@ ScrModel <- R6Class("ScrModel",
                           "km" = 2, 
                           "m" = 2,
                           "k1m" = 2, 
-                          "kconm" = 2)
+                          "kconm" = 2, 
+                          "kms" = 3)
         dim <- rep(0, dimsize)
         dim[1] <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
                          "jks" = private$data_$n_occasions("all"), 
                      "km" = private$data_$n_occasions("all"), 
+                     "kms" = private$data_$n_occasions("all"), 
                      "m" = private$data_$n_meshpts(),
                       "k1m" = private$data_$n_occasions("all") - 
                        ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
@@ -598,12 +622,13 @@ ScrModel <- R6Class("ScrModel",
         dim[2] <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                          "jks" = private$data_$n_traps(), 
                      "km" = private$data_$n_meshpts(), 
+                     "kms" = private$data_$n_meshpts(), 
                      "m" = 1,
                      "k1m" = private$data_$n_meshpts(),
                       "kconm" = private$data_$n_meshpts())
         } 
         if (dimsize > 2) {
-          dim[3] <- switch(private$par_type_[par], "jks" = private$state_$nstates())
+          dim[3] <- switch(private$par_type_[par], "jks" = private$state_$nstates(), "kms" = private$state_$nstates())
         }
         private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
                                                 list(array(private$X_[[par]] %*% private$par_[[par]], 
