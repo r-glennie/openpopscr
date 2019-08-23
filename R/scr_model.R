@@ -300,7 +300,7 @@ ScrModel <- R6Class("ScrModel",
       pr0 <- self$calc_initial_distribution()
       tpms <- vector(mode = "list", length = private$data_$n_occasions())
       dt <- diff(private$data_$time())
-      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, nstates);
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
@@ -344,7 +344,7 @@ ScrModel <- R6Class("ScrModel",
       nstates <- self$state()$nstates() 
       tpms <- vector(mode = "list", length = private$data_$n_occasions())
       dt <- diff(private$data_$time())
-      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       # compute log-likelihood
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       llk <- llk - n * log(self$calc_Dpdet())
@@ -475,7 +475,7 @@ ScrModel <- R6Class("ScrModel",
                                          matrix(".", nr = 1, nc = 1), 
                                          list(delta = c(1), trm = matrix(0, nr = 1, nc = 1)))
       } else {
-        private$state_ <- statemod 
+        private$state_ <- statemod$clone()
       }
       # detection function 
       if (is.null(detectfn)) {
@@ -644,15 +644,21 @@ ScrModel <- R6Class("ScrModel",
       kstates <- array(1, dim = c(private$data_$n(), private$data_$n_occasions("all"), self$state()$nstates()))
       covtypes <- private$data_$get_cov_list()$cov_type
       snms <- self$state()$names()
+      grpnms <- self$state()$groupnms()
+      grps <- self$state()$groups()
       if ("i" %in% covtypes |  "ik" %in% covtypes) {
         wh <- min(which(covtypes %in% c("i", "ik")))
         cov <- private$data_$get_cov_list()$cov[[wh]]
         type <- covtypes[wh]
         for (i in 1:private$data_$n()) {
           for (k in 1:private$data_$n_occasions()) {
-            s <- private$data_$covs(i = i, k = k)$state
-            si <- match(s, snms)
-            kstates[i, k, -si] <- -1
+            s <- private$data_$covs(i = i, k = k)
+            for (g in 1:length(grpnms)) {
+              if (grpnms[g] %in% names(s)) {
+                occu <- grps[,g] %in% s[[grpnms[[g]]]]
+                if (any(occu)) kstates[i, k, !occu] <- -1
+              }
+            }
           }
         }
       }
@@ -716,7 +722,8 @@ ScrModel <- R6Class("ScrModel",
       # get tpms for state model 
       nstates <- self$state()$nstates() 
       tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k)
+      dt <- diff(private$data_$time())
+      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       # compute forward-backward 
       if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       if (back) lbeta <- C_calc_beta(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
