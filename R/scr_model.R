@@ -299,7 +299,8 @@ ScrModel <- R6Class("ScrModel",
       }
       pr0 <- self$calc_initial_distribution()
       tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k)
+      dt <- diff(private$data_$time())
+      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, nstates);
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
@@ -342,7 +343,8 @@ ScrModel <- R6Class("ScrModel",
       # get tpms for state model 
       nstates <- self$state()$nstates() 
       tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k)
+      dt <- diff(private$data_$time())
+      for (k in 1:private$data_$n_occasions()) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
       # compute log-likelihood
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       llk <- llk - n * log(self$calc_Dpdet())
