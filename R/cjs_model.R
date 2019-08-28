@@ -51,7 +51,7 @@ CjsModel <- R6Class("CjsModel",
                     inherit = ScrModel, 
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
 			index <- 1:data$n_occasions("all")
@@ -63,9 +63,9 @@ CjsModel <- R6Class("CjsModel",
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
 		  order <- c("phi")
-		  private$read_formula(form, detectfn, order)
+		  private$read_formula(form, detectfn, statemod, order)
 		  # add parameters other than detection 
-		  private$par_type_[private$detfn_$npars() + 1] <- "k1m"
+		  private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
 		  names(private$form_) <- c(private$detfn_$pars(), "phi")
       # make parameter list 
       private$make_par() 
@@ -76,6 +76,7 @@ CjsModel <- R6Class("CjsModel",
       if (print) cat("done\n") 
       if (print) cat("Initilising parameters.......")
       private$initialise_par(start)
+      private$read_states() 
       if (print) cat("done\n")
       private$print_ = print
     },
@@ -93,7 +94,9 @@ CjsModel <- R6Class("CjsModel",
     
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
+      nstates <- private$state_$nstates()
+      delta <- private$state_$delta() 
+      pr0 <- matrix(c(delta, 0), nrow = n_mesh, ncol = nstates + 1, byrow = TRUE)
       pr0 <- pr0 / n_mesh
       return(pr0)
     },
@@ -102,16 +105,21 @@ CjsModel <- R6Class("CjsModel",
       # compute entry probabilities 
       n_occasions <- private$data_$n_occasions()
       n_primary <- private$data_$n_primary() 
+      nstates <- self$state()$nstates()
       if (n_primary > 1) first <- match(1:(n_primary - 1), private$data_$primary())
       tpms <- vector("list", length = n_occasions - 1)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
         occ <- k 
         if (n_primary > 1) occ <- first[k]
-        phi <- self$get_par("phi", j = 1, k = occ, m = 1)
-        phi <- phi^dt[k]
-        tpms[[k]] <- matrix(c(phi, 0, 
-                            1 - phi, 1), nrow = 2, ncol = 2)
+        Q <- matrix(0, nr = nstates + 1, nc = nstates + 1)
+        Q[-(nstates+1), -(nstates+1)] <- self$state()$trm(k = occ)
+        for (s in 1:nstates) {
+          psi <- -log(self$get_par("phi", k = occ, m = 1, s = s))
+          diag(Q)[s] <- diag(Q)[s] - psi
+          Q[s, nstates + 1] <- psi
+        }
+        tpms[[k]] <- expm(Q * dt[k])
       }
       return(tpms)
     }, 
@@ -119,6 +127,8 @@ CjsModel <- R6Class("CjsModel",
     calc_pr_capture = function() {
       n_primary <- private$data_$n_primary()
       n_occasions <- private$data_$n_occasions("all")
+      nstates <- self$state()$nstates()
+      kstates <- private$known_states_
       S <- private$data_$n_secondary() 
       if (n_primary == 1) {
         n_primary <- n_occasions
@@ -137,7 +147,10 @@ CjsModel <- R6Class("CjsModel",
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
-                                2, 
+                                nstates,
+                                0, 
+                                1, 
+                                kstates, 
                                 self$data()$detector_type(), 
                                 n_primary, 
                                 S,
@@ -146,8 +159,17 @@ CjsModel <- R6Class("CjsModel",
     },
     
     calc_llk = function(param = NULL, names = NULL) {
-      if (!is.null(names)) names(param) <- names
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(names)) names(param) <- names 
+      if (!is.null(param)) {
+        slen <- length(self$state()$par())
+        param2 <- param 
+        if (slen > 0) {
+          ind <- seq(length(param) - slen + 1, length(param))
+          self$state()$set_par(param[ind])
+          param2 <- param[-ind]
+        }
+        self$set_par(private$convert_vec2par(param2));
+      }
       # compute transition probability matrices 
       tpms <- self$calc_tpms()
       # initial distribution 
@@ -159,7 +181,8 @@ CjsModel <- R6Class("CjsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 2, private$entry_)
+      nstates <- self$state()$nstates() + 1
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, private$entry_)
       # compute probability of initial detection
       inipdet <- self$calc_initial_pdet(pr_capture) 
       llk <- llk - sum(log(inipdet))
