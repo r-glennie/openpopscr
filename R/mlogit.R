@@ -13,8 +13,13 @@ mlogit <- function(x) {
   }
   if (is.matrix(y)) {
     res <- apply(y, 2, mlogitVec)
-  } else {
+  } else if (is.vector(y)) {
     res <- mlogitVec(y)
+  } else if (is.array(y)) {
+    if (length(dim(y)) < 2) stop("Arrays given to mlogit must have 2 or more dimensions.")
+    res <- apply(y, 2:length(dim(y)), mlogitVec)
+  } else {
+    stop("Unrecognised object given to mlogit")
   }
   return(res)
 }
@@ -31,8 +36,13 @@ invmlogit <- function(y) {
   }
   if (is.matrix(y)) {
     res <- apply(y, 2, invmlogitVec)
-  } else {
+  } else if (is.vector(y)) {
     res <- invmlogitVec(y)
+  } else if (is.array(y)) {
+    if (length(dim(y)) < 2) stop("Arrays given to mlogit must have 2 or more dimensions.")
+    res <- apply(y, 2:length(dim(y)), invmlogitVec)
+  } else {
+    stop("Unrecognised object given to invmlogit")
   }
   return(res)
 }

@@ -122,7 +122,7 @@ ScrModel <- R6Class("ScrModel",
         if (is.null(m) & length(k) > 1) return(rowMeans(res))
         if (is.null(m) & length(k) == 1) return(mean(res))
         return(res)
-      } else if (type == "kms") {
+      } else if (type == "k1ms" | type == "kconms") {
         mnew <- m 
         if (is.null(mnew)) mnew <- 1:private$data_$n_meshpts()
         res <- private$computed_par_[[ipar]][k, mnew, s]
@@ -298,9 +298,7 @@ ScrModel <- R6Class("ScrModel",
         }
       }
       pr0 <- self$calc_initial_distribution()
-      tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      dt <- diff(private$data_$time())
-      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      tpms <- self$calc_tpms()
       Dpdet <- C_calc_pdet(private$data_$n_occasions(), pr0, pr_empty, tpms, nstates);
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
@@ -342,9 +340,7 @@ ScrModel <- R6Class("ScrModel",
       n_meshpts <- private$data_$n_meshpts() 
       # get tpms for state model 
       nstates <- self$state()$nstates() 
-      tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      dt <- diff(private$data_$time())
-      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      tpms <- self$calc_tpms()
       # compute log-likelihood
       llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       llk <- llk - n * log(self$calc_Dpdet())
@@ -413,6 +409,16 @@ ScrModel <- R6Class("ScrModel",
         }
       }
       options(scipen = 0)
+    }, 
+    
+    calc_tpms = function() {
+      noccasions <- private$data_$n_occasions()
+      tpms <- vector("list", length = noccasions - 1)
+      dt <- diff(private$data_$time())
+      for (k in 1:(noccasions - 1)) {
+        tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      }
+      return(tpms)
     }, 
     
     par = function() {return(private$par_)},
@@ -533,7 +539,6 @@ ScrModel <- R6Class("ScrModel",
       tempdatjk <- as.data.frame(tempdatjk)
       tempdatkm <- as.data.frame(tempdatkm)
       tempdatm <- as.data.frame(tempdatm)
-      tempnms <- list(names(tempdatjk), names(tempdatkm), names(tempdatm))
       if ("par" %in% c(names(tempdatjk), names(tempdatkm), names(tempdatm))) stop("Cannot call covariates 'par'. Change name.")
       tempdatjk$par <- 1 
       tempdatkm$par <- 1
@@ -548,7 +553,6 @@ ScrModel <- R6Class("ScrModel",
         rm <- seq(private$data_$n_occasions("all"), nrow(tempdatkm), by = private$data_$n_occasions("all"))
       }
       tempdatk1m <- droplevels(tempdatkm[-rm,])
-      tempnms <- c(tempnms, names(tempdatk1m))
       # create tempdat for kjs parameters 
       nstates <- self$state()$nstates()
       tempdatjks <- do.call("rbind", replicate(nstates, tempdatjk, simplify = FALSE))
@@ -559,18 +563,17 @@ ScrModel <- R6Class("ScrModel",
         tempdatjks[[grpnm[g]]] <- rep(1:nstates, each = nrow(tempdatjk))
         tempdatjks[[grpnm[g]]] <- grps[tempdatjks[[grpnm[g]]], g]
       }
-      # create tempdat for kms parameters 
-      tempdatkms <- do.call("rbind", replicate(nstates, tempdatkm, simplify = FALSE))
+      # create tempdat for k1ms parameters 
+      tempdatk1ms <- do.call("rbind", replicate(nstates, tempdatk1m, simplify = FALSE))
       for (g in 1:ngrps) {
-        tempdatkms[[grpnm[g]]] <- rep(1:nstates, each = nrow(tempdatkm))
-        tempdatkms[[grpnm[g]]] <- grps[tempdatkms[[grpnm[g]]], g]
+        tempdatk1ms[[grpnm[g]]] <- rep(1:nstates, each = nrow(tempdatk1m))
+        tempdatk1ms[[grpnm[g]]] <- grps[tempdatk1ms[[grpnm[g]]], g]
       }
-      tempnms <- c(tempnms, names(tempdatjks))
       # collate tempdats together 
-      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m, tempdatjks, tempdatkms)
+      tempdat <- list(tempdatjk, tempdatkm, tempdatm, tempdatk1m, tempdatjks, tempdatk1ms)
       parloc <- sapply(tempdat, FUN = function(x) {min(which(names(x) == "par"))})
       for (par in 1:npar) {
-        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4, "jks" = 5, "kms" = 6)
+        k <- switch(private$par_type_[par], "jk" = 1, "km" = 2, "m" = 3, "k1m" = 4, "kconm" = 4, "jks" = 5, "k1ms" = 6, "kconms" = 6)
         parname <- as.character(private$form_[[par]][[2]])
         names(tempdat[[k]])[parloc[k]] <- parname
         private$X_[[par]] <- openpopscrgam(private$form_[[par]], data = tempdat[[k]])
@@ -609,28 +612,34 @@ ScrModel <- R6Class("ScrModel",
                           "m" = 2,
                           "k1m" = 2, 
                           "kconm" = 2, 
-                          "kms" = 3)
+                          "k1ms" = 3, 
+                          "kconms" = 3)
         dim <- rep(0, dimsize)
         dim[1] <- switch(private$par_type_[par], "jk" = private$data_$n_occasions("all"),
                          "jks" = private$data_$n_occasions("all"), 
                      "km" = private$data_$n_occasions("all"), 
-                     "kms" = private$data_$n_occasions("all"), 
+                     "k1ms" = private$data_$n_occasions("all") - 
+                       ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
                      "m" = private$data_$n_meshpts(),
                       "k1m" = private$data_$n_occasions("all") - 
                        ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
                      "kconm" = private$data_$n_occasions("all") - 
+                       ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1), 
+                     "kconms" = private$data_$n_occasions("all") - 
                        ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1))
         if (dimsize > 1) {
         dim[2] <- switch(private$par_type_[par], "jk" = private$data_$n_traps(),
                          "jks" = private$data_$n_traps(), 
                      "km" = private$data_$n_meshpts(), 
-                     "kms" = private$data_$n_meshpts(), 
+                     "k1ms" = private$data_$n_meshpts(), 
                      "m" = 1,
                      "k1m" = private$data_$n_meshpts(),
-                      "kconm" = private$data_$n_meshpts())
+                      "kconm" = private$data_$n_meshpts(), 
+                     "kconms" = private$data_$n_meshpts())
         } 
         if (dimsize > 2) {
-          dim[3] <- switch(private$par_type_[par], "jks" = private$state_$nstates(), "kms" = private$state_$nstates())
+          dim[3] <- switch(private$par_type_[par], "jks" = private$state_$nstates(), "k1ms" = private$state_$nstates(), 
+                           "kconms" = private$state_$nstates())
         }
         private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
                                                 list(array(private$X_[[par]] %*% private$par_[[par]], 
@@ -721,9 +730,7 @@ ScrModel <- R6Class("ScrModel",
       n_meshpts <- private$data_$n_meshpts() 
       # get tpms for state model 
       nstates <- self$state()$nstates() 
-      tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      dt <- diff(private$data_$time())
-      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      tpms <- self$calc_tpms()
       # compute forward-backward 
       if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       if (back) lbeta <- C_calc_beta(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))

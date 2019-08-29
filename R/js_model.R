@@ -62,15 +62,15 @@ JsModel <- R6Class("JsModel",
                    inherit = ScrModel,
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
       if (print) cat("Reading formulae.......")
       order <- c("phi", "beta", "D")
-      private$read_formula(form, detectfn, order)
+      private$read_formula(form, detectfn, statemod, order)
       # add parameters other than detection 
-      private$par_type_[private$detfn_$npars() + 1] <- "k1m"
-      private$par_type_[private$detfn_$npars() + 2] <- "kconm"
+      private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
+      private$par_type_[private$detfn_$npars() + 2] <- "kconms"
       private$par_type_[private$detfn_$npars() + 3] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       # make parameter list 
@@ -82,6 +82,7 @@ JsModel <- R6Class("JsModel",
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
       private$initialise_par(start)
+      private$read_states() 
       if (print) cat("done\n")
       private$print_ = print 
     },
@@ -91,9 +92,11 @@ JsModel <- R6Class("JsModel",
     },
     
     calc_initial_distribution = function() {
-      a0 <- self$get_par("beta", j = 1, k = 1)
+      nstates <- private$state_$nstates()
+      a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(c(1 - a0, a0, 0), nrow = n_mesh, ncol = 3, byrow = TRUE)
+      delta <- private$state_$delta() 
+      pr0 <- matrix(c(1 - sum(a0), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a 
       pr0[,1] <- pr0[,1] * D
@@ -103,13 +106,18 @@ JsModel <- R6Class("JsModel",
     
     calc_pr_entry = function() {
       n_occasions <- private$data_$n_occasions()  
-      pr_entry <- rep(0, n_occasions - 1)
-      prod <- 1 - self$get_par("beta", j = 1, k = 1, m = 1)
-      for (k in 1:(n_occasions - 1)) {
-        b <- self$get_par("beta", j = 1, k = k + 1, m = 1)
-        pr_entry[k] <- b / prod
-        prod <- prod * (1 - pr_entry[k])
+      nstates <- self$state()$nstates()
+      pr_entry <- matrix(0, nr = n_occasions - 1, nc = nstates)
+      for (g in 1:nstates) {
+        prod <- 1 - self$get_par("beta", k = 1, m = 1, s = g)
+        for (k in 1:(n_occasions - 1)) {
+          b <- self$get_par("beta", k = k + 1, m = 1, s = g)
+          pr_entry[k, g] <- b / prod
+          prod <- prod * (1 - pr_entry[k])
+        }
       }
+      # prevent numerical error causing prob > 1  
+      pr_entry[pr_entry > 1] <- 1 
       return(pr_entry)
     }, 
     
@@ -118,17 +126,27 @@ JsModel <- R6Class("JsModel",
       pr_entry <- self$calc_pr_entry()      
       n_occasions <- private$data_$n_occasions()
       n_primary <- private$data_$n_primary() 
+      nstates <- self$state()$nstates()
+      delta <- self$state()$delta() 
       if (n_primary > 1) first <- match(1:(n_primary - 1), private$data_$primary())
       tpms <- vector("list", length = n_occasions - 1)
       dt <- diff(private$data_$time())
+      ind <- nstates + 1 
       for (k in 1:(n_occasions - 1)) {
         occ <- k 
         if (n_primary > 1) occ <- first[k]
-        phi <- self$get_par("phi", j = 1, k = occ, m = 1)
-        phi <- phi^dt[k]
-        tpms[[k]] <- matrix(c(1 - pr_entry[k], 0, 0, 
-                            pr_entry[k], phi, 0,
-                            0, 1 - phi, 1), nrow = 3, ncol = 3)
+        Q <- matrix(0, nr = nstates + 1, nc = nstates + 1)
+        Q[-ind, -ind] <- self$state()$trm(k = occ)
+        G <- matrix(0, nr = nstates + 2, nc = nstates + 2)
+        for (s in 1:nstates) {
+          psi <- -log(self$get_par("phi", k = occ, m = 1, s = s))
+          diag(Q)[s] <- diag(Q)[s] - psi
+          Q[s, nstates + 1] <- psi
+        }
+        G[-1, -1] <- expm(Q * dt[k])
+        G[1,-c(1, nstates + 2)] <- pr_entry[k,] * delta 
+        G[1, 1] <- 1 - sum(G[1, -1])
+        tpms[[k]] <- G
       }
       return(tpms)
     }, 
@@ -136,6 +154,8 @@ JsModel <- R6Class("JsModel",
     calc_pr_capture = function() {
       n_occasions <- private$data_$n_occasions("all")
       n_primary <- private$data_$n_primary()
+      nstates <- self$state()$nstates()
+      kstates <- private$known_states_
       S <- private$data_$n_secondary() 
       if (n_primary == 1) {
         n_primary <- n_occasions
@@ -154,7 +174,10 @@ JsModel <- R6Class("JsModel",
                                 capthist, 
                                 enc_rate0, 
                                 trap_usage, 
-                                3, 
+                                nstates, 
+                                1, 
+                                1, 
+                                kstates, 
                                 self$data()$detector_type(),
                                 n_primary, 
                                 S,
@@ -166,6 +189,7 @@ JsModel <- R6Class("JsModel",
       # compute probability of zero capture history 
       n_occasions_all <- private$data_$n_occasions("all")
       n_occasions <- private$data_$n_occasions() 
+      nstates <- self$state()$nstates()
       n_primary <- private$data_$n_primary()
       S <- private$data_$n_secondary()
       if (n_primary == 1) {
@@ -177,18 +201,20 @@ JsModel <- R6Class("JsModel",
       pr_empty <- list()
       j <- 0 
       for (prim in 1:n_primary) { 
-        pr_empty[[prim]] <- matrix(1, nr = private$data_$n_meshpts(), nc = 3)
-        pr_empty[[prim]][ , 2] <- 0 
+        pr_empty[[prim]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates + 2)
+        pr_empty[[prim]][ , -c(1, nstates + 2)] <- 0 
         for (s in 1:S[prim]) { 
           j <- j + 1
-          pr_empty[[prim]][, 2] <- pr_empty[[prim]][, 2] - t(trap_usage[, j]) %*% enc_rate[j,,]
+          for (g in 1:nstates) {
+            pr_empty[[prim]][, g + 1] <- pr_empty[[prim]][, g + 1] - t(trap_usage[, j]) %*% enc_rate[[g]][j,,]
+          }
         }
-        pr_empty[[prim]][,2] <- exp(pr_empty[[prim]][,2])
+        for (g in 1:nstates) pr_empty[[prim]][, g + 1] <- exp(pr_empty[[prim]][, g + 1])
       }
       # average over all life histories 
       pr0 <- self$calc_initial_distribution()
       tpms <- self$calc_tpms()
-      pdet <- C_calc_pdet(n_occasions, pr0, pr_empty, tpms, 3);
+      pdet <- C_calc_pdet(n_occasions, pr0, pr_empty, tpms, nstates + 2);
       a <- private$data_$cell_area() 
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a 
       Dpdet <- sum(D) - pdet 
@@ -208,8 +234,18 @@ JsModel <- R6Class("JsModel",
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
-      # compute transition probability matrices 
+      if (!is.null(param)) {
+        slen <- length(self$state()$par())
+        param2 <- param 
+        if (slen > 0) {
+          ind <- seq(length(param) - slen + 1, length(param))
+          self$state()$set_par(param[ind])
+          param2 <- param[-ind]
+        }
+        self$set_par(private$convert_vec2par(param2));
+      }
+      # compute transition probability matrices
+      nstates <- self$state()$nstates() + 2
       tpms <- self$calc_tpms()
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
@@ -220,7 +256,7 @@ JsModel <- R6Class("JsModel",
       n <- private$data_$n()
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
-      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, 3, rep(0, private$data_$n()))
+      llk <- C_calc_llk(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
       # compute log-likelihood
       llk <- llk - n * log(self$calc_Dpdet())
       llk <- llk + self$calc_D_llk()
@@ -269,6 +305,37 @@ JsModel <- R6Class("JsModel",
       return(invisible())
     }, 
     
+    read_states = function() {
+      nstates <- self$state()$nstates() + 2
+      kstates <- array(1, dim = c(private$data_$n(), private$data_$n_occasions("all"), nstates))
+      covtypes <- private$data_$get_cov_list()$cov_type
+      snms <- self$state()$names()
+      grpnms <- self$state()$groupnms()
+      if ("dead" %in% grpnms) stop("Cannot have a state variable named 'dead'. This is a reserved word.")
+      grps <- self$state()$groups()
+      if ("i" %in% covtypes |  "ik" %in% covtypes) {
+        wh <- min(which(covtypes %in% c("i", "ik")))
+        cov <- private$data_$get_cov_list()$cov[[wh]]
+        type <- covtypes[wh]
+        for (i in 1:private$data_$n()) {
+          for (k in 1:private$data_$n_occasions()) {
+            s <- private$data_$covs(i = i, k = k)
+            for (g in 1:length(grpnms)) {
+              if (grpnms[g] %in% names(s)) {
+                occu <- grps[,g] %in% s[[grpnms[[g]]]]
+                if (any(occu)) kstates[i, k, !occu] <- -1
+              }
+            }
+          }
+          if ("dead" %in% names(s)) {
+            if(!is.na(s$dead)) kstates[i, k, -(nstates + 2)] <- -1
+          } 
+        }
+      }
+      private$known_states_ <- kstates
+      invisible()
+    }, 
+    
     make_results = function() {
       if (is.null(private$mle_)) print("Fit model using $fit method.")
       par <- private$convert_par2vec(private$mle_) 
@@ -312,15 +379,18 @@ JsModel <- R6Class("JsModel",
     n_occasions <- self$data()$n_occasions()
     tpms <- self$calc_tpms()
     alpha <- rep(0, n_occasions)
-    a0 <- self$get_par("beta", k = 1)
-    pr <- c(1 - a0, a0, 0)
-    alpha[1] <- pr[2]
+    nstates <- self$state()$nstates()
+    delta <- self$state()$delta()
+    a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
+    pr <- c(1 - sum(a0), a0*delta, 0)
+    alivecols <- 2:(2 + nstates - 1)
+    alpha[1] <- sum(pr[alivecols])
     K <- n_occasions
     if (!is.null(k)) K <- k
     if (K > 1) {
       for (occ in 2:K) {
         pr <- pr %*% tpms[[occ - 1]]
-        alpha[occ] <- pr[2]
+        alpha[occ] <- sum(pr[alivecols])
       }
     }
     if (!is.null(k)) alpha <- alpha[K]
@@ -403,9 +473,13 @@ JsModel <- R6Class("JsModel",
   
      infer_D = function() {
        tpms <- self$calc_tpms()
-       a0 <- self$get_par("beta", k = 1)
-       pr0 <- c(1 - a0, a0, 0)
-       private$Dk_ <- C_calc_D(self$get_par("D"), self$data()$n_occasions(), pr0, tpms)
+       nstates <- self$state()$nstates()
+       delta <- self$state()$delta()
+       a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
+       pr0 <- c(1 - sum(a0), a0*delta, 0)
+       D <- self$get_par("D")
+       alpha <- private$calc_alpha() 
+       private$Dk_ <- D * alpha 
        return(invisible())
     }
   )                 
