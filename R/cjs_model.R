@@ -218,7 +218,63 @@ CjsModel <- R6Class("CjsModel",
       # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())
-    }
+    }, 
+		
+		calc_forwback = function(forw = NULL, back = NULL) {
+		  if (is.null(forw) & is.null(back)) forw <- back <- TRUE
+		  if (is.null(forw)) forw <- FALSE
+		  if (is.null(back)) back <- FALSE
+		  # initial distribution 
+		  pr0 <- self$calc_initial_distribution()
+		  # compute probability of capture histories 
+		  # across all individuals, occasions and traps 
+		  pr_capture <- self$calc_pr_capture()
+		  # compute lalpha for each individual
+		  n <- private$data_$n()
+		  n_occasions <- private$data_$n_occasions()
+		  n_meshpts <- private$data_$n_meshpts() 
+		  # get tpms for state model 
+		  nstates <- self$state()$nstates() 
+		  tpms <- self$calc_tpms()
+		  # compute forward-backward 
+		  if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, private$entry_)
+		  if (back) lbeta <- C_calc_beta(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, private$entry_) 
+		  if (forw & back) return(list(lalpha = lalpha, lbeta = lbeta))
+		  if (forw) return(lalpha)
+		  if (back) return(lbeta)
+		  return(0)
+		}, 
+		
+		read_states = function() {
+		  nstates <- self$state()$nstates() + 1 
+		  kstates <- array(1, dim = c(private$data_$n(), private$data_$n_occasions("all"), nstates))
+		  covtypes <- private$data_$get_cov_list()$cov_type
+		  snms <- self$state()$names()
+		  grpnms <- self$state()$groupnms()
+		  if ("dead" %in% grpnms) stop("Cannot have a state variable named 'dead'. This is a reserved word.")
+		  grps <- self$state()$groups()
+		  if ("i" %in% covtypes |  "ik" %in% covtypes) {
+		    wh <- min(which(covtypes %in% c("i", "ik")))
+		    cov <- private$data_$get_cov_list()$cov[[wh]]
+		    type <- covtypes[wh]
+		    for (i in 1:private$data_$n()) {
+		      for (k in 1:private$data_$n_occasions()) {
+		        s <- private$data_$covs(i = i, k = k)
+		        for (g in 1:length(grpnms)) {
+		          if (grpnms[g] %in% names(s)) {
+		            occu <- grps[,g] %in% s[[grpnms[[g]]]]
+		            if (any(occu)) kstates[i, k, !occu] <- -1
+		          }
+		        }
+		      }
+		      if ("dead" %in% names(s)) {
+		        if(!is.na(s$dead)) kstates[i, k, -(nstates + 1)] <- -1
+		      }
+		    }
+		  }
+		  private$known_states_ <- kstates
+		  invisible()
+		}
   )                 
 )
 
