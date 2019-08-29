@@ -214,6 +214,7 @@ struct MoveLlkCalculator : public Worker {
   std::vector<arma::mat> tpm; 
   std::vector<arma::cube> pr_cap; 
   std::vector<arma::sp_mat> trm; 
+  int alivestates; 
   
   // output 
   arma::vec& illk; 
@@ -237,11 +238,12 @@ struct MoveLlkCalculator : public Worker {
       tpm.resize(J); 
       for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]); 
     }
-    trm.resize(J * num_states); 
+    alivestates = num_states - minstate - maxstate; 
+    trm.resize(J * alivestates); 
     for (int j = 0; j < J - 1; ++j) {
-      for (int g = minstate; g < minstate + num_states; ++g) {
+      for (int g = minstate; g < minstate + alivestates; ++g) {
         if (sd(j, g - minstate) < 0) continue; 
-        trm[g - minstate + j * num_states] = CalcTrm(num_cells, sd(j, g - minstate), dx, inside); 
+        trm[g - minstate + j * alivestates] = CalcTrm(num_cells, sd(j, g - minstate), dx, inside); 
       }
     }
     pr_cap.resize(n);
@@ -266,7 +268,7 @@ struct MoveLlkCalculator : public Worker {
         for (int g = minstate; g < minstate + num_states; ++g) {
           if (sd(j, g - minstate) < 0) continue; 
           try {
-            pr.col(g) = ExpG(pr.col(g), trm[g - minstate + j * num_states], dt(j));
+            //pr.col(g) = ExpG(pr.col(g), trm[g - minstate + j * alivestates], dt(j));
           } catch(...) {
             illk(i) = -arma::datum::inf;
             break;

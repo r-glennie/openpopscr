@@ -8,8 +8,6 @@ detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 # set number of occasions to simulate
 n_occasions <- 5 
-# set N 
-N <- 100
 # simulate ScrData 
 scrdat <- simulate_js_openscr(true_par, n_occasions, detectors, mesh, print = FALSE, seed = 18953)
 # formula 
@@ -38,7 +36,7 @@ test_that("Initial distribution valid", {
 test_that("Tpms are valid", {
   tpms <- obj$calc_tpms()[-5]
   sums <- sapply(tpms, FUN = function(x){rowSums(x)})
-  expect_true(all(sums == 1))
+  expect_true(all(sums - 1 < 1e-10))
   neg <- sapply(tpms, FUN = function(x){any(x < -1e-10)})
   expect_true(all(neg == FALSE))
   pos <- sapply(tpms, FUN = function(x){any(x > 1 + 1e-10)})

@@ -63,7 +63,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       if (print) cat("Reading formulae.......")
       order <- c("sd", "D")
       private$read_formula(form, detectfn, statemod, order)
-      private$par_type_[private$detfn_$npars() + 1] <- "kms"
+      private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
       private$par_type_[private$detfn_$npars() + 2] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "sd", "D")
       # make parameter list 
@@ -105,11 +105,9 @@ ScrTransientModel <- R6Class("ScrTransientModel",
         }
       }
       pr0 <- self$calc_initial_distribution()
-      tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      dt <- diff(private$data_$time())
-      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      tpms <- self$calc_tpms()
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", m = 1, s = 1:self$state()$nstates())
+      sd <- self$get_par("sd", s = 1:self$state()$nstates())
       sd[is.na(sd)] <- -10
       Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
@@ -151,12 +149,10 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       n_meshpts <- private$data_$n_meshpts() 
       # get tpms for state model 
       nstates <- self$state()$nstates() 
-      tpms <- vector(mode = "list", length = private$data_$n_occasions())
-      dt <- diff(private$data_$time())
-      for (k in 1:(private$data_$n_occasions() - 1)) tpms[[k]] <- self$state()$tpm(k = k, dt = dt[k])
+      tpms <- self$calc_tpms()
       # get movement 
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", m = 1, s = 1:self$state()$nstates())
+      sd <- self$get_par("sd", s = 1:self$state()$nstates())
       sd[is.na(sd)] <- -10
       # compute likelihood for each individual
       llk <- C_calc_move_llk(n, 

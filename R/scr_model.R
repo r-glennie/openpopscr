@@ -102,7 +102,7 @@ ScrModel <- R6Class("ScrModel",
       type <- private$par_type_[ipar]
       if (is.null(j)) j <- 1:private$data_$n_traps() 
       if (is.null(k)) {
-        if (type == "k1m") {
+        if (type == "k1ms" | type == "k1m") {
           k <- 1:private$data_$n_occasions("all") - ifelse(private$data_$n_primary() > 1, private$data_$n_secondary()[private$data_$n_primary()], 1)
         } else {
           k <- 1:private$data_$n_occasions("all") 

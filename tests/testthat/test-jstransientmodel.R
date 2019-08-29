@@ -21,8 +21,8 @@ par <- list(lambda0 ~ 1,
 start <- get_start_values(scrdat, model = "JsTransientModel")
 
 test_that("Basic model computes correct llk", {
-  obj <- JsTransientModel$new(form, scrdat, start, print = FALSE)
-  expect_equal(signif(obj$calc_llk(), 6), -1075.36)
+  obj <- JsTransientModel$new(par, scrdat, start, print = FALSE)
+  expect_equal(signif(obj$calc_llk(), 6), -1075.62)
 }  
 )
 
