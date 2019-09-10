@@ -50,15 +50,13 @@ JsTransientModel <- R6Class("JsTransientModel",
       private$dx_ <- attr(newmesh, "spacing")
       private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
       cov_list <- data$get_cov_list() 
-      private$data_ <- ScrData$new(data$capthist(), newmesh, data$time(), data$primary())
-      covnms <- names(cov_list$cov)
-      allcovs <- names(private$data_$get_cov_list()$cov)
-      covnms <- covnms[!(covnms %in% allcovs)]
-      if (!is.null(covnms)) {
-        for (i in seq(covnms)) {
-          private$data_$add_covariate(covnms[i], cov_list$cov[[i]], cov_list$cov_type[i])
-        }
+      if (!is.null(data$primary())) {
+        primary <- data$primary() 
+      } else {
+        primary <- NULL
       }
+      private$data_ <- data$clone()
+      private$data_$replace_mesh(newmesh)
       box <- attributes(newmesh)$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
@@ -94,7 +92,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
       n_mesh <- private$data_$n_meshpts()
       delta <- private$state_$delta() 
-      pr0 <- matrix(c(1 - sum(a0), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
+      pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
       for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D
