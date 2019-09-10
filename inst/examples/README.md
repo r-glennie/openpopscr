@@ -27,9 +27,19 @@
 
 11. <code>js_move.R</code>: JS with transience
 
-## Extensions 
+
+## STRATA  
 
 12. <code> strata.R</code>: stratified analysis 
+
+
+## STATES 
+
+13. <code> scr_mixture</code>: mixture models with SCR 
+
+14. <code> scr_transitions</code>: mixture models where individuals can switch states
+
+15. <code> scr_partialmixture</code>: mixture model where some states are observed 
 
 
 
