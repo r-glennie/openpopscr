@@ -1,9 +1,11 @@
 #### Simple script to simulate SCR data 
 ## Set parameters 
+library(openpopscr)
 D <- 1000
 lambda0 <- c(0.5, 0.5)
-sigma <-  c(20, 20)
-phi <- c(0.4, 0.7)
+sigma <-  c(30, 30)
+phi <- c(0.6, 0.85)
+beta <- c(0.7, rep(0.3/9, 9))
 
 ## Survey setup 
 # number of occasions
@@ -23,7 +25,7 @@ y <- mesh[pt, 2]
 
 ## Simulate mixture 
 nstates <- 2 
-delta <- c(0.4, 0.6)
+delta <- c(0.6, 0.4)
 mix <- sample(1:2, size = N, replace = TRUE, prob = delta)
 tpm <- diag(2)
 #tpm <- matrix(c(0.8, 0.2, 
@@ -36,7 +38,9 @@ cap <- data.frame(session = numeric(),
                   trap = numeric())
 
 seen <- rep(FALSE, N)
-alive <- rep(1, N)
+birth <- sample(1:K, size = N, prob = beta, replace = TRUE)
+alive <- rep(0, N)
+alive[birth == 1] <- 1 
 id <- rep(0, N)
 for (k in 1:K) {
   for (i in 1:N) {
@@ -62,6 +66,7 @@ for (k in 1:K) {
     }
     mix[i] <- sample(1:nstates, size = 1, prob = tpm[mix[i],])
     if (alive[i] > 0.5) alive[i] <- rbinom(1, 1, phi[mix[i]])
+    if (birth[i] == k) alive[i] <- 1 
   }
 }
 if (max(cap$occasion) != K) cap <- rbind(cap, data.frame(session = 1, ID = "NONE", occasion = K, trap = 1))
@@ -93,51 +98,26 @@ statemod <- StateModel$new(data = scrdat,
 
 form <- list(lambda0 ~ 1, 
              sigma ~ 1, 
-             phi ~ state)
+             phi ~ state, 
+             beta ~ 1, 
+             D ~ 1)
 
-start <- get_start_values(scrdat, model = "CjsModel")
+start <- get_start_values(scrdat, model = "JsModel")
 
-mod <- CjsModel$new(form, scrdat, start, statemod = statemod)
+mod <- JsModel$new(form, scrdat, start, statemod = statemod)
 
 mod$calc_llk()
 
 mod$fit()
 
-## some observed sexes 
-s <- ifelse(cmix == 1, "male", "female")
-si <- vector(mode = "list", length = scrdat$n())
-for (i in 1:20) {
-  si[[i]] <- s[i]
-}
-
-scrdat$add_covariate("state", si, "i")
-
-mod <- ScrModel$new(form, scrdat, start)
-
-pred <- mod$predict_state()
-
-Dx2 <- pred[[7]][,1,1]
-scrdat$plot_mesh(Dx2)
-
-mod$calc_llk() - mod$calc_D_llk() + scrdat$n() * log(mod$calc_Dpdet())
-
-fw <- mod$.__enclos_env__$private$calc_forwback()
-illk <- rep(0, scrdat$n())
-for (i in 1:scrdat$n()) {
-  illk[i] <- log(sum(exp(fw$lalpha[[i]][,,3]) * t(exp(fw$lbeta[[i]][,,3]))))
-}
-
-mod$fit()
-
-
-library(secr)
+library(openCR)
 ch <- scrdat$capthist()
-covariates(ch) <- data.frame(sex = factor(si))
-secrfit <- secr.fit(ch, 
+secrfit <- openCR.fit(ch, 
                     mask = scrdat$mesh(), 
                     detectfn = "HHN", 
-                    model = list(sigma ~ h2), 
-                    hcov = "sex")
+                    type = "JSSAsecrb", 
+                    model = list(phi ~ h2), 
+                    trace = TRUE)
 
 
 

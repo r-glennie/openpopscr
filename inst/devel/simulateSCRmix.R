@@ -2,11 +2,12 @@
 ## Set parameters 
 D <- 500
 lambda0 <- c(0.5, 0.5)
-sigma <-  c(50, 20)
+sigma <-  c(20, 20)
+sd <- c(10, 30)
 
 ## Survey setup 
 # number of occasions
-K <- 5
+K <- 10
 # make detectors array 
 detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 rownames(detectors) <- 1:nrow(detectors)
@@ -26,9 +27,9 @@ delta <- c(0.7, 0.3)
 mix <- sample(1:2, size = N, replace = TRUE, prob = delta)
 obsmix <- rep(NA, length(mix))
 cmix <- NULL
-#tpm <- matrix(c(0.8, 0.2, 
-#                0.3, 0.7), nr = nstates, nc = nstates, byrow = TRUE)
-tpm <- diag(2)
+tpm <- matrix(c(0.8, 0.2, 
+                0.6, 0.4), nr = nstates, nc = nstates, byrow = TRUE)
+#tpm <- diag(2)
 
 ## Simulate survey 
 cap <- data.frame(session = numeric(), 
@@ -61,6 +62,8 @@ for (k in 1:K) {
       }
     }
     mix[i] <- sample(1:nstates, size = 1, prob = tpm[mix[i],])
+    x[i] <- rnorm(1, x[i], sd[mix[i]])
+    y[i] <- rnorm(1, y[i], sd[mix[i]])
   }
 }
 if (max(cap$occasion) != K) cap <- rbind(cap, data.frame(session = 1, ID = "NONE", occasion = K, trap = 1))
@@ -79,17 +82,29 @@ statemod <- StateModel$new(data = scrdat,
                                                                             #0.2, 0.8), nr = 2, nc = 2, byrow = T)))
                            #delta_fixed = c(TRUE, TRUE))
 
+statemod <- StateModel$new(data = scrdat, 
+                           names = c("avail", "unavail"), 
+                           structure = matrix(c(".", "~1", 
+                                                "~1", "."), nr = 2, nc = 2, byrow = T), 
+                           start = list(delta = c(0.5, 0.5), tpm = matrix(c(0.8, 0.2, 
+                                                                            0.2, 0.8), nr = 2, nc = 2, byrow = T)), 
+                           cov = data.frame(avail = c(1, NA)))
+
+
+
+
 form <- list(lambda0 ~ 1, 
-             sigma ~ state, 
+             sigma ~ 1, 
+             sd ~ state, 
              D ~ 1)
 
-start <- get_start_values(scrdat)
+start <- get_start_values(scrdat, model = "ScrTransientModel")
 
-#mod <- ScrModel$new(form, scrdat, start, statemod = statemod)
+mod <- ScrTransientModel$new(form, scrdat, start, statemod = statemod)
 
-#mod$calc_llk()
+mod$calc_llk()
 
-#mod$fit()
+mod$fit()
 
 ## some observed sexes 
 s <- ifelse(cmix == 1, "male", "female")
@@ -100,16 +115,27 @@ for (i in 1:20) {
 
 scrdat$add_covariate("state", si, "i")
 
-mod <- ScrModel$new(form, scrdat, start, statemod = statemod)
+mod <- ScrModel$new(form, scrdat, start)
 
-mod$calc_llk()
+pred <- mod$predict_state()
+
+Dx2 <- pred[[7]][,1,1]
+scrdat$plot_mesh(Dx2)
+
+mod$calc_llk() - mod$calc_D_llk() + scrdat$n() * log(mod$calc_Dpdet())
+
+fw <- mod$.__enclos_env__$private$calc_forwback()
+illk <- rep(0, scrdat$n())
+for (i in 1:scrdat$n()) {
+  illk[i] <- log(sum(exp(fw$lalpha[[i]][,,3]) * t(exp(fw$lbeta[[i]][,,3]))))
+}
 
 mod$fit()
 
 
 library(secr)
 ch <- scrdat$capthist()
-covariates(ch) <- data.frame(sex = factor(c(s[1:20], rep(NA, length(s) - 20))))
+covariates(ch) <- data.frame(sex = factor(si))
 secrfit <- secr.fit(ch, 
                     mask = scrdat$mesh(), 
                     detectfn = "HHN", 
