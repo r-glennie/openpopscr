@@ -96,11 +96,10 @@ JsModel <- R6Class("JsModel",
       a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
       n_mesh <- private$data_$n_meshpts()
       delta <- private$state_$delta() 
-      pr0 <- matrix(c(1 - sum(a0), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
+      pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a 
-      pr0[,1] <- pr0[,1] * D
-      pr0[,2] <- pr0[,2] * D
+      for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D 
       return(pr0)
     },
     
@@ -338,7 +337,6 @@ JsModel <- R6Class("JsModel",
     
     make_results = function() {
       if (is.null(private$mle_)) print("Fit model using $fit method.")
-      par <- private$convert_par2vec(private$mle_) 
       if (private$print_) cat("Inferring density..........")
       private$infer_D()
       if (private$print_) cat("done\n")
@@ -348,9 +346,9 @@ JsModel <- R6Class("JsModel",
       if (private$print_) cat("Computing confidence intervals..........")
       private$calc_confint()
       if (private$print_) cat("done\n")
-      results <- cbind(par, private$var_$sds, private$confint_$est$lcl, private$confint_$est$ucl)
+      results <- cbind(private$confint_$est$est, private$confint_$est$sds, private$confint_$est$lcl, private$confint_$est$ucl)
       colnames(results) <- c("Estimate", "SE", "LCL", "UCL")
-      rownames(results) <- names(par)
+      rownames(results) <- rownames(private$confint_$est) 
       private$results_ <- results 
       
       ## D tab
@@ -382,7 +380,7 @@ JsModel <- R6Class("JsModel",
     nstates <- self$state()$nstates()
     delta <- self$state()$delta()
     a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
-    pr <- c(1 - sum(a0), a0*delta, 0)
+    pr <- c(1 - sum(a0*delta), a0*delta, 0)
     alivecols <- 2:(2 + nstates - 1)
     alpha[1] <- sum(pr[alivecols])
     K <- n_occasions
@@ -399,10 +397,21 @@ JsModel <- R6Class("JsModel",
   }, 
   
   calc_wpdet = function(par = NULL) {
-    save_par <- self$par() 
-    if (!is.null(par)) self$set_par(private$convert_vec2par(par))
+    save_par <- self$par()
+    statepar <- self$state()$par() 
+    if (!is.null(par)) {
+      slen <- length(self$state()$par())
+      param2 <- par 
+      if (slen > 0) {
+        ind <- seq(length(par) - slen + 1, length(par))
+        self$state()$set_par(par[ind])
+        param2 <- par[-ind]
+      }
+      self$set_par(private$convert_vec2par(param2));
+    }
     pdet <- self$calc_pdet() 
     self$set_par(save_par)
+    self$state()$set_par(statepar)
     return(pdet)
   },
   
@@ -413,6 +422,7 @@ JsModel <- R6Class("JsModel",
     pdet <- self$calc_pdet()
     nparD <- length(wpar[grep("D", names(wpar))])
     exc <- (np-nparD + 1):np
+    wpar <- c(wpar, self$state()$par())
     del_pdet <- grad(private$calc_wpdet, wpar)[-exc] 
     # get covariance matrix 
     V <- self$cov_matrix()
@@ -432,14 +442,24 @@ JsModel <- R6Class("JsModel",
       Dk_var <- numeric(n_occasions) 
       for (k in 1:n_occasions) {
         predictfn <- function(v) {
-          self$set_par(private$convert_vec2par(v))
+          slen <- length(self$state()$par())
+          param2 <- v 
+          if (slen > 0) {
+            ind <- seq(length(v) - slen + 1, length(v))
+            self$state()$set_par(v[ind])
+            param2 <- v[-ind]
+          }
+          self$set_par(private$convert_vec2par(param2));
           private$infer_D()
           return(log(private$Dk_))
         }
         oldpar <- self$par()
+        oldpar2 <- self$state()$par()
         parvec <- private$convert_par2vec(self$par())
+        parvec <- c(parvec, self$state()$par())
         J <- jacobian(predictfn, parvec)
         self$set_par(oldpar)
+        self$state()$set_par(oldpar2)
         private$infer_D()
         VD <- J %*% V %*% t(J)
         Dk_var <- diag(VD)
@@ -453,11 +473,25 @@ JsModel <- R6Class("JsModel",
      V <- private$V_ 
      sds <- sqrt(diag(V))
      est <- private$convert_par2vec(private$mle_)
+     slen <- length(self$state()$par()) 
+     if (slen > 0) est <- c(est, self$state()$par())
      lev <- 1 - private$sig_level_ / 2 
      alp <- qnorm(lev)
      lcl <- est - alp * sds
      ucl <- est + alp * sds 
-      estmat <- data.frame(lcl = lcl, ucl = ucl)
+     if (slen > 0) {
+       ind <- seq(length(est) - slen + 1, length(est))
+       slcl <- lcl[ind]
+       sucl <- ucl[ind]
+       sest <- est[ind]
+       ssds <- sds[ind]
+       self$state()$calc_confint(sest, ssds, slcl, sucl)
+       est <- est[-ind]
+       sds <- sds[-ind]
+       lcl <- lcl[-ind]
+       ucl <- ucl[-ind]
+     }
+      estmat <- data.frame(est = est, sds = sds, lcl = lcl, ucl = ucl)
       # Dk, if supplied 
       Dkmat <- NULL
       Dk <- private$Dk_
@@ -476,7 +510,7 @@ JsModel <- R6Class("JsModel",
        nstates <- self$state()$nstates()
        delta <- self$state()$delta()
        a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
-       pr0 <- c(1 - sum(a0), a0*delta, 0)
+       pr0 <- c(1 - sum(a0*delta), a0*delta, 0)
        D <- self$get_par("D")
        alpha <- private$calc_alpha() 
        private$Dk_ <- D * alpha 
