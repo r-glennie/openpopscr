@@ -114,7 +114,13 @@ simulate_scr <- function(par, n_occasions, detectors, mesh, ihp = NULL, move = F
 #' @export
 simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
-  if (is.null(time)) time <- 1:n_occasions
+  if (is.null(time)) {
+    if (is.null(primary)) {
+      time <- 1:n_occasions
+    } else {
+      time <- 1:max(primary)
+    }
+  }
   num_meshpts <- nrow(mesh)
   phi <- par$phi
   if (length(phi) == 1) phi <- rep(phi, n_occasions - 1)
@@ -228,7 +234,6 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = F
   A <- nrow(mesh) * attr(mesh, "area")
   if (print) cat("done\n")
   if (print) cat("Creating ScrData object........")
-  if (is.null(primary)) primary <- rep(1, n_occasions) 
   simdat <- ScrData$new(capture_history, mesh, time, primary = primary) 
   if (print) cat("done\n")
   return(simdat)
@@ -251,7 +256,13 @@ simulate_cjs_openscr <- function(par, N, n_occasions, detectors, mesh,  move = F
 #' @export
 simulate_js_openscr <- function(par, n_occasions, detectors, mesh, ihp = NULL, move = FALSE, time = NULL, primary = NULL, seed = NULL, print = TRUE) {
   if (!is.null(seed)) set.seed(seed)
-  if (is.null(time)) time <- 1:n_occasions
+  if (is.null(time)) {
+    if (is.null(primary)) {
+      time <- 1:n_occasions
+    } else {
+      time <- 1:max(primary)
+    }
+  }
   num_meshpts <- nrow(mesh)
   D <- par$D
   if (!is.null(ihp)) {
@@ -292,8 +303,6 @@ simulate_js_openscr <- function(par, n_occasions, detectors, mesh, ihp = NULL, m
     }
     life[birth_time == k, k] <- 1
   }
-  dt <- rep(1, n_occasions - 1)
-  if (!is.null(time))  dt <- diff(time)
   lambda0 <- par$lambda0
   sigma <- par$sigma
   nocc <- n_occasions
