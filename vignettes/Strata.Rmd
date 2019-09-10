@@ -141,8 +141,4 @@ obj2 <- StrataModel$new(scrdat, "ScrModel", shared_form2, private_form2, start)
 obj2$fit()
 ```
 
-The stratified model is preferred: 
-
-```{r compare, eval = TRUE}
-AIC(obj, obj2)
-```
+The stratified model is preferred by AIC. 

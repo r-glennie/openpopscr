@@ -160,7 +160,7 @@ mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic, eval = TRUE}
+```{r getaic, eval = FALSE}
 AIC(mod)
 ```
 
@@ -255,11 +255,6 @@ mod_D2$fit()
 ```
 ```{r spacemod2, eval = TRUE}
 mod_D
-```
-
-Models can be compared by AIC: 
-```{r spaceaic, eval = TRUE}
-AIC(mod_D, mod_D2)
 ```
 
 We can plot the estimated density surface: 
@@ -404,7 +399,4 @@ the value of the other parameters are affected; activity range in particular has
 been overestimated in the stationary model compared to the transient. Fitting
 the transience model has provided improved inference on activity. 
 
-AIC supports the use of the transience model: 
-```{r aic, eval = TRUE}
-AIC(stat, trans)
-```
+AIC supports the use of the transience model. 

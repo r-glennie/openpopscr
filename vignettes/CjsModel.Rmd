@@ -148,7 +148,7 @@ mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic, eval = TRUE}
+```{r getaic, eval = FALSE}
 AIC(mod)
 ```
 
@@ -310,6 +310,3 @@ The survival probability is marginally higher and the estimate of activity range
 reduced by accounting for transience. 
 
 The two models can be compared by AIC. The transient model is preferred. 
-```{r aic, eval = TRUE}
-AIC(stat, trans)
-```

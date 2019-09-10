@@ -145,7 +145,7 @@ mod$estimates()
 ```
 
 The model AIC can be computed in the usual way: 
-```{r getaic, eval = TRUE}
+```{r getaic, eval = FALSE}
 AIC(mod)
 ```
 
@@ -295,9 +295,5 @@ trans$get_par("beta", k = 1)
 trans$get_par("D")
 ```
 
-The transient model is preferred by AIC: 
-```{r transaic, eval = TRUE}
-AIC(stat, trans)
-```
-
+The transient model is preferred by AIC. 
 
