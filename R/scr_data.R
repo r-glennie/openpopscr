@@ -360,7 +360,11 @@ ScrData <- R6Class("ScrData",
       if (!("capthist" %in% class(capthist))) stop("Invalid capture history object.")
       if (!("mask" %in% class(mesh))) stop("Invalid mesh object.")
       if (!is.null(time)) {
-        if (length(time) != dim(capthist)[2]) stop("Length of time vector not equal to number of occasions.")
+        if (!is.null(primary)) {
+          if (length(time) != length(unique(primary))) stop("Length of time vector not equal to number of primary occasions.")
+        } else if (length(time) != dim(capthist)[2]) {
+          stop("Length of time vector not equal to number of occasions.")
+        }
         if (!is.numeric(time) | !is.vector(time)) stop("Time is not a numeric vector.")
         if (max(abs(sort(time) - time)) > 1e-10) stop("Time must be an increasing vector of numbers.")
       }
