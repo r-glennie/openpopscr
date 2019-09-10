@@ -20,7 +20,7 @@ start <- get_start_values(scrdat, model = "ScrTransientModel")
 
 test_that("Basic model computes correct llk", {
   obj <- ScrTransientModel$new(form, scrdat, start, print = FALSE)
-  expect_equal(signif(obj$calc_llk(), 6), -1606.19)
+  expect_equal(signif(obj$calc_llk(), 6), -1624.28)
 }  
 )
 

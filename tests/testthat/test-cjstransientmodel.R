@@ -8,6 +8,8 @@ detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 # set number of occasions to simulate
 n_occasions <- 5 
+# number of individuals
+N <- 100
 # simulate ScrData 
 scrdat <- simulate_cjs_openscr(true_par, N, n_occasions, detectors, mesh, move = TRUE, print = FALSE, seed = 58348)
 # formula 
@@ -20,7 +22,7 @@ start <- get_start_values(scrdat, model = "CjsTransientModel")
 
 test_that("Basic model computes correct llk", {
   obj <- CjsTransientModel$new(form, scrdat, start, print = FALSE)
-  expect_equal(signif(obj$calc_llk(), 6), -293.371)
+  expect_equal(signif(obj$calc_llk(), 6), -287.618)
 }  
 )
 

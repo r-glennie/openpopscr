@@ -74,5 +74,5 @@ oo <- JsModel$new(form, scrdat2, start2, print = FALSE)
 suppressWarnings(oo$fit())
 
 test_that("Robust design model works", {
-  expect_equal(signif(oo$estimates()$par, 4), c(-1.483,3.225,0.393,-1.051,6.862,0.1558,0.08106,0.4481,0.4968,0.2817,-1.789,3.066,-0.4852,-2.025,6.31,-1.178,3.384,1.271,-0.07764,7.414), check.attributes = FALSE)
+  expect_equal(signif(oo$estimates()$par, 4), c(-1.483,3.225,0.393,-1.051,6.774,0.1558,0.08106,0.4481,0.4968,0.2763,-1.789,3.066,-0.4852,-2.025,6.233,-1.178,3.384,1.271,-0.07768,7.316), check.attributes = FALSE)
 })

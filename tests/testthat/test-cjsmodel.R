@@ -24,7 +24,7 @@ obj <- CjsModel$new(form, scrdat, start, print = FALSE)
 test_that("Computes correct inipdet", {
   prcap <- obj$calc_pr_capture()
   inipdet <- obj$calc_initial_pdet(prcap)
-  expect_equal(signif(inipdet, 4), c(7.978e-06,0.6002,0.0002516,0.6002,0.6002,0.0007688,0.001527,0.6002,0.6002,0.6002,0.6002,0.0002516,0.6002,9.448e-05))
+  expect_equal(signif(inipdet, 4), c(7.978e-06,0.003827,0.0002516,0.002841,0.001527,0.0007688,0.001527,0.0006726,0.003827,0.003827,0.002841,0.0002516,0.006497,9.448e-05))
 })  
 
 test_that("Initial distribution valid", {
@@ -45,7 +45,7 @@ test_that("Tpms are valid", {
 })
 
 test_that("Llk has correct valid", {
-  expect_equal(signif(obj$calc_llk(), 4), -124.5)
+  expect_equal(signif(obj$calc_llk(), 4), -103.9)
 })
 
 test_that("Entry occasions are correct", {
@@ -56,7 +56,7 @@ test_that("Entry occasions are correct", {
 
 test_that("Models fitting works", {
   obj$fit()
-  expect_equal(signif(obj$estimates()$par, 4), c(-0.4232,3.838,1.129,0.6615,0.1132,0.5485,-1.72,3.616,0.05399,0.8733,4.059,2.204), check.attributes = FALSE)
+  expect_equal(signif(obj$estimates()$par, 4), c(-0.5637,3.717,1.016,0.8084,0.1617,0.531,-2.148,3.4,-0.025,1.021,4.033,2.057), check.attributes = FALSE)
 })
 
 n_occasions2 <- 10
@@ -85,5 +85,5 @@ oo <- CjsModel$new(form, scrdat2, start2, print = FALSE)
 oo$fit()
 
 test_that("Robust design model works", {
-  expect_equal(signif(oo$estimates()$par, 4), c(-1.624,3.338,0.7767,0.09872,0.05648,0.2278,-1.818,3.228,0.3303,-1.431,3.449,1.223), check.attributes = FALSE)
+  expect_equal(signif(oo$estimates()$par, 4), c(-1.608,3.318,0.657,0.09799,0.05316,0.2275,-1.8,3.214,0.2112,-1.416,3.422,1.103), check.attributes = FALSE)
 })
