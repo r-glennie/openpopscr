@@ -33,6 +33,7 @@ par <- list(lambda0 ~ 1,
 start <- get_start_values(scrdat, model = "CjsModel")
 
 # create model object 
+
 oo <- CjsModel$new(par, scrdat, start)
 
 # compute likelihood at starting values 
@@ -46,4 +47,4 @@ oo
 
 oo$get_par("lambda0", k = 1, j = 1)
 oo$get_par("sigma", k = 1, j = 1)
-oo$get_par("phi", k = 1)
+oo$get_par("phi", k = 1, m = 1)
