@@ -199,9 +199,9 @@ struct PrCaptureCalculator : public Worker {
                   probfield(i).slice(prim).col(gp) += -(1.0 - sumcap) * total_enc[g].col(j) + sumcap * log_total_penc[g].col(j); 
                 }
               }
-              probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));
             }
           }
+          for (int gp = minstate; gp < minstate + num_states; ++gp) {probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));}
         } else {
           // if not entered in this primary yet 
           j = j + S(prim); // move occasion number to end of primary 
