@@ -41,7 +41,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                          inherit = CjsModel, 
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, print = TRUE) {
+    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
@@ -66,10 +66,10 @@ CjsTransientModel <- R6Class("CjsTransientModel",
 			if (print) cat("done\n")
 			if (print) cat("Reading formulae.......")
 			order <- c("phi", "sd")
-			private$read_formula(form, detectfn, order)
+			private$read_formula(form, detectfn, statemod, order)
 			# add parameters other than detection 
-			private$par_type_[private$detfn_$npars() + 1] <- "km"
-			private$par_type_[private$detfn_$npars() + 2] <- "km"
+			private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
+			private$par_type_[private$detfn_$npars() + 2] <- "k1ms"
 			names(private$form_) <- c(private$detfn_$pars(), "phi", "sd")
 			# create parameter list
       private$make_par() 
@@ -80,22 +80,36 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       if (print) cat("done\n") 
       if (print) cat("Initilising parameters.......")
       private$initialise_par(start)
+      private$read_states() 
       if (print) cat("done\n")
       private$print_ = print
     },
     
     calc_initial_distribution = function() {
       n_mesh <- private$data_$n_meshpts()
-      pr0 <- matrix(c(1, 0), nrow = n_mesh, ncol = 2, byrow = TRUE)
-      pr0[, 1] <- pr0[, 1] * private$inside_ 
+      nstates <- private$state_$nstates()
+      delta <- private$state_$delta() 
+      pr0 <- matrix(c(delta, 0), nrow = n_mesh, ncol = nstates + 1, byrow = TRUE)
+      for (s in 1:nstates) pr0[, s] <- pr0[, s] * private$inside_ 
       pr0 <- pr0 / sum(private$inside_)
       return(pr0)
     },
     
     calc_llk = function(param = NULL, names = NULL) {
-      if (!is.null(names)) names(param) <- names
-      if (!is.null(param)) self$set_par(private$convert_vec2par(param));
+      if (!is.null(names)) names(param) <- names 
+      if (!is.null(param)) {
+        slen <- length(self$state()$par())
+        param2 <- param 
+        if (slen > 0) {
+          ind <- seq(length(param) - slen + 1, length(param))
+          self$state()$set_par(param[ind])
+          param2 <- param[-ind]
+        }
+        self$set_par(private$convert_vec2par(param2));
+      }
       # compute transition probability matrices 
+      # get tpms for state model 
+      nstates <- self$state()$nstates() + 1 
       tpms <- self$calc_tpms()
       # initial distribution 
       pr0 <- self$calc_initial_distribution()
@@ -107,7 +121,8 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", m = 1)
+      sd <- self$get_par("sd", s = 1:self$state()$nstates())
+      sd[is.na(sd)] <- -10
       llk <- C_calc_move_llk(n, 
                              n_occasions,
                              pr0, 
@@ -118,7 +133,9 @@ CjsTransientModel <- R6Class("CjsTransientModel",
                              private$dx_, 
                              dt, 
                              sd, 
-                             2, 
+                             nstates,
+                             0, 
+                             1,
                              private$entry_)
       # compute probability of initial detection
       inipdet <- self$calc_initial_pdet(pr_capture) 
