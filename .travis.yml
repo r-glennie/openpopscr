@@ -4,5 +4,5 @@ language: R
 cache: packages
 script: 
   - |
-    R CMD build --no-build-vignettes.
+    R CMD build --no-build-vignettes .
     travis_wait 40 R CMD check --no--vignettes sperrorest*tar.gz
