@@ -55,7 +55,7 @@ test_that("Scrdata returns correct times", {
   expect_equal(ScrData$new(ch, mesh, time = c(1, 1.5, 2.4, 3.55, 6))$time(), c(1, 1.5, 2.4, 3.55, 6))
   expect_equal(ScrData$new(ch, mesh, primary = 1:5)$primary(), 1:5)
   expect_equal(ScrData$new(ch, mesh, primary = c(1,1,2,2,3))$primary(), c(1,1,2,2,3))
-  expect_equal(ScrData$new(ch, mesh)$primary(), rep(1,5))
+  expect_equal(ScrData$new(ch, mesh)$primary(), seq(1,5))
 }         
 )
 
