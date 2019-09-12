@@ -320,7 +320,7 @@ double C_calc_move_llk(const int n, const int J,
   
   arma::vec illk(n);
   MoveLlkCalculator move_llk_calulator(n, J, pr0, pr_capture, tpms, num_cells, inside, dx, dt, sd, num_states, minstate, maxstate, entry, illk); 
-  parallelFor(0, n, move_llk_calulator, 1); 
+  parallelFor(0, n, move_llk_calulator, 10); 
   return(arma::accu(illk)); 
 }
 

@@ -120,7 +120,7 @@ double C_calc_llk(const int n, const int J, const int M,
   
   arma::vec illk(n);
   LlkCalculator llk_calulator(n, J, M, pr0, pr_capture, tpms, num_states, entry, illk); 
-  parallelFor(0, n, llk_calulator, 1); 
+  parallelFor(0, n, llk_calulator, 10); 
   return(arma::accu(illk)); 
 }
 
