@@ -65,7 +65,7 @@ CjsModel <- R6Class("CjsModel",
 		  order <- c("phi")
 		  private$read_formula(form, detectfn, statemod, order)
 		  # add parameters other than detection 
-		  private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
+		  private$par_type_[private$detfn_$npars() + 1] <- "p1ms"
 		  names(private$form_) <- c(private$detfn_$pars(), "phi")
       # make parameter list 
       private$make_par() 
@@ -106,16 +106,13 @@ CjsModel <- R6Class("CjsModel",
       n_occasions <- private$data_$n_occasions()
       n_primary <- private$data_$n_primary() 
       nstates <- self$state()$nstates()
-      if (n_primary > 1) first <- match(1:(n_primary - 1), private$data_$primary())
       tpms <- vector("list", length = n_occasions - 1)
       dt <- diff(private$data_$time())
       for (k in 1:(n_occasions - 1)) {
-        occ <- k 
-        if (n_primary > 1) occ <- first[k]
         Q <- matrix(0, nr = nstates + 1, nc = nstates + 1)
-        Q[-(nstates+1), -(nstates+1)] <- self$state()$trm(k = occ)
+        Q[-(nstates+1), -(nstates+1)] <- self$state()$trm(k)
         for (s in 1:nstates) {
-          psi <- -log(self$get_par("phi", k = occ, m = 1, s = s))
+          psi <- -log(self$get_par("phi", k = k, m = 1, s = s))
           diag(Q)[s] <- diag(Q)[s] - psi
           Q[s, nstates + 1] <- psi
         }

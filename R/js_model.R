@@ -69,8 +69,8 @@ JsModel <- R6Class("JsModel",
       order <- c("phi", "beta", "D")
       private$read_formula(form, detectfn, statemod, order)
       # add parameters other than detection 
-      private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
-      private$par_type_[private$detfn_$npars() + 2] <- "kconms"
+      private$par_type_[private$detfn_$npars() + 1] <- "p1ms"
+      private$par_type_[private$detfn_$npars() + 2] <- "pconms"
       private$par_type_[private$detfn_$npars() + 3] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       # make parameter list 
@@ -127,18 +127,15 @@ JsModel <- R6Class("JsModel",
       n_primary <- private$data_$n_primary() 
       nstates <- self$state()$nstates()
       delta <- self$state()$delta() 
-      if (n_primary > 1) first <- match(1:(n_primary - 1), private$data_$primary())
       tpms <- vector("list", length = n_occasions - 1)
       dt <- diff(private$data_$time())
       ind <- nstates + 1 
       for (k in 1:(n_occasions - 1)) {
-        occ <- k 
-        if (n_primary > 1) occ <- first[k]
         Q <- matrix(0, nr = nstates + 1, nc = nstates + 1)
-        Q[-ind, -ind] <- self$state()$trm(k = occ)
+        Q[-ind, -ind] <- self$state()$trm(k)
         G <- matrix(0, nr = nstates + 2, nc = nstates + 2)
         for (s in 1:nstates) {
-          psi <- -log(self$get_par("phi", k = occ, m = 1, s = s))
+          psi <- -log(self$get_par("phi", k = k, m = 1, s = s))
           diag(Q)[s] <- diag(Q)[s] - psi
           Q[s, nstates + 1] <- psi
         }

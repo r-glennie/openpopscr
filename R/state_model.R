@@ -168,7 +168,11 @@ StateModel <- R6Class("StateModel",
     make_par = function() {
       # covariates
       dat <- private$data_
-      covs <- as.data.frame(dat$covs(m = 1, j = 1))
+      if (dat$n_primary() > 1) {
+        covs <- as.data.frame(dat$covs(m = 1, j = 1, k = 1))
+      } else {
+        covs <- as.data.frame(dat$covs(m = 1, j = 1, p = 1))
+      }
       struct <- self$struct() 
       nstates <- self$nstates() 
       nzeros <- private$nzeros_
