@@ -123,8 +123,8 @@ ScrData <- R6Class("ScrData",
       private$cov_$t <- (1:self$n_occasions("all") - 1)
       private$cov_$T <- as.factor((1:self$n_occasions("all") - 1))
       private$cov_type_ <- c("k", "k")     
-      private$cov_$primary <- (private$primary_ - 1)
-      private$cov_$Primary <- as.factor((private$primary_ - 1))
+      private$cov_$primary <- (1:self$n_occasions() - 1)
+      private$cov_$Primary <- as.factor((1:self$n_occasions() - 1))
       private$cov_type_ <- c(private$cov_type_, "p", "p")   
       private$cov_$x <- scale(private$mesh_[,1])[,1]
       private$cov_$y <- scale(private$mesh_[,2])[,1]
