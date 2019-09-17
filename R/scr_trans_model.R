@@ -107,7 +107,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       pr0 <- self$calc_initial_distribution()
       tpms <- self$calc_tpms()
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", s = 1:self$state()$nstates(), m = 1)
+      sd <- as.matrix(self$get_par("sd", s = 1:self$state()$nstates(), m = 1))
       sd[is.na(sd)] <- -10
       Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
@@ -152,7 +152,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       tpms <- self$calc_tpms()
       # get movement 
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", s = 1:self$state()$nstates(), m = 1)
+      sd <- as.matrix(self$get_par("sd", s = 1:self$state()$nstates(), m = 1))
       sd[is.na(sd)] <- -10
       # compute likelihood for each individual
       llk <- C_calc_move_llk(n, 

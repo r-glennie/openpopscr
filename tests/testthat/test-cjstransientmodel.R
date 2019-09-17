@@ -22,7 +22,7 @@ start <- get_start_values(scrdat, model = "CjsTransientModel")
 
 test_that("Basic model computes correct llk", {
   obj <- CjsTransientModel$new(form, scrdat, start, print = FALSE)
-  expect_equal(signif(obj$calc_llk(), 6), -287.618)
+  expect_equal(signif(obj$calc_llk(), 6), -265.489)
 }  
 )
 
