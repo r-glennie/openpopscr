@@ -268,7 +268,7 @@ struct MoveLlkCalculator : public Worker {
         for (int g = minstate; g < minstate + num_states; ++g) {
           if (sd(j, g - minstate) < 0) continue; 
           try {
-            //pr.col(g) = ExpG(pr.col(g), trm[g - minstate + j * alivestates], dt(j));
+            pr.col(g) = ExpG(pr.col(g), trm[g - minstate], dt(j));
           } catch(...) {
             illk(i) = -arma::datum::inf;
             break;
@@ -360,11 +360,11 @@ double C_calc_move_pdet(const int J,
   arma::mat tpm;
   arma::mat pr_capture;
   int alive_col = 0; 
+  int alivestates = num_states - minstate - maxstate; 
   if (num_states > 2) alive_col = 1; 
   for (int j = 0; j < J - 1; ++j) {
     pr_capture = Rcpp::as<arma::mat>(pr_captures[j]);
     pr %= pr_capture;
-    
     if (num_states > 1) {
       tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr *= tpm; 
