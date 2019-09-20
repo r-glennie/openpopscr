@@ -292,10 +292,40 @@ ScrData <- R6Class("ScrData",
     },
     
     #### FUNCTIONS 
-    replace_mesh = function(newmesh) {
+    replace_mesh = function(newmesh, map = NULL) {
       if (!("mask" %in% class(newmesh))) stop("Invalid mesh object.")
+      oldmesh <- private$mesh_ 
       private$mesh_ <- newmesh 
       self$calc_distances()
+      if (is.null(map)) {
+        warning("Replaced mesh, but did not update mesh covariates. Supply map argument.")
+      } else {
+        cov_list <- self$get_cov_list() 
+        type <- cov_list$cov_type
+        covs <- cov_list$cov
+        nms <- names(covs)
+        nprim <- self$n_occasions()
+        nocc <- self$n_occasions("all")
+        for (i in 1:length(type)) {
+          if (!(type[i] %in% c("pm", "km", "m"))) next 
+          if (type[i] == "m") {
+            newcov <- rep(0, nrow(newmesh))
+            newcov[map] <- covs[[i]]
+            self$remove_covariate(nms[i])
+            self$add_covariate(nms[i], newcov, type[i])
+          } else if (type[i] == "pm") {
+            newcov <- matrix(0, nr = nprim, nc = nrow(newmesh))
+            newcov[,map] <- covs[[i]]
+            self$remove_covariate(nms[i])
+            self$add_covariate(nms[i], newcov, type[i])
+          } else {
+            newcov <- matrix(0, nr = nocc, nc = nrow(newmesh))
+            newcov[,map] <- covs[[i]]
+            self$remove_covariate(nms[i])
+            self$add_covariate(nms[i], newcov, type[i])
+          }
+        }
+      }
     }, 
     
     calc_distances = function() {
