@@ -265,13 +265,12 @@ struct MoveLlkCalculator : public Worker {
         if (num_states > 1) {
           pr *= tpm[j];
         }
-        for (int g = minstate; g < minstate + num_states; ++g) {
+        for (int g = minstate; g < minstate + alivestates; ++g) {
           if (sd(j, g - minstate) < 0) continue; 
           try {
-            pr.col(g) = ExpG(pr.col(g), trm[g - minstate], dt(j));
+            pr.col(g) = ExpG(pr.col(g), trm[g - minstate + j * alivestates], dt(j));
           } catch(...) {
-            illk(i) = -arma::datum::inf;
-            break;
+            llk = -arma::datum::inf;
           }
         }
         sum_pr = accu(pr);
@@ -369,7 +368,7 @@ double C_calc_move_pdet(const int J,
       tpm = Rcpp::as<arma::mat>(tpms[j]); 
       pr *= tpm; 
     }
-    for (int g = minstate; g < minstate + num_states; ++g) {
+    for (int g = minstate; g < minstate + alivestates; ++g) {
       if (sd(j, g - minstate) < 0) continue; 
       trm = CalcTrm(num_cells, sd(j, g - minstate), dx, inside);
       try {
