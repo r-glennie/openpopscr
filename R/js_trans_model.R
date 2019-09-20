@@ -95,6 +95,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
+      D[is.na(D)] <- 0 
       for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D
       return(pr0)
     },
