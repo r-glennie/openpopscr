@@ -47,6 +47,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       private$check_input(form, data, start, detectfn, print)
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
+      map <- attributes(newmesh)$OK
       private$dx_ <- attr(newmesh, "spacing")
       private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
       cov_list <- data$get_cov_list() 
@@ -56,7 +57,7 @@ JsTransientModel <- R6Class("JsTransientModel",
         primary <- NULL
       }
       private$data_ <- data$clone()
-      private$data_$replace_mesh(newmesh)
+      private$data_$replace_mesh(newmesh, map)
       box <- attributes(newmesh)$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
@@ -95,17 +96,8 @@ JsTransientModel <- R6Class("JsTransientModel",
       pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
-      D[is.na(D)] <- 0 
       for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D
       return(pr0)
-    },
-    
-    calc_D_llk = function() {
-      n <- private$data_$n()
-      Dpdet <- self$calc_Dpdet()
-      llk <- n * log(sum(Dpdet)) - sum(Dpdet) - lfactorial(n)
-      names(llk) <- NULL 
-      return(llk)
     },
     
     calc_Dpdet = function() {
@@ -124,8 +116,8 @@ JsTransientModel <- R6Class("JsTransientModel",
       pr_empty <- list()
       j <- 0 
       for (prim in 1:n_primary) { 
-        pr_empty[[prim]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates + 2)
-        pr_empty[[prim]][ , -c(1, nstates + 2)] <- 0  
+        pr_empty[[prim]] <- matrix(0, nr = private$data_$n_meshpts(), nc = nstates + 2)
+        pr_empty[[prim]][ , c(1, nstates + 2)] <- 1  
         for (s in 1:S[prim]) { 
           j <- j + 1
           for (g in 1:nstates) {
@@ -138,7 +130,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       pr0 <- self$calc_initial_distribution()
       tpms <- self$calc_tpms()
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", s = 1:self$state()$nstates())
+      sd <- as.matrix(self$get_par("sd", s = 1:self$state()$nstates(), m = 1))
       sd[is.na(sd)] <- -10
       Dpdet <- C_calc_move_pdet(private$data_$n_occasions(), 
                                pr0, 
@@ -149,12 +141,11 @@ JsTransientModel <- R6Class("JsTransientModel",
                                private$dx_,
                                dt, 
                                sd,
-                               nstates,
+                               nstates + 2,
                                1, 
                                1); 
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
-      D[is.na(D)] <- 0 
       Dpdet <- sum(D) - Dpdet
       return(Dpdet)
     },
@@ -184,7 +175,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
       dt <- diff(self$data()$time())
-      sd <- self$get_par("sd", s = 1:self$state()$nstates())
+      sd <- as.matrix(self$get_par("sd", s = 1:self$state()$nstates(), m = 1))
       sd[is.na(sd)] <- -10
       llk <- C_calc_move_llk(n, 
                              n_occasions,
@@ -227,7 +218,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                      list(start$sd))
       private$par_$D[1] <- do.call(private$response2link_$D, 
-                                         list(start$D / private$data_$n_meshpts()))
+                                         list(start$D))
       # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())
