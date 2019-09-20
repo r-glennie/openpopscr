@@ -48,11 +48,12 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$check_input(form, data, start, detectfn, print)
       if (print) cat("Creating rectangular mesh......")
       newmesh <- rectangularMask(data$mesh())
+      map <- attributes(newmesh)$OK
       private$dx_ <- attr(newmesh, "spacing")
       private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
       cov_list <- data$get_cov_list() 
       private$data_ <- data$clone()
-      private$data_$replace_mesh(newmesh)
+      private$data_$replace_mesh(newmesh, map)
       box <- attributes(newmesh)$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
@@ -194,7 +195,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                    list(start$sd))
       private$par_$D[1] <- do.call(private$response2link_$D, 
-                                list(start$D / private$data_$n_meshpts()))
+                                list(start$D))
       # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())

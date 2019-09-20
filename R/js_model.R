@@ -295,7 +295,7 @@ JsModel <- R6Class("JsModel",
       private$par_$beta[1] <- do.call(private$response2link_$beta,
                                       list(c(start$beta, rep((1 - start$beta) / (self$data()$n_occasions() - 1), self$data()$n_occasions() - 1))))[1]
       private$par_$D[1] <- do.call(private$response2link_$D, 
-                                list(start$D / private$data_$n_meshpts()))
+                                list(start$D))
       # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())

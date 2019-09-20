@@ -614,7 +614,7 @@ ScrModel <- R6Class("ScrModel",
       }
       names(private$par_) <- c(names, "D")
       private$par_$D[1] <- do.call(private$response2link_$D, 
-                                list(start$D / private$data_$n_meshpts()))
+                                list(start$D))
       # compute initial parameters for each jkm
       private$compute_par()
       return(invisible())
