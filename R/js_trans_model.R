@@ -154,6 +154,7 @@ JsTransientModel <- R6Class("JsTransientModel",
                                1); 
       a <- private$data_$cell_area()
       D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
+      D[is.na(D)] <- 0 
       Dpdet <- sum(D) - Dpdet
       return(Dpdet)
     },
