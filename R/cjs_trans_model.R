@@ -68,8 +68,8 @@ CjsTransientModel <- R6Class("CjsTransientModel",
 			order <- c("phi", "sd")
 			private$read_formula(form, detectfn, statemod, order)
 			# add parameters other than detection 
-			private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
-			private$par_type_[private$detfn_$npars() + 2] <- "k1ms"
+			private$par_type_[private$detfn_$npars() + 1] <- "p1ms"
+			private$par_type_[private$detfn_$npars() + 2] <- "p1ms"
 			names(private$form_) <- c(private$detfn_$pars(), "phi", "sd")
 			# create parameter list
       private$make_par() 

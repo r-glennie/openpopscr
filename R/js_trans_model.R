@@ -68,9 +68,9 @@ JsTransientModel <- R6Class("JsTransientModel",
       order <- c("phi", "beta", "sd", "D")
       private$read_formula(form, detectfn, statemod, order)
       # add other parameters type
-      private$par_type_[private$detfn_$npars() + 1] <- "k1ms"
-      private$par_type_[private$detfn_$npars() + 2] <- "kconms"
-      private$par_type_[private$detfn_$npars() + 3] <- "k1ms"
+      private$par_type_[private$detfn_$npars() + 1] <- "p1ms"
+      private$par_type_[private$detfn_$npars() + 2] <- "pconms"
+      private$par_type_[private$detfn_$npars() + 3] <- "p1ms"
       private$par_type_[private$detfn_$npars() + 4] <- "m"
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
       # make parameter list 
