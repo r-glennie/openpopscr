@@ -309,17 +309,17 @@ ScrData <- R6Class("ScrData",
         for (i in 1:length(type)) {
           if (!(type[i] %in% c("pm", "km", "m"))) next 
           if (type[i] == "m") {
-            newcov <- rep(0, nrow(newmesh))
+            newcov <- rep(covs[[i]][1], nrow(newmesh))
             newcov[map] <- covs[[i]]
             self$remove_covariate(nms[i])
             self$add_covariate(nms[i], newcov, type[i])
           } else if (type[i] == "pm") {
-            newcov <- matrix(0, nr = nprim, nc = nrow(newmesh))
+            newcov <- matrix(covs[[i]][1,1], nr = nprim, nc = nrow(newmesh))
             newcov[,map] <- covs[[i]]
             self$remove_covariate(nms[i])
             self$add_covariate(nms[i], newcov, type[i])
           } else {
-            newcov <- matrix(0, nr = nocc, nc = nrow(newmesh))
+            newcov <- matrix(covs[[i]][1,1], nr = nocc, nc = nrow(newmesh))
             newcov[,map] <- covs[[i]]
             self$remove_covariate(nms[i])
             self$add_covariate(nms[i], newcov, type[i])
