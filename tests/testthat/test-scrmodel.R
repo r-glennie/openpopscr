@@ -76,7 +76,7 @@ test_that("Detection covariate smooths work", {
   formsm <- list(lambda0 ~ s(dettime, k = 3), sigma ~ 1, D ~ 1)
   mod <- suppressWarnings(ScrModel$new(formsm, scrdat, start, print = FALSE))
   suppressWarnings(mod$fit())
-  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.7466,0.09975,0.08802,2.739,5.654,0.2859,0.8272,0.1941,0.1149,0.3412,-1.307,-1.521,-0.2924,2.514,4.985,-0.1863,1.721,0.4684,2.964,6.322),
+  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.7466,0.09976,0.08802,2.739,5.654,0.2859,0.8272,0.1941,0.1149,0.3412,-1.307,-1.521,-0.2924,2.514,4.985,-0.1863,1.721,0.4684,2.964,6.322),
                                                       nr = 5, nc = 4), check.attributes = FALSE)
   
 })
@@ -91,7 +91,7 @@ test_that("Density surface models work", {
   formsd <- list(lambda0  ~ 1, sigma ~ 1, D ~ s(x, k = 3) + s(y, k = 3))
   mod <- suppressWarnings(ScrModel$new(formsd, scrdat, start, print = FALSE))
   suppressWarnings(mod$fit())
-  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.6743,2.715,6.753,-5.744,-0.6992,-3.376,-0.797,0.2844,0.1133,0.9068,3.537,0.5342,3.872,0.6217,-1.232,2.493,4.976,-12.68,-1.746,-10.96,-2.015,-0.1168,2.937,8.531,1.188,0.3478,4.213,0.4214),
+  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.6743,2.715,6.753,-5.744,-0.6992,-3.376,-0.797,0.2844,0.1132,0.9048,3.532,0.5341,3.864,0.6216,-1.232,2.493,4.98,-12.67,-1.746,-10.95,-2.015,-0.1169,2.937,8.527,1.179,0.3476,4.197,0.4213),
                                                       nr = 7, nc = 4), check.attributes = FALSE)
 }
 )

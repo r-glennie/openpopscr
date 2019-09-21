@@ -28,8 +28,8 @@ test_that("Computes correct pdet", {
 test_that("Initial distribution valid", {
   ini <- obj$calc_initial_distribution()
   expect_equal(ncol(ini), 3)
-  expect_equal(sum(ini), start$D*scrdat$cell_area())
-  expect_equal(sum(ini[,2]), start$beta*start$D*scrdat$cell_area())
+  expect_equal(sum(ini), start$D*scrdat$area())
+  expect_equal(sum(ini[,2]), start$beta*start$D*scrdat$area())
   expect_equal(sum(ini[,3]), 0)
 })
 
@@ -44,12 +44,12 @@ test_that("Tpms are valid", {
 })
 
 test_that("Llk has correct valid", {
-  expect_equal(signif(obj$calc_llk(), 4), -400.9)
+  expect_equal(signif(obj$calc_llk(), 4), -267)
 })
 
 test_that("Models fitting works", {
   suppressWarnings(obj$fit())
-  expect_equal(signif(obj$estimates()$par, 4), c(-1.867,3.385,0.371,-0.6073,6.352,0.2782,0.131,0.5229,0.5659,0.2755,-2.412,3.128,-0.6539,-1.716,5.812,-1.322,3.642,1.396,0.5019,6.892), check.attributes = FALSE)
+  expect_equal(signif(obj$estimates()$par, 4), c(-1.867,3.385,0.371,-0.6073,6.352,0.2782,0.131,0.5229,0.5659,0.2755,-2.412,3.128,-0.6539,-1.717,5.812,-1.322,3.642,1.396,0.5019,6.892), check.attributes = FALSE)
 })
 
 n_occasions2 <- 10
