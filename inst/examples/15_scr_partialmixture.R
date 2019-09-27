@@ -1,14 +1,14 @@
 #### Basic partially observed mixture SCR example
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 1)
+RcppParallel::setThreadOptions(numThreads = 6)
 
 # simulate data -----------------------------------------------------------
 set.seed(53919)
 
 ## Set parameters 
 D <- 1000
-lambda0 <- c(0.5, 0.5)
+lambda0 <- c(1.0, 1.0)
 sigma <-  c(20, 40)
 
 # make detectors array 
@@ -19,7 +19,7 @@ rownames(detectors) <- 1:nrow(detectors)
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 
 # set number of occasions to simulate
-K <- 5
+K <- 10
 
 ## Simulate activity centres
 A <- nrow(mesh) * attr(mesh, "area") / 100
@@ -75,7 +75,7 @@ scrdat <- ScrData$new(ch, mesh = mesh)
 
 # create observed sex covariate
 si <- rep(NA, scrdat$n())
-si[1:20] <- cmix[1:20]
+si[1:40] <- cmix[1:40]
 # add to data 
 scrdat$add_covariate("sex", si, "i")
 
@@ -114,4 +114,14 @@ obj$get_par("lambda0", k = 1, j = 1)
 obj$get_par("sigma", k = 1, j = 1, s = 1)
 obj$get_par("sigma", k = 1, j = 1, s = 2)
 obj$get_par("D")
-statemod$delta()
+obj$state()$delta()
+
+# predict state 
+pr <- obj$pr_state()
+predstate <- matrix(0, nr = scrdat$n(), nc = 2)
+for (i in 1:scrdat$n()) {
+  predstate[i,] <- colSums(pr[[i]][,,10])
+}
+print(cbind(round(predstate, 2), cmix))
+
+

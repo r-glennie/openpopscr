@@ -201,7 +201,10 @@ struct PrCaptureCalculator : public Worker {
               }
             }
           }
-          for (int gp = minstate; gp < minstate + num_states; ++gp) {probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));}
+          for (int gp = minstate; gp < minstate + num_states; ++gp) {
+            if (known_state(i, j, gp) < 0) continue; 
+            probfield(i).slice(prim).col(gp) = exp(probfield(i).slice(prim).col(gp));
+          }
         } else {
           // if not entered in this primary yet 
           j = j + S(prim); // move occasion number to end of primary 
