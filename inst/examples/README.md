@@ -41,5 +41,7 @@
 
 15. <code> scr_partialmixture</code>: mixture model where some states are observed 
 
+16. <code> scr_sex_and_individual_mixture</code>: mixture model where sex is partially observed and there is individual heterogenity within sex 
+
 
 
