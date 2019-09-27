@@ -124,7 +124,7 @@ arma::field<arma::cube> C_calc_alpha(const int n, const int J, const int M,
   arma::field<arma::cube> lalpha(n);
   for (int i = 0; i < n; ++i) lalpha(i) = arma::zeros<arma::cube>(M, num_states, J); 
   AlphaCalculator alpha_calculator(n, J, M, pr0, pr_capture, tpms, num_states, entry, lalpha); 
-  parallelFor(0, n, alpha_calculator, 1); 
+  parallelFor(0, n, alpha_calculator, 10); 
   return(lalpha); 
 }
 
@@ -157,7 +157,7 @@ struct BetaCalculator : public Worker {
                   arma::field<arma::cube>& lbeta) : n(n), J(J), M(M), pr0(pr0), pr_capture(pr_capture), tpms(tpms), num_states(num_states), entry(entry), lbeta(lbeta) {
     if (num_states > 1) {
       tpm.resize(J); 
-      for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]); 
+      for (int j = 0; j < J - 1; ++j) tpm[j] = Rcpp::as<arma::mat>(tpms[j]).t(); 
     }
     pr_cap.resize(n);
     for (int i = 0; i < n; ++i) {
@@ -171,20 +171,20 @@ struct BetaCalculator : public Worker {
     
     for (int i = begin; i < end; ++i) {
       arma::mat pr(M, num_states, arma::fill::ones);
-      pr /= (1.0 * M * num_states); 
+      pr /= (1.0 * M * num_states);   
       double llk = log((1.0 * M * num_states)); 
       double sum_pr; 
       arma::cube prcap; 
       lbeta(i).slice(J - 1).zeros(); 
       for (int j =  J - 2; j > entry(i) - 1; --j) {
         pr %= pr_cap[i].slice(j + 1);
-        if (num_states > 1) {
-          pr = tpm[j] * pr.t(); 
+        if (num_states > 1) { 
+          pr *= tpm[j]; 
         }
         lbeta(i).slice(j) = log(pr) + llk; 
         sum_pr = accu(pr); 
-        llk += log(sum_pr); 
         pr /= sum_pr; 
+        llk += log(sum_pr);   
       }
     }
   }
@@ -215,6 +215,6 @@ arma::field<arma::cube> C_calc_beta(const int n, const int J, const int M,
   arma::field<arma::cube> lbeta(n);
   for (int i = 0; i < n; ++i) lbeta(i) = arma::zeros<arma::cube>(M, num_states, J); 
   BetaCalculator beta_calculator(n, J, M, pr0, pr_capture, tpms, num_states, entry, lbeta); 
-  parallelFor(0, n, beta_calculator, 1); 
+  parallelFor(0, n, beta_calculator, 10); 
   return(lbeta); 
 }
