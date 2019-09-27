@@ -260,6 +260,8 @@ JsModel <- R6Class("JsModel",
       return(llk)
     },
     
+    nstates = function() {return(self$state()$nstates() + 2)}, 
+    
   print = function() {
     options(scipen = 999)
     if (is.null(private$mle_)) {

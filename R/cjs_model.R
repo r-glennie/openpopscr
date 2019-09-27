@@ -197,7 +197,9 @@ CjsModel <- R6Class("CjsModel",
         ests$par <- private$results_
       }
       return(ests)
-    }
+    }, 
+  
+  nstates = function() {return(self$state()$nstates() + 1)}
 ),
                    
   private = list(
@@ -216,31 +218,6 @@ CjsModel <- R6Class("CjsModel",
       private$compute_par()
       return(invisible())
     }, 
-		
-		calc_forwback = function(forw = NULL, back = NULL) {
-		  if (is.null(forw) & is.null(back)) forw <- back <- TRUE
-		  if (is.null(forw)) forw <- FALSE
-		  if (is.null(back)) back <- FALSE
-		  # initial distribution 
-		  pr0 <- self$calc_initial_distribution()
-		  # compute probability of capture histories 
-		  # across all individuals, occasions and traps 
-		  pr_capture <- self$calc_pr_capture()
-		  # compute lalpha for each individual
-		  n <- private$data_$n()
-		  n_occasions <- private$data_$n_occasions()
-		  n_meshpts <- private$data_$n_meshpts() 
-		  # get tpms for state model 
-		  nstates <- self$state()$nstates() 
-		  tpms <- self$calc_tpms()
-		  # compute forward-backward 
-		  if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, private$entry_)
-		  if (back) lbeta <- C_calc_beta(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, private$entry_) 
-		  if (forw & back) return(list(lalpha = lalpha, lbeta = lbeta))
-		  if (forw) return(lalpha)
-		  if (back) return(lbeta)
-		  return(0)
-		}, 
 		
 		read_states = function() {
 		  nstates <- self$state()$nstates() + 1 

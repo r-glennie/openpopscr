@@ -203,13 +203,14 @@ ScrModel <- R6Class("ScrModel",
       nocc <- private$data_$n_occasions("all")
       n <- private$data_$n()
       nmesh <- private$data_$n_meshpts()
-      nstates <- self$state()$nstates()
+      nstates <- self$nstates()
       pred <- vector(mode = "list", length = n)
       for (i in 1:n) {
         pred[[i]] <- array(0, dim = c(nmesh, nstates, nocc))
-        c <- max(fw$lalpha[[i]][,,nocc])
-        llk <- c + log(sum(exp(fw$lalpha[[i]][,,nocc] - c)))
-        for (j in 1:nocc) pred[[i]][,,j] <- exp(fw$lalpha[[i]][,,j] + fw$lbeta[[i]][,,j] - llk)
+        for (j in 1:nocc) {
+          pred[[i]][,,j] <- exp(fw$lalpha[[i]][,,j] + fw$lbeta[[i]][,,j])
+          pred[[i]][,,j] <- pred[[i]][,,j] / sum(pred[[i]][,,j])
+        }
       }
       return(pred)
     }, 
@@ -454,7 +455,8 @@ ScrModel <- R6Class("ScrModel",
     },
     
     cov_matrix = function() {return(private$V_)}, 
-    mle_llk = function() {return(private$llk_)}
+    mle_llk = function() {return(private$llk_)}, 
+    nstates = function() {return(self$state()$nstates())}
     
   ),
   
@@ -759,7 +761,7 @@ ScrModel <- R6Class("ScrModel",
       n_occasions <- private$data_$n_occasions()
       n_meshpts <- private$data_$n_meshpts() 
       # get tpms for state model 
-      nstates <- self$state()$nstates() 
+      nstates <- self$nstates()
       tpms <- self$calc_tpms()
       # compute forward-backward 
       if (forw) lalpha <- C_calc_alpha(n, n_occasions, n_meshpts, pr0, pr_capture, tpms, nstates, rep(0, private$data_$n()))
