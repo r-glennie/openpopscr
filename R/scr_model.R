@@ -423,6 +423,7 @@ ScrModel <- R6Class("ScrModel",
     
     calc_tpms = function() {
       noccasions <- private$data_$n_occasions()
+      if (noccasions == 1) return(diag(1))
       tpms <- vector("list", length = noccasions - 1)
       dt <- diff(private$data_$time())
       for (k in 1:(noccasions - 1)) {
