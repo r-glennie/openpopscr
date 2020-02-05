@@ -176,6 +176,7 @@ struct PrCaptureCalculator : public Worker {
                   // loop over detectors 
                   for (int k = 0; k < K; ++k) {
                     if (usage(k, j) < 1e-16) continue; // detector unused 
+                    if (capthist(i, j, k) < -0.5) break; // effort past first sighting
                     if (detector_type == 1 | detector_type == 4) {
                       // count detector Poisson
                       probfield(i).slice(prim).col(gp) += capthist(i, j, k) * logenc0[g].slice(j).col(k) - usage(k, j) * enc0[g].slice(j).col(k);
