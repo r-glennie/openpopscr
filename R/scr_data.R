@@ -133,6 +133,9 @@ ScrData <- R6Class("ScrData",
       if (!(private$detector_type_ %in% 1:7)) stop("Detector type not implemented.")
       ## compute distance trap-to-mesh
       self$calc_distances()
+      ## compute distance centroid-to-mesh
+      private$ibuf_ <- attributes(mesh)$ibuffer
+      private$make_imesh()
     },
     
     #### OUTPUT FUNCTIONS 
@@ -252,6 +255,7 @@ ScrData <- R6Class("ScrData",
     area = function() {return(self$n_meshpts() * attributes(private$mesh_)$area * 0.01)},
     cell_area = function() {return(attributes(private$mesh_)$area * 0.01)}, 
     distances = function(){return(private$distances_)},
+    imesh = function(){return(private$imesh_)}, 
     
     #### SUMMARY STATISTICS 
     
@@ -328,6 +332,11 @@ ScrData <- R6Class("ScrData",
       }
     }, 
     
+    set_ibuffer = function(ibuffer) {
+      private$ibuf_ <- ibuffer
+      private$make_imesh() 
+    }, 
+    
     calc_distances = function() {
       private$distances_ <- t(apply(self$traps(), 1, private$dist_to_row))
     }, 
@@ -379,6 +388,8 @@ ScrData <- R6Class("ScrData",
     primary_ = NULL, # vector of indices for each occasion indexing what primary it belongs to
     n_primary_ = NULL, # number of primary occasions
     n_occasions_ = NULL, # number of occasions
+    ibuf_ = NULL, # buffer around individual centroids
+    imesh_ = NULL, # mesh points within ibuf_ to each individual's centroid 
     
     #### FUNCTIONS
     
@@ -389,6 +400,25 @@ ScrData <- R6Class("ScrData",
       }
       apply(private$mesh_, 1, dist)
     }, 
+    
+    # compute imesh centroid-to-mesh distances
+    make_imesh = function() {
+      imesh <- vector(mode = "list", length = self$n())
+      tr <- self$traps()
+      n <- self$n()
+      z <- matrix(0, nr = n, nc = 2)
+      for (i in 1:n) {
+        if (is.null(private$ibuf_)) {
+          imesh[[i]] <- 1:self$n_meshpts() - 1
+        } else {
+          icap <- colSums(self$capthist()[i,,])
+          z[i,] <- colSums(tr * icap / sum(icap))
+          rd <- sqrt((z[i, 1] - mesh[,1])^2 + (z[i, 2] - mesh[,2])^2)
+          imesh[[i]] <- as.numeric(which(rd < private$ibuf_)) - 1
+        }
+      }
+      private$imesh_ <- imesh 
+    },
     
     # check input into intialize 
     check_input = function(capthist, mesh, time, primary) {

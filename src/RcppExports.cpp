@@ -100,8 +100,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // C_calc_pr_capture
-arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, const arma::cube& capthist, const Rcpp::List enc0, const arma::mat usage, const int num_states, const int minstate, const int maxstate, const arma::cube& known_state, const int detector_type, const int n_prim, const arma::vec S, const arma::vec entry);
-RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capthistSEXP, SEXP enc0SEXP, SEXP usageSEXP, SEXP num_statesSEXP, SEXP minstateSEXP, SEXP maxstateSEXP, SEXP known_stateSEXP, SEXP detector_typeSEXP, SEXP n_primSEXP, SEXP SSEXP, SEXP entrySEXP) {
+arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K, const int M, const arma::cube& capthist, const Rcpp::List enc0, const arma::mat usage, const int num_states, const int minstate, const int maxstate, const arma::cube& known_state, const int detector_type, const int n_prim, const arma::vec S, const arma::vec entry, const arma::field<arma::vec>& imesh);
+RcppExport SEXP _openpopscr_C_calc_pr_capture(SEXP nSEXP, SEXP JSEXP, SEXP KSEXP, SEXP MSEXP, SEXP capthistSEXP, SEXP enc0SEXP, SEXP usageSEXP, SEXP num_statesSEXP, SEXP minstateSEXP, SEXP maxstateSEXP, SEXP known_stateSEXP, SEXP detector_typeSEXP, SEXP n_primSEXP, SEXP SSEXP, SEXP entrySEXP, SEXP imeshSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -120,7 +120,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type n_prim(n_primSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type S(SSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type entry(entrySEXP);
-    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry));
+    Rcpp::traits::input_parameter< const arma::field<arma::vec>& >::type imesh(imeshSEXP);
+    rcpp_result_gen = Rcpp::wrap(C_calc_pr_capture(n, J, K, M, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry, imesh));
     return rcpp_result_gen;
 END_RCPP
 }

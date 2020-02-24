@@ -73,7 +73,7 @@
 ScrModel <- R6Class("ScrModel", 
   public = list(
     
-    initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
+    initialize = function(form, data, start, kbuf = 0, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
       if (print) cat("Reading formulae.......")
@@ -94,6 +94,7 @@ ScrModel <- R6Class("ScrModel",
       private$read_states() 
       if (print) cat("done\n")
       private$print_ = print 
+      private$kbuf_ = kbuf
     },
     
     get_par = function(name, j = NULL, k = NULL, m = NULL, s = NULL) {
@@ -278,6 +279,8 @@ ScrModel <- R6Class("ScrModel",
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
       kstates <- private$known_states_
+      dist <- private$data_$distances()
+      imesh <- private$data_$imesh()
       prob <- C_calc_pr_capture(n, 
                                 n_occasions, 
                                 n_traps, 
@@ -292,7 +295,8 @@ ScrModel <- R6Class("ScrModel",
                                 self$data()$detector_type(), 
                                 n_occasions, 
                                 rep(1, n_occasions),
-                                rep(0, n))
+                                rep(0, n), 
+                                imesh)
       return(prob)
     },
     
@@ -481,6 +485,7 @@ ScrModel <- R6Class("ScrModel",
     llk_ = NULL, 
     sig_level_ = 0.05, 
     print_  = NULL,
+    kbuf_ = NULL, 
     
     read_formula = function(form, detectfn, statemod, order = NULL) {
       private$form_ <- form 
