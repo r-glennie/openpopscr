@@ -413,7 +413,7 @@ ScrData <- R6Class("ScrData",
         } else {
           icap <- colSums(self$capthist()[i,,])
           z[i,] <- colSums(tr * icap / sum(icap))
-          rd <- sqrt((z[i, 1] - mesh[,1])^2 + (z[i, 2] - mesh[,2])^2)
+          rd <- sqrt((z[i, 1] - self$mesh()[,1])^2 + (z[i, 2] - self$mesh()[,2])^2)
           imesh[[i]] <- as.numeric(which(rd < private$ibuf_)) - 1
         }
       }
