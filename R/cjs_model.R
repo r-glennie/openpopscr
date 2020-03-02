@@ -137,6 +137,7 @@ CjsModel <- R6Class("CjsModel",
       n_meshpts <- private$data_$n_meshpts() 
       n_traps <- private$data_$n_traps()
       capthist <- private$data_$capthist()
+      imesh <- private$data_$imesh()
       prob <- C_calc_pr_capture(n, 
                                 n_occasions, 
                                 n_traps, 
@@ -151,7 +152,8 @@ CjsModel <- R6Class("CjsModel",
                                 self$data()$detector_type(), 
                                 n_primary, 
                                 S,
-                                private$entry_)
+                                private$entry_, 
+                                imesh)
       return(prob)
     },
     

@@ -8,7 +8,7 @@ RcppParallel::setThreadOptions(numThreads = 1)
 true_par <- list(D = 1000, lambda0 = 0.2, sigma = 20)
 
 # make detectors array 
-detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "count")
+detectors <- make.grid(nx = 7, ny = 7, spacing = 20, detector = "multi")
 
 # make mesh 
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
@@ -19,6 +19,8 @@ n_occasions <- 5
 # simulate ScrData 
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh)
 
+scrdat$set_ibuffer(5 * scrdat$encrange())
+
 # openpopscr fit ----------------------------------------------------------
 
 # create formulae 
@@ -27,13 +29,16 @@ form <- list(lambda0 ~ 1,
              D ~ 1)
 
 # get starting values for numerical optimiser  
-start <- get_start_values(scrdat)
+start <- list(lambda0 = 0.2, sigma = 20, D = 1000)
 
 # create the model object 
 obj <- ScrModel$new(form, scrdat, start)
+system.time(obj$calc_llk())
 
 # compute initial likelihood to see if start is reasonable
-obj$calc_llk()
+system.time(obj$calc_pr_capture())
+
+
 
 # fit model
 obj$fit()
