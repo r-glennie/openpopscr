@@ -1,7 +1,4 @@
 # openpopscr
-<!-- badges: start -->
-  [![Travis build status](https://travis-ci.org/r-glennie/openpopscr.svg?branch=master)](https://travis-ci.org/r-glennie/openpopscr)
-  <!-- badges: end -->
 
 Fits open population spatial capture-recapture with
 activity centre movement by maximum likelihood.
