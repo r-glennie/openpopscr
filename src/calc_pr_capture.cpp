@@ -52,6 +52,7 @@ struct PrCaptureCalculator : public Worker {
   const arma::vec& S; // number of secondary occasion per primary 
   const arma::vec& entry; // occasion each individual enters survey 
   const arma::field<arma::vec>& imesh; // mesh points within range of each detector 
+  const arma::mat& capij; // efficient storage for multi-detectors 
   
   // derived variables 
   std::vector<arma::cube> enc0; 
@@ -82,6 +83,7 @@ struct PrCaptureCalculator : public Worker {
                         const arma::vec& S, 
                         const arma::vec& entry,
                         const arma::field<arma::vec>& imesh, 
+                        const arma::mat& capij, 
                         arma::field<arma::cube>& probfield) : J(J), K(K), M(M), 
                         alive_col(alive_col), 
                         capthist(capthist), 
@@ -96,6 +98,7 @@ struct PrCaptureCalculator : public Worker {
                         S(S), 
                         entry(entry), 
                         imesh(imesh), 
+                        capij(capij), 
                         probfield(probfield) {
     
     //// compute dervied quantities 
@@ -172,8 +175,6 @@ struct PrCaptureCalculator : public Worker {
                 continue; 
               } else {
                 // state is possible 
-                if (detector_type == 3) savedenc.zeros(); 
-                sumcap = 0; 
                 // independent detectors 
                 if (detector_type != 3) {
                   // loop over detectors 
@@ -192,13 +193,12 @@ struct PrCaptureCalculator : public Worker {
                 }
                 // dependent detectors 
                 if (detector_type == 3) {
-                  // get detector record for this individual and occasion 
-                  arma::vec cap_ij = capthist(arma::span(i), arma::span(j), arma::span::all);  
-                  sumcap = arma::accu(cap_ij);
-                  // seen? 
-                  if (sumcap > 0) unseen = false; 
-                  savedenc += logenc0[g].slice(j) * cap_ij;  
-                  if (!unseen) for (int m = 0; m < imesh(i).size(); ++m) probfield(i)(imesh(i)(m), gp, prim) += savedenc(imesh(i)(m)) - sumcap * log_total_enc[g](imesh(i)(m), j); 
+                  unseen = capij(i, j) > -1 ? false : true;
+                  sumcap = unseen ? 1 : 0; 
+                  if (!unseen) {
+                    savedenc = logenc0[g].slice(j).col(capij(i, j));   
+                    for (int m = 0; m < imesh(i).size(); ++m) probfield(i)(imesh(i)(m), gp, prim) += savedenc(imesh(i)(m)) - sumcap * log_total_enc[g](imesh(i)(m), j); 
+                  }
                   for (int m = 0; m < imesh(i).size(); ++m) probfield(i)(imesh(i)(m), gp, prim) += -(1.0 - sumcap) * total_enc[g](imesh(i)(m), j) + sumcap * log_total_penc[g](imesh(i)(m), j); 
                 }
               }
@@ -253,12 +253,13 @@ arma::field<arma::cube> C_calc_pr_capture(const int n, const int J, const int K,
                              const int n_prim, 
                              const arma::vec S, 
                              const arma::vec entry, 
-                             const arma::field<arma::vec>& imesh) {
+                             const arma::field<arma::vec>& imesh, 
+                             const arma::mat& capij) {
   int alive_col = 1; 
   if (num_states < 3) alive_col = 0; 
   arma::field<arma::cube> probfield(n);
   for (int i = 0; i < n; ++i) probfield(i) = arma::zeros<arma::cube>(M, num_states + minstate + maxstate, n_prim); 
-  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry, imesh, probfield); 
+  PrCaptureCalculator pr_capture_calc(J, K, M, alive_col, capthist, enc0, usage, num_states, minstate, maxstate, known_state, detector_type, n_prim, S, entry, imesh, capij, probfield); 
   parallelFor(0, n, pr_capture_calc, 10); 
   return(probfield);
 }

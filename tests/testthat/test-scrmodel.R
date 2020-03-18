@@ -85,13 +85,13 @@ test_that("Density surface models work", {
   formd <- list(lambda0  ~ 1, sigma ~ 1, D ~ x*y)
   mod <- suppressWarnings(ScrModel$new(formd, scrdat, start, print = FALSE))
   suppressWarnings(mod$fit())
-  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.7255,2.73,5.311,-0.8221,-0.7311,1.067,0.2857,0.115,0.4402,0.7154,0.7186,1.223,-1.286,2.505,4.448,-2.224,-2.14,-1.33,-0.1654,2.956,6.174,0.58,0.6773,3.464),
+  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.7255,2.73,5.311,-0.8221,-0.7311,1.067,0.2857,0.115,0.4402,0.7154,0.7186,1.223,-1.286,2.505,4.448,-2.224,-2.14,-1.33,-0.1654,2.956,6.174,0.5801,0.6773,3.464),
                                                       nr = 6, nc = 4), check.attributes = FALSE)
   
   formsd <- list(lambda0  ~ 1, sigma ~ 1, D ~ s(x, k = 3) + s(y, k = 3))
   mod <- suppressWarnings(ScrModel$new(formsd, scrdat, start, print = FALSE))
   suppressWarnings(mod$fit())
-  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.6743,2.715,6.753,-5.744,-0.6992,-3.376,-0.797,0.2844,0.1132,0.9048,3.532,0.5341,3.864,0.6216,-1.232,2.493,4.98,-12.67,-1.746,-10.95,-2.015,-0.1169,2.937,8.527,1.179,0.3476,4.197,0.4213),
+  expect_equal(signif(mod$estimates()$par, 4), matrix(c(-0.6743,2.715,6.753,-5.744,-0.6992,-3.376,-0.797,0.2844,0.1132,0.9058,3.535,0.5341,3.867,0.6217,-1.232,2.493,4.978,-12.670,-1.746,-10.96,-2.015,-0.1169,2.937,8.529,1.186,0.3477,4.204,0.4214),
                                                       nr = 7, nc = 4), check.attributes = FALSE)
 }
 )

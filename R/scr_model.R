@@ -296,7 +296,8 @@ ScrModel <- R6Class("ScrModel",
                                 n_occasions, 
                                 rep(1, n_occasions),
                                 rep(0, n), 
-                                imesh)
+                                imesh,
+                                private$data_$capij())
       return(prob)
     },
     

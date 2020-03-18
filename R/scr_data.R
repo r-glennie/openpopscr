@@ -106,13 +106,21 @@ ScrData <- R6Class("ScrData",
         if (outputdetector == "proximity") attributes(traps(private$capthist_))$detector <- "multi"
         private$detector_type_ <- ifelse(outputdetector == "count", 1, 3)
       }
+      if (private$detector_type_ == 3) {
+        private$capij_ <- matrix(0, nr = dim(private$capthist_)[1], nc = dim(private$capthist_)[2])
+        for (j in 1:dim(private$capthist_)[2]) {
+          private$capij_[,j] <- as.numeric(apply(private$capthist_[,j,], 1, FUN = function(x) {which(x > 0)}))
+        }
+        private$capij_[is.na(private$capij_)] <- -9
+        private$capij_ <- private$capij_ - 1 
+      } else {
+        private$capij_ <- matrix(-10, nr = 1, nc = 1)
+      }
       ## split capthist into primary occasions 
       if (is.null(primary)) primary <- seq(1, dim(capthist)[2])
       private$primary_ <- primary 
       private$n_primary_ <- max(primary)
-      private$capthists_ <- secr:::split.capthist(capthist, as.factor(primary), byoccasion = TRUE, dropnullCH = FALSE, dropunused = FALSE)
-      private$n_occasions_ <- length(private$capthists_)
-      if (private$n_occasions_ == 1) private$n_occasions_ <- dim(capthist)[2]
+      private$n_occasions_ <- length(unique(primary))
       private$mesh_ <- mesh
       if (is.null(time)) {
         private$time_ <- seq(1, self$n_occasions("all"))
@@ -190,11 +198,12 @@ ScrData <- R6Class("ScrData",
       
     capthist = function(i = ".") {
       if (i == ".") return(private$capthist_)
-      return(private$capthists_[[i]])
+      return(subset(private$capthist_, occasion = i))
     },
+    capij = function() {return(private$capij_)},
     traps = function(i = ".") {
       if (i == ".") return(traps(private$capthist_))
-     return(traps(private$capthists_[[i]]))
+     return(traps(subset(private$capthist_, occasion = i)))
     },
     mesh = function() {return(private$mesh_)},
     time = function() {return(private$time_)},
@@ -378,7 +387,7 @@ ScrData <- R6Class("ScrData",
   
   private = list(
     capthist_ = NULL, # capture history object 
-    capthists_ = NULL, # list of capthists split into primary occasions 
+    capij_ = NULL, 
     mesh_ = NULL, # mesh object 
     time_ = NULL, # vector of occasion start times 
     cov_ = NULL, # list of covariates 

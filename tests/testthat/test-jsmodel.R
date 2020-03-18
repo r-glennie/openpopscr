@@ -49,7 +49,7 @@ test_that("Llk has correct valid", {
 
 test_that("Models fitting works", {
   suppressWarnings(obj$fit())
-  expect_equal(signif(obj$estimates()$par, 4), c(-1.867,3.385,0.371,-0.6073,6.352,0.2782,0.131,0.5229,0.5659,0.2755,-2.412,3.128,-0.6539,-1.717,5.812,-1.322,3.642,1.396,0.5019,6.892), check.attributes = FALSE)
+  expect_equal(signif(obj$estimates()$par, 4), c(-1.867,3.385,0.371,-0.6073,6.352,0.2782,0.131,0.5229,0.5659,0.2755,-2.412,3.128,-0.6539,-1.716,5.812,-1.322,3.642,1.396,0.5019,6.892), check.attributes = FALSE)
 })
 
 n_occasions2 <- 10

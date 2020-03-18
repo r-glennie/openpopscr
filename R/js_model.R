@@ -179,7 +179,8 @@ JsModel <- R6Class("JsModel",
                                 n_primary, 
                                 S,
                                 rep(0, n), 
-                                imesh)
+                                imesh, 
+                                private$data_$capij())
       return(prob)
     },
     

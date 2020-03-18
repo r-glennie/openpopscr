@@ -153,7 +153,8 @@ CjsModel <- R6Class("CjsModel",
                                 n_primary, 
                                 S,
                                 private$entry_, 
-                                imesh)
+                                imesh, 
+                                private$data_$capij())
       return(prob)
     },
     
