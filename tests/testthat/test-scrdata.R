@@ -1,7 +1,7 @@
 context("ScrData test")
 library(secr)
 set.seed(53838)
-detectors <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "count")
+detectors <- make.grid(nx = 3, ny = 3, spacing = 20, detector = "multi")
 mesh <- make.mask(detectors, buffer = 100, nx = 64, ny = 64, type = "trapbuffer")
 popn <- sim.popn(D = 100, core = mesh, Ndist = "poisson", buffertype = "rect")
 ch <- sim.capthist(detectors,  
@@ -61,7 +61,7 @@ test_that("Scrdata returns correct times", {
 
 test_that("ScrData computes correct statistics", {
   dat <- ScrData$new(ch, mesh)
-  expect_equal(dat$n(), 125)
+  expect_equal(dat$n(), 138)
   expect_equal(dat$n_occasions(), 5)
   expect_equal(dat$n_traps(), 9)
   expect_equal(dat$n_meshpts(), 3496)
