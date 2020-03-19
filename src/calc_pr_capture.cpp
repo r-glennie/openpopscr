@@ -193,9 +193,9 @@ struct PrCaptureCalculator : public Worker {
                 }
                 // dependent detectors 
                 if (detector_type == 3) {
-                  unseen = capij(i, j) > -1 ? false : true;
-                  sumcap = unseen ? 0 : 1; 
-                  if (!unseen) {
+                  if(capij(i,j) > -1) unseen = false; 
+                  sumcap = capij(i, j) > -1 ? 1 : 0; 
+                  if (capij(i, j) > -1) {
                     savedenc = logenc0[g].slice(j).col(capij(i, j));   
                     for (int m = 0; m < imesh(i).size(); ++m) probfield(i)(imesh(i)(m), gp, prim) += savedenc(imesh(i)(m)) - sumcap * log_total_enc[g](imesh(i)(m), j); 
                   }
