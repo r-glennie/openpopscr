@@ -237,7 +237,7 @@ ScrData <- R6Class("ScrData",
     
     n = function(i = ".") {
       if (i == ".") return(dim(private$capthist_)[1])
-      return(dim(private$capthists_[[i]]))
+      return(dim(subset(private$capthist_, occasion = i))[1])
     },
     n_occasions = function(i = NULL) {
       if (!is.null(i)) {
