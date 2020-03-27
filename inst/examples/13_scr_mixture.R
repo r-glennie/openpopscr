@@ -1,7 +1,7 @@
 #### Basic mixture SCR example
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 6)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 set.seed(53919)

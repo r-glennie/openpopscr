@@ -157,7 +157,7 @@ JsModel <- R6Class("JsModel",
         n_primary <- n_occasions
         S <- rep(1, n_occasions)
       }
-      enc_rate0 <- self$calc_encrate(transpose = TRUE)
+      enc_rate0 <- self$encrate()
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
       n_meshpts <- private$data_$n_meshpts() 
@@ -195,7 +195,7 @@ JsModel <- R6Class("JsModel",
         n_primary <- n_occasions
         S <- rep(1, n_occasions)
       }
-      enc_rate <- self$calc_encrate()
+      enc_rate <- self$encrate()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       j <- 0 
@@ -205,7 +205,7 @@ JsModel <- R6Class("JsModel",
         for (s in 1:S[prim]) { 
           j <- j + 1
           for (g in 1:nstates) {
-            pr_empty[[prim]][, g + 1] <- pr_empty[[prim]][, g + 1] - t(trap_usage[, j]) %*% enc_rate[[g]][j,,]
+            pr_empty[[prim]][, g + 1] <- pr_empty[[prim]][, g + 1] - t(trap_usage[, j]) %*% t(enc_rate[[g]][,,j]) 
           }
         }
         for (g in 1:nstates) pr_empty[[prim]][, g + 1] <- exp(pr_empty[[prim]][, g + 1])

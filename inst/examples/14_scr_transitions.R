@@ -1,7 +1,7 @@
 #### Example of individuals transitioning between states
 library(openpopscr)
 # set number of threads for parallel processing 
-RcppParallel::setThreadOptions(numThreads = 6)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 set.seed(59383)
@@ -107,5 +107,5 @@ obj$get_par("lambda0", k = 1, j = 1)
 obj$get_par("sigma", k = 1, j = 1, s = 1)
 obj$get_par("sigma", k = 1, j = 1, s = 2)
 obj$get_par("D")
-statemod$delta()
-statemod$tpm()
+obj$state()$delta()
+obj$state()$tpm()

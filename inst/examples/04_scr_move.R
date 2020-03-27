@@ -1,6 +1,6 @@
 # SCR transient model example 
 library(openpopscr)
-RcppParallel::setThreadOptions(numThreads = 7)
+RcppParallel::setThreadOptions(numThreads = 1)
 
 # simulate data -----------------------------------------------------------
 

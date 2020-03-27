@@ -19,7 +19,7 @@ n_occasions <- 5
 # simulate ScrData 
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh)
 
-scrdat$set_ibuffer(5 * scrdat$encrange())
+#scrdat$set_ibuffer(5 * scrdat$encrange())
 
 # openpopscr fit ----------------------------------------------------------
 

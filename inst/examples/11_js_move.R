@@ -46,7 +46,7 @@ oo
 
 oo$get_par("lambda0", k = 1, j = 1)
 oo$get_par("sigma", k = 1, j = 1)
-oo$get_par("phi", k = 1)
-oo$get_par("beta", k = 1)
-oo$get_par("sd", k = 1)
+oo$get_par("phi", k = 1, m = 1)
+oo$get_par("beta", k = 1, m = 1)
+oo$get_par("sd", k = 1, m = 1)
 oo$get_par("D")

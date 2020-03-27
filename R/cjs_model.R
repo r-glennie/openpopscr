@@ -131,7 +131,7 @@ CjsModel <- R6Class("CjsModel",
         n_primary <- n_occasions
         S <- rep(1, n_occasions)
       }
-      enc_rate0 <- self$calc_encrate(transpose = TRUE)
+      enc_rate0 <- self$encrate()
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
       n_meshpts <- private$data_$n_meshpts() 

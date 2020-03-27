@@ -35,6 +35,7 @@
 #' \itemize{
 #'  \item get_par(name, j, k, m): returns value of parameter "name" for detector j 
 #'   on occasion k at mesh point m, similar to ScrData$covs() function
+#'   \item encrate(): return encounter rate for each mesh point and state 
 #'  \item predict(name, newdata, type, se, alpha): returns predictions for named parameter 
 #'        newdata can be an alternative design matrix for that parameter, 
 #'        type = "response" provides predictions on response scale, otherwise link scale 
@@ -47,8 +48,7 @@
 #'        data and current parameters
 #'  \item calc_D_llk(): computes the likelihood contribution from the point process model for D
 #'  \item calc_initial_distribution(): computes initial distribution over life states (unborn, alive, dead) and mesh
-#'  \item calc_encrate(transpose = FALSE): compute encounter rate for each mesh x trap x occasion, can be 
-#'        return transposed as occasion x mesh x trap
+#'  \item calc_encrate: compute encounter rate for each occasion x trap x mesh x trap
 #'  \item calc_pr_capture(): returns list of arrays, one per individual, with (m, s, k) entry being 
 #'        the probability of the capture record on occasion k given activity centre is at mesh point m and 
 #'        individual is in life state s
@@ -148,6 +148,11 @@ ScrModel <- R6Class("ScrModel",
       }
     }, 
     
+    encrate = function() {
+      if (!identical(private$par_, private$last_par_)) private$compute_par() 
+      return(private$enc_)
+    }, 
+    
     predict = function(name, newdata = NULL, type = "response", se = FALSE, alpha = 0.95, nsims = 100, seed = 15185) {
       set.seed(seed)
       on.exit(set.seed(round(runif(1, 0, 10000))))
@@ -235,7 +240,7 @@ ScrModel <- R6Class("ScrModel",
       return(pr0)
     },
     
-    calc_encrate = function(transpose = FALSE) {
+    calc_encrate = function() {
       dist <- private$data_$distances()
       n_occasions <- private$data_$n_occasions("all")
       nstates <- self$state()$nstates()
@@ -243,7 +248,7 @@ ScrModel <- R6Class("ScrModel",
       n_det_par <- self$detectfn()$npars()
       det_par <- vector(mode = "list", length = n_det_par)
       for (s in 1:nstates) {
-        enc_rate[[s]] <- array(0, dim = c(n_occasions, nrow(dist), ncol(dist))) 
+        enc_rate[[s]] <- array(0, dim = c(ncol(dist), nrow(dist), n_occasions)) 
         for (k in 1:n_occasions) {
           for (dpar in 1:n_det_par) det_par[[dpar]] <- as.vector(self$get_par(self$detectfn()$par(dpar), k = k, m = 1, s = s))
           if (any(sapply(det_par, anyNA))) {
@@ -253,25 +258,18 @@ ScrModel <- R6Class("ScrModel",
               stop("Make sure that either all detection parameters have a state variable with NA's in the same places or none do.")
             }
           } else {
-            enc_rate[[s]][k,,] <- self$detectfn()$h(dist, det_par)
+            enc_rate[[s]][,,k] <- t(self$detectfn()$h(dist, det_par))
           }
         }
         # add epsilon to stop log(0.0)
         enc_rate[[s]] <- enc_rate[[s]] + 1e-16
-      }
-      if (transpose) {
-        for (s in 1:nstates) {
-          temp <- enc_rate[[s]]
-          enc_rate[[s]] <- array(0, dim = c(ncol(dist), nrow(dist), n_occasions)) 
-          for (k in 1:n_occasions) enc_rate[[s]][,,k] <- t(temp[k,,])
-        }
       }
      return(enc_rate) 
     }, 
     
     calc_pr_capture = function() {
       n_occasions <- private$data_$n_occasions()
-      enc_rate0 <- self$calc_encrate(transpose = TRUE)
+      enc_rate <- self$encrate()
       trap_usage <- usage(private$data_$traps())
       n <- private$data_$n()
       n_meshpts <- private$data_$n_meshpts() 
@@ -286,7 +284,7 @@ ScrModel <- R6Class("ScrModel",
                                 n_traps, 
                                 n_meshpts,
                                 capthist, 
-                                enc_rate0, 
+                                enc_rate, 
                                 trap_usage, 
                                 n_states, 
                                 0, 
@@ -302,14 +300,14 @@ ScrModel <- R6Class("ScrModel",
     },
     
     calc_Dpdet = function() {
-      enc_rate <- self$calc_encrate() 
+      enc_rate <- self$encrate() 
       nstates <- self$state()$nstates()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
         pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates)
         for (g in 1:nstates) {
-          pr_empty[[j]][, g] <- exp(-t(trap_usage[, j]) %*% enc_rate[[g]][j,,])
+          pr_empty[[j]][, g] <- exp(- t(trap_usage[, j]) %*% t(enc_rate[[g]][,,j]) )
         }
       }
       pr0 <- self$calc_initial_distribution()
@@ -475,6 +473,7 @@ ScrModel <- R6Class("ScrModel",
     par_ = NULL, 
     last_par_ = NULL,
     computed_par_ = NULL, 
+    enc_ = NULL, 
     par_type_ = NULL, 
     X_ = NULL, 
     link2response_ = NULL, 
@@ -685,6 +684,7 @@ ScrModel <- R6Class("ScrModel",
                                                      dim = dim)))
       }
       names(private$computed_par_) <- names(private$form_)
+      private$enc_ <- self$calc_encrate()
       return(invisible())
     }, 
     

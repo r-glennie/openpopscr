@@ -95,14 +95,14 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     calc_Dpdet = function() {
       # compute probability of zero capture history 
-      enc_rate <- self$calc_encrate() 
+      enc_rate <- self$encrate() 
       nstates <- self$state()$nstates()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       for (j in 1:private$data_$n_occasions()) {
         pr_empty[[j]] <- matrix(1, nr = private$data_$n_meshpts(), nc = nstates)
         for (g in 1:nstates) {
-          pr_empty[[j]][, g] <- exp(-t(trap_usage[, j]) %*% enc_rate[[g]][j,,])
+          pr_empty[[j]][, g] <- exp(-t(trap_usage[, j]) %*% t(enc_rate[[g]][,,j]) )
         }
       }
       pr0 <- self$calc_initial_distribution()

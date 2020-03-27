@@ -111,7 +111,7 @@ JsTransientModel <- R6Class("JsTransientModel",
         n_primary <- n_occasions
         S <- rep(1, n_occasions)
       }
-      enc_rate <- self$calc_encrate()
+      enc_rate <- self$encrate()
       trap_usage <- usage(private$data_$traps())
       pr_empty <- list()
       j <- 0 
@@ -121,7 +121,7 @@ JsTransientModel <- R6Class("JsTransientModel",
         for (s in 1:S[prim]) { 
           j <- j + 1
           for (g in 1:nstates) {
-            pr_empty[[prim]][, g + 1] <- pr_empty[[prim]][, g + 1] - t(trap_usage[, j]) %*% enc_rate[[g]][j,,]
+            pr_empty[[prim]][, g + 1] <- pr_empty[[prim]][, g + 1] - t(trap_usage[, j]) %*% t(enc_rate[[g]][,,j]) 
           }
         }
         for (g in 1:nstates) pr_empty[[prim]][, g + 1] <- exp(pr_empty[[prim]][, g + 1])
