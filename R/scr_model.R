@@ -376,7 +376,7 @@ ScrModel <- R6Class("ScrModel",
         mod <- do.call(nlm, args)
       } else {
         args <- c(list(w_par, private$calc_negllk, names = names(w_par), hessian = TRUE), nlm.args)
- 	optimmod <- do.call(optim, args)
+ 	optimmod <- optim(w_par, private$calc_negllk, names = names(w_par), hessian = TRUE)
         code <- 0 
         if (optimmod$convergence != 0) code <- 4 
         mod <- list(code = code, estimate = optimmod$par, minimum = optimmod$value, hessian = optimmod$hessian) 
