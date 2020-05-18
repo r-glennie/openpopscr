@@ -362,7 +362,7 @@ ScrModel <- R6Class("ScrModel",
       return(llk)
     },
     
-    fit = function(nlm.args = NULL) {
+    fit = function(nlm.args = NULL, optim = FALSE) {
       par <- self$par()
       # scrmodel parameters 
       w_par <- private$convert_par2vec(par)
@@ -370,9 +370,17 @@ ScrModel <- R6Class("ScrModel",
       w_par <- c(w_par, self$state()$par())
       t0 <- Sys.time()
       if (private$print_) cat("Fitting model..........\n")
-      #if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
-      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
-      mod <- do.call(nlm, args)
+      #if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)    
+      if(!optim) {
+	args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
+        mod <- do.call(nlm, args)
+      } else {
+        args <- c(list(w_par, private$calc_negllk, names = names(w_par), hessian = TRUE), nlm.args)
+ 	optimmod <- do.call(optim, optimargs)
+        code <- 0 
+        if (optimmod$convergence != 0) code <- 4 
+        mod <- list(code = code, estimate = optimmod$par, minimum = optimmod$value, hessian = optimmod$hessian) 
+      } 
       t1 <- Sys.time()
       difft <- t1 - t0 
       if (private$print_) cat("Completed model fitting in", difft, attr(difft, "units"), "\n")
