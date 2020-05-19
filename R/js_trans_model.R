@@ -58,11 +58,10 @@ JsTransientModel <- R6Class("JsTransientModel",
       }
       private$data_ <- data$clone()
       private$data_$replace_mesh(newmesh, map)
-      box <- attributes(newmesh)$boundingbox
-      region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
+      region <- c(diff(range(newmesh[,1])), diff(range(newmesh[,2])))
       private$num_cells_ <- numeric(3)
       private$num_cells_[1] <- nrow(newmesh)
-      private$num_cells_[2] <- floor(region[1] / private$dx_)
+      private$num_cells_[2] <- floor(region[1] / private$dx_) + 1 
       private$num_cells_[3] <- nrow(newmesh) / private$num_cells_[2]
       if (print) cat("done\n")
       if (print) cat("Reading formulae.......")
