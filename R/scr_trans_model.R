@@ -126,6 +126,18 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       Dpdet <- sum(D) - Dpdet 
       return(Dpdet)
     },
+
+    calc_pdet = function() {
+      savepar <- self$par()
+      newpar <- self$par() 
+      newpar$D <- rep(0, length(savepar$D))
+      a <- sum(self$data()$cell_area() * private$inside_)
+      newpar$D[1] <- log(1.0 / a)
+      self$set_par(newpar)
+      pdet <- self$calc_Dpdet()  
+      self$set_par(savepar)
+      return(pdet)
+    }, 
     
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
