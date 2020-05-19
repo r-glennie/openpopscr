@@ -310,6 +310,7 @@ ScrData <- R6Class("ScrData",
       oldmesh <- private$mesh_ 
       private$mesh_ <- newmesh 
       self$calc_distances()
+      private$make_imesh()
       if (is.null(map)) {
         warning("Replaced mesh, but did not update mesh covariates. Supply map argument.")
       } else {
