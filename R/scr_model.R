@@ -807,7 +807,7 @@ ScrModel <- R6Class("ScrModel",
       if (!("ScrData" %in% class(data))) stop("Must supply a ScrData object for data.")
       if (!is.list(start)) stop("start must be a list of starting values for each parameter.")
       if (!is.null(detectfn)) {
-        if (!("DetectFn" %in% class(detectfn))) stop("detectfn must be a DetectFn object.")
+        if (!("DetFn" %in% class(detectfn))) stop("detectfn must be a DetectFn object.")
       } 
       if (!is.logical(print)) stop("print must be TRUE or FALSE.")
       return(0)
