@@ -19,8 +19,6 @@ n_occasions <- 5
 # simulate ScrData 
 scrdat <- simulate_scr(true_par, n_occasions, detectors, mesh)
 
-#scrdat$set_ibuffer(5 * scrdat$encrange())
-
 # openpopscr fit ----------------------------------------------------------
 
 # create formulae 
@@ -33,12 +31,7 @@ start <- list(lambda0 = 0.2, sigma = 20, D = 1000)
 
 # create the model object 
 obj <- ScrModel$new(form, scrdat, start)
-system.time(obj$calc_llk())
-
-# compute initial likelihood to see if start is reasonable
-system.time(obj$calc_pr_capture())
-
-
+obj$calc_llk()
 
 # fit model
 obj$fit()
