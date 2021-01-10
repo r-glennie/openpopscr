@@ -54,7 +54,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // C_calc_move_llk
-double C_calc_move_llk(const int n, const int J, const arma::mat pr0, const Rcpp::List pr_capture, const Rcpp::List tpms, const arma::vec num_cells, const arma::vec inside, const double dx, const arma::vec dt, const arma::mat sd, const int num_states, const int minstate, const int maxstate, const arma::vec entry);
+double C_calc_move_llk(const int n, const int J, const arma::mat pr0, const Rcpp::List pr_capture, const Rcpp::List tpms, const arma::vec num_cells, const arma::mat inside, const double dx, const arma::vec dt, const arma::mat sd, const int num_states, const int minstate, const int maxstate, const arma::vec entry);
 RcppExport SEXP _openpopscr_C_calc_move_llk(SEXP nSEXP, SEXP JSEXP, SEXP pr0SEXP, SEXP pr_captureSEXP, SEXP tpmsSEXP, SEXP num_cellsSEXP, SEXP insideSEXP, SEXP dxSEXP, SEXP dtSEXP, SEXP sdSEXP, SEXP num_statesSEXP, SEXP minstateSEXP, SEXP maxstateSEXP, SEXP entrySEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -65,7 +65,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List >::type pr_capture(pr_captureSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type tpms(tpmsSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type num_cells(num_cellsSEXP);
-    Rcpp::traits::input_parameter< const arma::vec >::type inside(insideSEXP);
+    Rcpp::traits::input_parameter< const arma::mat >::type inside(insideSEXP);
     Rcpp::traits::input_parameter< const double >::type dx(dxSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type dt(dtSEXP);
     Rcpp::traits::input_parameter< const arma::mat >::type sd(sdSEXP);
@@ -78,7 +78,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // C_calc_move_pdet
-double C_calc_move_pdet(const int J, arma::mat pr0, Rcpp::List pr_captures, Rcpp::List tpms, const arma::vec num_cells, const arma::vec inside, const double dx, const arma::vec dt, const arma::mat sd, const int num_states, const int minstate, const int maxstate);
+double C_calc_move_pdet(const int J, arma::mat pr0, Rcpp::List pr_captures, Rcpp::List tpms, const arma::vec num_cells, const arma::mat inside, const double dx, const arma::vec dt, const arma::mat sd, const int num_states, const int minstate, const int maxstate);
 RcppExport SEXP _openpopscr_C_calc_move_pdet(SEXP JSEXP, SEXP pr0SEXP, SEXP pr_capturesSEXP, SEXP tpmsSEXP, SEXP num_cellsSEXP, SEXP insideSEXP, SEXP dxSEXP, SEXP dtSEXP, SEXP sdSEXP, SEXP num_statesSEXP, SEXP minstateSEXP, SEXP maxstateSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -88,7 +88,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::List >::type pr_captures(pr_capturesSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type tpms(tpmsSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type num_cells(num_cellsSEXP);
-    Rcpp::traits::input_parameter< const arma::vec >::type inside(insideSEXP);
+    Rcpp::traits::input_parameter< const arma::mat >::type inside(insideSEXP);
     Rcpp::traits::input_parameter< const double >::type dx(dxSEXP);
     Rcpp::traits::input_parameter< const arma::vec >::type dt(dtSEXP);
     Rcpp::traits::input_parameter< const arma::mat >::type sd(sdSEXP);

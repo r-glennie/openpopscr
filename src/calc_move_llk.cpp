@@ -29,43 +29,20 @@
 
 using namespace RcppParallel; 
 
-arma::sp_mat CalcTrm(const arma::vec num_cells, const double sd, const double dx, const arma::vec inside) {
+arma::sp_mat CalcTrm(const arma::vec num_cells, const double sd, const double dx, const arma::mat inside) {
   arma::sp_mat tpr = arma::zeros<arma::sp_mat>(num_cells(0), num_cells(0));
   double rate = sd * sd / (2 * dx * dx);
   int s;
   double sum; 
-  for (int i = 0; i < num_cells(1); ++i) {
-    for (int j = 0; j < num_cells(2); ++j) {
-      s = i + num_cells(1) * j; 
-      sum = 0; 
-      if (inside(s) > 0) {
-        if (i < num_cells(1) - 1) {
-          if (inside(s + 1) > 0) {
-            tpr(s, s + 1) = rate; 
-            sum += rate; 
-          }
-        }
-        if (i > 0) {
-          if (inside(s - 1) > 0) {
-            tpr(s, s - 1) = rate; 
-            sum += rate; 
-          }
-        }
-        if (j < num_cells(2) - 1) {
-          if (inside(s + num_cells(1)) > 0) {
-            tpr(s, s + num_cells(1)) = rate; 
-            sum += rate; 
-          }
-        }
-        if (j > 0) {
-          if (inside(s - num_cells(1)) > 0) {
-            tpr(s, s - num_cells(1)) = rate; 
-            sum += rate;
-          }
-        }
+  for (int s = 0; s < num_cells(0); ++s) {
+    sum = 0; 
+    for (int i = 0; i < 4; ++i) {
+      if (inside(s, i) > -0.5) {
+        tpr(s, inside(s, i)) = rate; 
+        sum += rate; 
       }
-      tpr(s, s) = -sum; 
     }
+    tpr(s, s) = -sum; 
   }
   return tpr;
 }
@@ -201,7 +178,7 @@ struct MoveLlkCalculator : public Worker {
   const Rcpp::List pr_capture; 
   const Rcpp::List tpms;
   const arma::vec num_cells; 
-  const arma::vec inside; 
+  const arma::mat inside; 
   const double dx; 
   const arma::vec dt; 
   const arma::mat sd; 
@@ -225,7 +202,7 @@ struct MoveLlkCalculator : public Worker {
                 const Rcpp::List pr_capture, 
                 const Rcpp::List tpms,
                 const arma::vec num_cells, 
-                const arma::vec inside, 
+                const arma::mat inside, 
                 const double dx, 
                 const arma::vec dt, 
                 const arma::mat sd,
@@ -308,7 +285,7 @@ double C_calc_move_llk(const int n, const int J,
                        const Rcpp::List pr_capture, 
                        const Rcpp::List tpms,
                        const arma::vec num_cells, 
-                       const arma::vec inside, 
+                       const arma::mat inside, 
                        const double dx, 
                        const arma::vec dt, 
                        const arma::mat sd, 
@@ -344,7 +321,7 @@ double C_calc_move_pdet(const int J,
                    Rcpp::List pr_captures,
                    Rcpp::List tpms,
                    const arma::vec num_cells, 
-                   const arma::vec inside, 
+                   const arma::mat inside, 
                    const double dx, 
                    const arma::vec dt,
                    const arma::mat sd, 

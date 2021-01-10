@@ -45,26 +45,20 @@ JsTransientModel <- R6Class("JsTransientModel",
     
     initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
-      if (print) cat("Creating rectangular mesh......")
-      newmesh <- rectangularMask(data$mesh())
-      map <- attributes(newmesh)$OK
-      private$dx_ <- attr(newmesh, "spacing")
-      private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
-      cov_list <- data$get_cov_list() 
-      if (!is.null(data$primary())) {
-        primary <- data$primary() 
-      } else {
-        primary <- NULL
+      private$data_ <- data
+      private$dx_ <- attr(data$mesh(), "spacing")
+      private$inside_ <- matrix(-1, nr = data$n_meshpts(), nc = 4)
+      for (m in 1:data$n_meshpts()) {
+        dis <- sqrt((data$mesh()[m, 1] - data$mesh()[,1])^2 + (data$mesh()[m, 2] - data$mesh()[, 2])^2)
+        wh <- which(dis < (1 + 1e-6) * private$dx_ & dis > 1e-16) - 1 
+        private$inside_[m, 1:length(wh)] <- as.numeric(wh) 
       }
-      private$data_ <- data$clone()
-      private$data_$replace_mesh(newmesh, map)
-      box <- attributes(newmesh)$boundingbox
+      box <- attributes(data$mesh())$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
-      private$num_cells_[1] <- nrow(newmesh)
+      private$num_cells_[1] <- data$n_meshpts()
       private$num_cells_[2] <- floor(region[1] / private$dx_)
-      private$num_cells_[3] <- nrow(newmesh) / private$num_cells_[2]
-      if (print) cat("done\n")
+      private$num_cells_[3] <- data$n_meshpts() / private$num_cells_[2]
       if (print) cat("Reading formulae.......")
       order <- c("phi", "beta", "sd", "D")
       private$read_formula(form, detectfn, statemod, order)
@@ -76,9 +70,9 @@ JsTransientModel <- R6Class("JsTransientModel",
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
       # make parameter list 
       private$make_par() 
-      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("mlogit"), list("exp"), list("exp"))
+      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("pplink"), list("exp"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
-      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("invmlogit"), list("log"), list("log"))
+      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("invpplink"), list("log"), list("log"))
       names(private$response2link_) <- c(private$detfn_$pars(), "phi", "beta", "sd", "D")
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
@@ -88,17 +82,17 @@ JsTransientModel <- R6Class("JsTransientModel",
       private$print_ = print 
     },
     
-    calc_initial_distribution = function() {
-      nstates <- private$state_$nstates()
-      a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
-      n_mesh <- private$data_$n_meshpts()
-      delta <- private$state_$delta() 
-      pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
-      a <- private$data_$cell_area()
-      D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
-      for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D
-      return(pr0)
-    },
+    # calc_initial_distribution = function() {
+    #   nstates <- private$state_$nstates()
+    #   a0 <- self$get_par("beta", k = 1, m = 1, s = 1:nstates)
+    #   n_mesh <- private$data_$n_meshpts()
+    #   delta <- private$state_$delta() 
+    #   pr0 <- matrix(c(1 - sum(a0*delta), a0*delta, 0), nrow = n_mesh, ncol = nstates + 2, byrow = TRUE)
+    #   a <- private$data_$cell_area()
+    #   D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_
+    #   for (s in 1:(nstates + 1)) pr0[,s] <- pr0[,s] * D
+    #   return(pr0)
+    # },
     
     calc_Dpdet = function() {
       # compute probability of zero capture history 
@@ -145,7 +139,7 @@ JsTransientModel <- R6Class("JsTransientModel",
                                1, 
                                1); 
       a <- private$data_$cell_area()
-      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a
       Dpdet <- sum(D) - Dpdet
       return(Dpdet)
     },
@@ -213,8 +207,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       }
       private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                            list(start$phi))
-      private$par_$beta[1] <- do.call(private$response2link_$beta,
-                                      list(c(start$beta, rep((1 - start$beta) / (self$data()$n_occasions() - 1), self$data()$n_occasions() - 1))))[1]
+      private$par_$beta[1] <- log(-log(start$beta) / sum(diff(private$data_$time())))
       private$par_$sd[1] <-do.call(private$response2link_$sd, 
                                      list(start$sd))
       private$par_$D[1] <- do.call(private$response2link_$D, 
