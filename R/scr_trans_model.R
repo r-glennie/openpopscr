@@ -52,7 +52,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       for (m in 1:data$n_meshpts()) {
         dis <- sqrt((data$mesh()[m, 1] - data$mesh()[,1])^2 + (data$mesh()[m, 2] - data$mesh()[, 2])^2)
         wh <- which(dis < (1 + 1e-6) * private$dx_ & dis > 1e-16) - 1 
-        private$inside_[m, 1:length(wh)] <- as.numeric(wh) 
+        if(length(wh) > 0) private$inside_[m, 1:length(wh)] <- as.numeric(wh) 
       }
       box <- attributes(data$mesh())$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
