@@ -75,9 +75,9 @@ JsModel <- R6Class("JsModel",
       names(private$form_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       # make parameter list 
       private$make_par() 
-      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("mlogit"), list("exp"))
+      private$link2response_ <- c(private$detfn_$link2response(), list("plogis"), list("pplink"), list("exp"))
       names(private$link2response_) <- c(private$detfn_$pars(), "phi", "beta", "D")
-      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("invmlogit"), list("log"))
+      private$response2link_ <- c(private$detfn_$response2link(), list("qlogis"), list("invpplink"), list("log"))
       names(private$response2link_) <- c(private$detfn_$pars(), "phi", "beta", "D")
       if (print) cat("done\n")
       if (print) cat("Initialising parameters.......")
@@ -297,8 +297,7 @@ JsModel <- R6Class("JsModel",
       }
       private$par_$phi[1] <- do.call(private$response2link_$phi, 
                                      list(start$phi))
-      private$par_$beta[1] <- do.call(private$response2link_$beta,
-                                      list(c(start$beta, rep((1 - start$beta) / (self$data()$n_occasions() - 1), self$data()$n_occasions() - 1))))[1]
+      private$par_$beta[1] <- log(-log(start$beta) / sum(diff(private$data_$time())))
       private$par_$D[1] <- do.call(private$response2link_$D, 
                                 list(start$D))
       # compute initial parameters for each jkm

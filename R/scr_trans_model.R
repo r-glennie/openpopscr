@@ -46,21 +46,20 @@ ScrTransientModel <- R6Class("ScrTransientModel",
     
     initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
-      if (print) cat("Creating rectangular mesh......")
-      newmesh <- rectangularMask(data$mesh())
-      map <- attributes(newmesh)$OK
-      private$dx_ <- attr(newmesh, "spacing")
-      private$inside_ <- as.numeric(pointsInPolygon(newmesh, data$mesh()))
-      cov_list <- data$get_cov_list() 
-      private$data_ <- data$clone()
-      private$data_$replace_mesh(newmesh, map)
-      box <- attributes(newmesh)$boundingbox
+      private$data_ <- data
+      private$dx_ <- attr(data$mesh(), "spacing")
+      private$inside_ <- matrix(-1, nr = data$n_meshpts(), nc = 4)
+      for (m in 1:data$n_meshpts()) {
+        dis <- sqrt((data$mesh()[m, 1] - data$mesh()[,1])^2 + (data$mesh()[m, 2] - data$mesh()[, 2])^2)
+        wh <- which(dis < (1 + 1e-6) * private$dx_ & dis > 1e-16) - 1 
+        private$inside_[m, 1:length(wh)] <- as.numeric(wh) 
+      }
+      box <- attributes(data$mesh())$boundingbox
       region <- c(diff(box[1:2, 1]), diff(box[c(1, 3), 2]))
       private$num_cells_ <- numeric(3)
-      private$num_cells_[1] <- nrow(newmesh)
+      private$num_cells_[1] <- data$n_meshpts()
       private$num_cells_[2] <- floor(region[1] / private$dx_)
-      private$num_cells_[3] <- nrow(newmesh) / private$num_cells_[2]
-      if (print) cat("done\n")
+      private$num_cells_[3] <- data$n_meshpts() / private$num_cells_[2]
       if (print) cat("Reading formulae.......")
       order <- c("sd", "D")
       private$read_formula(form, detectfn, statemod, order)
@@ -82,16 +81,16 @@ ScrTransientModel <- R6Class("ScrTransientModel",
       private$print_ = print 
     },
     
-    calc_initial_distribution = function() {
-      n_mesh <- private$data_$n_meshpts()
-      nstates <- private$state_$nstates()
-      delta <- private$state_$delta() 
-      pr0 <- matrix(delta, nrow = n_mesh, ncol = nstates, byrow = TRUE)
-      a <- private$data_$cell_area() 
-      D <- self$get_par("D", m = 1:n_mesh) * a * private$inside_ 
-      pr0 <- pr0 * D
-      return(pr0)
-    },
+    # calc_initial_distribution = function() {
+    #   n_mesh <- private$data_$n_meshpts()
+    #   nstates <- private$state_$nstates()
+    #   delta <- private$state_$delta() 
+    #   pr0 <- matrix(delta, nrow = n_mesh, ncol = nstates, byrow = TRUE)
+    #   a <- private$data_$cell_area() 
+    #   D <- self$get_par("D", m = 1:n_mesh) * a 
+    #   pr0 <- pr0 * D
+    #   return(pr0)
+    # },
     
     calc_Dpdet = function() {
       # compute probability of zero capture history 
@@ -123,7 +122,7 @@ ScrTransientModel <- R6Class("ScrTransientModel",
                                0, 
                                0); 
       a <- private$data_$cell_area() 
-      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a * private$inside_
+      D <- self$get_par("D", m = 1:private$data_$n_meshpts()) * a
       Dpdet <- sum(D) - Dpdet 
       return(Dpdet)
     },

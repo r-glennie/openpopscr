@@ -679,9 +679,11 @@ ScrModel <- R6Class("ScrModel",
                            "kconms" = private$state_$nstates(), "p1ms" = private$state_$nstates(), 
                            "pconms" = private$state_$nstates())
         }
+        args <- list(array(private$X_[[par]] %*% private$par_[[par]], 
+                           dim = dim))
+        if (private$par_type_[par] == "pconms") args <- c(args, list(dt = diff(private$data_$time())))
         private$computed_par_[[par]] <- do.call(private$link2response_[[par]],
-                                                list(array(private$X_[[par]] %*% private$par_[[par]], 
-                                                     dim = dim)))
+                                                args)
       }
       names(private$computed_par_) <- names(private$form_)
       private$enc_ <- self$calc_encrate()
