@@ -371,7 +371,8 @@ ScrModel <- R6Class("ScrModel",
       t0 <- Sys.time()
       if (private$print_) cat("Fitting model..........\n")
       #if (is.null(nlm.args)) nlm.args <- list(stepmax = 10)
-      args <- c(list(private$calc_negllk, w_par, names = names(w_par), hessian = TRUE), nlm.args)
+      args <- c(list(private$calc_negllk, w_par, names = names(w_par)), nlm.args)
+      if (!("hessian" %in% names(nlm.args))) args$hessian <- TRUE
       mod <- do.call(nlm, args)
       t1 <- Sys.time()
       difft <- t1 - t0 
@@ -383,7 +384,11 @@ ScrModel <- R6Class("ScrModel",
       mle <- mod$estimate
       names(mle) <- names(w_par)
       llk <- -mod$minimum
-      V <- solve(mod$hessian)
+      if (args$hessian) {
+        V <- solve(mod$hessian)
+      } else {
+        V <- diag(length(mle))
+      }
       if (private$print_) cat("done\n")
       self$set_mle(mle, V, llk)
       return(invisible())
