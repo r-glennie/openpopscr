@@ -563,6 +563,17 @@ ScrModel <- R6Class("ScrModel",
           tempdatpm[[covnms[i]]] <- samp_cov_pm[[i]][primm[,1]]
         } else if (k == 7) {
           tempdatpm[[covnms[i]]] <- as.vector(samp_cov_pm[[i]])
+        } 
+        if (prim_is_occ) {
+          if (k == 6) {
+            tempdatkm[[covnms[i]]] <- samp_cov_pm[[i]][primm[,1]]
+          } else if (k == 7) {
+            tempdatkm[[covnms[i]]] <- as.vector(samp_cov_pm[[i]])
+          } else if (k == 1) {
+            tempdatpm[[covnms[i]]] <- samp_cov_km[[i]][occm[,k]]
+          } else if (k == 5) {
+            tempdatpm[[covnms[i]]] <- as.vector(samp_cov_km[[i]])
+          }
         }
       }
       tempdatjk <- as.data.frame(tempdatjk)
