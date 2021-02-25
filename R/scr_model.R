@@ -543,6 +543,7 @@ ScrModel <- R6Class("ScrModel",
       covs <- covslst$cov_type
       tempdatjk <- tempdatkm <- tempdatm <- tempdatpm <- NULL
       covnms <- names(covslst$cov)
+      prim_is_occ <- (private$data_$n_occasions("all") == private$data_$n_occasions())
       for (i in 1:length(covs)) {
         if (covs[i] %in% c("i", "ik")) next 
         k <- switch(covs[i], "k" = 1, "j" = 2, "m" = 3, 
