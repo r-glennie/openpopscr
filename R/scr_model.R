@@ -176,8 +176,10 @@ ScrModel <- R6Class("ScrModel",
       }
       est <- predicterfn(old_par) 
       if (se) {
+        state_par <- (length(old_par) + 1):(length(old_par) + length(self$state()$par()))
+        Vpar <- private$V_[-state_par, -state_par]
         g <- jacobian(predicterfn, old_par)
-        V <- g %*% private$V_ %*% t(g) 
+        V <- g %*% Vpar %*% t(g) 
         sds <- sqrt(diag(V))
         z <- qnorm(1 - (1 - alpha) / 2)
         lcl <- est - z * sds
