@@ -176,11 +176,16 @@ struct BetaCalculator : public Worker {
       double sum_pr; 
       arma::cube prcap; 
       lbeta(i).slice(J - 1).zeros(); 
-      for (int j =  J - 2; j > entry(i) - 1; --j) {
-        pr %= pr_cap[i].slice(j + 1);
+      pr %= pr_cap[i].slice(J - 1);
+      lbeta(i).slice(J - 2) = log(pr) + llk; 
+      sum_pr = accu(pr); 
+      pr /= sum_pr; 
+      llk += log(sum_pr); 
+      for (int j =  J - 3; j > entry(i) - 1; --j) {
         if (num_states > 1) { 
-          pr *= tpm[j]; 
+          pr *= tpm[j + 1]; 
         }
+        pr %= pr_cap[i].slice(j + 1);
         lbeta(i).slice(j) = log(pr) + llk; 
         sum_pr = accu(pr); 
         pr /= sum_pr; 
