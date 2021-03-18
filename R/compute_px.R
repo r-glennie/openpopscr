@@ -8,7 +8,7 @@
 #' @export
 compute_px <- function(mod) {
   # check model type
-  if (!(class(oo)[1] %in% c("JsModel", "ScrModel"))) stop("compute_px only works for JsModel and ScrModel types")
+  if (!(class(mod)[1] %in% c("JsModel", "ScrModel"))) stop("compute_px only works for JsModel and ScrModel types")
   # initial distribution 
   pr0 <- mod$calc_initial_distribution()
   # compute probability of capture histories 
