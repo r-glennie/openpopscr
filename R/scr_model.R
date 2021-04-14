@@ -176,8 +176,12 @@ ScrModel <- R6Class("ScrModel",
       }
       est <- predicterfn(old_par) 
       if (se) {
-        state_par <- (length(old_par) + 1):(length(old_par) + length(self$state()$par()))
-        Vpar <- private$V_[-state_par, -state_par]
+        if (length(self$state()$par()) > 0) {
+          state_par <- (length(old_par) + 1):(length(old_par) + length(self$state()$par()))
+          Vpar <- private$V_[-state_par, -state_par]
+        } else {
+          Vpar <- private$V_
+        }
         g <- jacobian(predicterfn, old_par)
         V <- g %*% Vpar %*% t(g) 
         sds <- sqrt(diag(V))
@@ -186,18 +190,25 @@ ScrModel <- R6Class("ScrModel",
         ucl <- est + z * sds
       }
       if (type == "response") {
+        args <- list(1)
+        if (private$par_type_[ipar] == "pconms") args <- c(args, list(dt = diff(private$data_$time())))
         if (se) {
-          if (private$link2response_[[ipar]] != "mlogit") {
-            lcl <- as.vector(do.call(private$link2response_[[ipar]], list(lcl)))
-            ucl <- as.vector(do.call(private$link2response_[[ipar]], list(ucl)))
+          if (!(private$link2response_[[ipar]] %in% c("mlogit", "pplink"))) {
+            args[[1]] <- lcl
+            lcl <- as.vector(do.call(private$link2response_[[ipar]], args))
+            args[[1]] <- ucl 
+            ucl <- as.vector(do.call(private$link2response_[[ipar]], args))
+            args[[1]] <- est 
+            est <- as.vector(do.call(private$link2response_[[ipar]], args))
           } else {
             sims <- t(rmvn(nsims, est[,1], V))
-            sims <- do.call(private$link2response_[[ipar]], list(sims))
+            args[[1]] <- sims 
+            sims <- do.call(private$link2response_[[ipar]], args)
             lcl <- apply(sims, 1, FUN = function(x) {quantile(x, prob = (1 - alpha)/2)})
             ucl <- apply(sims, 1, FUN = function(x) {quantile(x, prob = 1 - (1 - alpha)/2)})
+            est <- rowMeans(sims)
           }
         }
-        est <- as.vector(do.call(private$link2response_[[ipar]], list(est)))
       }
       res <- est
       if(se) res <- data.frame(est = est, lcl = lcl, ucl = ucl)
