@@ -44,6 +44,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
     initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
+      private$start_ <- start 
       private$dx_ <- attr(data$mesh(), "spacing")
       private$inside_ <- matrix(-1, nr = data$n_meshpts(), nc = 4)
       for (m in 1:data$n_meshpts()) {
@@ -85,16 +86,6 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       private$print_ = print
     },
     
-    calc_initial_distribution = function() {
-      n_mesh <- private$data_$n_meshpts()
-      nstates <- private$state_$nstates()
-      delta <- private$state_$delta() 
-      pr0 <- matrix(c(delta, 0), nrow = n_mesh, ncol = nstates + 1, byrow = TRUE)
-      for (s in 1:nstates) pr0[, s] <- pr0[, s] * private$inside_ 
-      pr0 <- pr0 / sum(private$inside_)
-      return(pr0)
-    },
-    
     calc_llk = function(param = NULL, names = NULL) {
       if (!is.null(names)) names(param) <- names 
       if (!is.null(param)) {
@@ -123,6 +114,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
       dt <- diff(self$data()$time())
       sd <- self$get_par("sd", s = 1:self$state()$nstates())
       sd[is.na(sd)] <- -10
+      if (any(sd > 10 * private$start_$sd)) return(-Inf)
       llk <- C_calc_move_llk(n, 
                              n_occasions,
                              pr0, 
@@ -149,6 +141,7 @@ CjsTransientModel <- R6Class("CjsTransientModel",
 		dx_ = NULL, 
 		inside_ = NULL,
 		num_cells_ = NULL,
+		start_ = NULL, 
     
     initialise_par = function(start) {
       n_det_par <- private$detfn_$npars()

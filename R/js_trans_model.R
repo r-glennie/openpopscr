@@ -46,6 +46,7 @@ JsTransientModel <- R6Class("JsTransientModel",
     initialize = function(form, data, start, detectfn = NULL, statemod = NULL, print = TRUE) {
       private$check_input(form, data, start, detectfn, print)
       private$data_ <- data
+      private$start_ <- start 
       private$dx_ <- attr(data$mesh(), "spacing")
       private$inside_ <- matrix(-1, nr = data$n_meshpts(), nc = 4)
       for (m in 1:data$n_meshpts()) {
@@ -171,6 +172,7 @@ JsTransientModel <- R6Class("JsTransientModel",
       dt <- diff(self$data()$time())
       sd <- as.matrix(self$get_par("sd", s = 1:self$state()$nstates(), m = 1))
       sd[is.na(sd)] <- -10
+      if (any(sd > 10 * private$start_$sd)) return(-Inf)
       llk <- C_calc_move_llk(n, 
                              n_occasions,
                              pr0, 
@@ -197,6 +199,7 @@ JsTransientModel <- R6Class("JsTransientModel",
     dx_ = NULL, 
     inside_ = NULL,
     num_cells_ = NULL,
+    start_ = NULL, 
     
     initialise_par = function(start) {
       n_det_par <- private$detfn_$npars()
