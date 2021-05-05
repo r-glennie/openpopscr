@@ -313,6 +313,7 @@ JsModel <- R6Class("JsModel",
       grpnms <- self$state()$groupnms()
       if ("dead" %in% grpnms) stop("Cannot have a state variable named 'dead'. This is a reserved word.")
       grps <- self$state()$groups()
+      alive_states <- 2:(nstates - 1)
       if ("i" %in% covtypes |  "ik" %in% covtypes) {
         wh <- min(which(covtypes %in% c("i", "ik")))
         cov <- private$data_$get_cov_list()$cov[[wh]]
@@ -323,7 +324,7 @@ JsModel <- R6Class("JsModel",
             for (g in 1:length(grpnms)) {
               if (grpnms[g] %in% names(s)) {
                 occu <- grps[,g] %in% s[[grpnms[[g]]]]
-                if (any(occu)) kstates[i, k, !occu] <- -1
+                if (any(occu)) kstates[i, k, alive_states][!occu] <- -1
               }
             }
           }
