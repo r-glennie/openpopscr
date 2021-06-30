@@ -7,7 +7,7 @@ Maintainer: Richard Glennie <rg374@st-andrews.ac.uk>
 Date: 2019-09-10
 Description: Fits spatial capture-recapture models by maximum likelihood with transience and open populations. 
 License: MIT + file LICENSE
-Depends: R(>= 3.5.0)
+Depends: R(>= 3.5.0), rmarkdown
 Imports: Rcpp (>= 0.12.10), RcppParallel, R6, secr, numDeriv, expm, mgcv, markovchain, viridisLite, ggplot2
 LinkingTo: Rcpp, RcppArmadillo, RcppParallel
 SystemRequirements: GNU make
