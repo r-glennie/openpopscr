@@ -71,6 +71,7 @@ arma::vec ExpG(const arma::vec& v_in,
   int k1 = 1;
   double xm = 1 / m;
   double normv = norm(v);
+  if (normv < 1e-16) return v_in; 
   double avnorm;
   double beta = normv;
   double fact = std::pow((m + 1) / std::exp(1), m + 1) * std::sqrt(2 * M_PI * (m + 1));
