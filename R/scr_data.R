@@ -176,7 +176,8 @@ ScrData <- R6Class("ScrData",
           name <- ""
         }
         if (is.factor(var)) nbreaks <- nlevels(var)
-        mesh$fvar <- cut(as.numeric(var), breaks = nbreaks)
+        fvar <- cut(as.numeric(var), breaks = nbreaks)
+        mesh$fvar <- fvar
       }
       if (is.factor(var)) {
         plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = fvar), ...) + 
