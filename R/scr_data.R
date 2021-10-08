@@ -176,15 +176,13 @@ ScrData <- R6Class("ScrData",
           name <- ""
         }
         if (is.factor(var)) nbreaks <- nlevels(var)
-        collist <- viridis(nbreaks)
-        fvar <- cut(as.numeric(var), breaks = nbreaks)
-        meshdat$cols <- collist[fvar] 
+        mesh$fvar <- cut(as.numeric(var), breaks = nbreaks)
       }
       if (is.factor(var)) {
-        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = cols), ...) + 
+        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = fvar), ...) + 
           scale_color_viridis_d("Legend", labels = levels(var)) 
       } else if (!is.null(var)) {
-        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = cols), ...) + 
+        plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y, col = fvar), ...) + 
           scale_color_viridis_d("Value", labels = levels(fvar)) 
       } else {
         plt <- ggplot(meshdat) + geom_point(aes(x = x, y = y), col = "grey", ...) +
